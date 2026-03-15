@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtPositioning
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -55,9 +56,67 @@ PanelWindow {
     }
 
     function refreshCache() {
-        _geoRaw = ""
+        if (_geoSourceSystem) {
+            _positionSource.update()
+        } else {
+            _geoRaw = ""
+            _weatherRaw = ""
+            geoProc.running = true
+        }
+    }
+
+    PositionSource {
+        id: _positionSource
+        active: true
+        preferredPositioningMethods: PositionSource.AllPositioningMethods
+        updateInterval: 3600000
+
+        onPositionChanged: {
+            var pos = _positionSource.position
+            if (pos.coordinate.latitude !== 0 && pos.coordinate.longitude !== 0) {
+                root._lat = pos.coordinate.latitude
+                root._lon = pos.coordinate.longitude
+                root._geoSourceSystem = true
+                root.cityName = "Ubicación actual"
+                root._cachedCityName = "Ubicación actual"
+                _fetchWeather()
+            }
+        }
+
+        onSourceErrorChanged: {
+            console.log("WeatherModal PositionSource error:", sourceError)
+            _geoRaw = ""
+            _weatherRaw = ""
+            geoProc.running = true
+        }
+    }
+
+    function _fetchWeather() {
         _weatherRaw = ""
-        geoProc.running = true
+        weatherProc.command = [
+            "sh", "-c",
+            "curl -s --max-time 10 'https://api.open-meteo.com/v1/forecast" +
+            "?latitude="  + root._lat +
+            "&longitude=" + root._lon +
+            "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day" +
+            "&hourly=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,surface_pressure,relative_humidity_2m,visibility,precipitation_probability,is_day" +
+            "&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset" +
+            "&forecast_days=7&wind_speed_unit=kmh&temperature_unit=celsius&timezone=auto'"
+        ]
+        weatherProc.running = true
+    }
+
+    Timer {
+        interval: 8000
+        running: true
+        repeat: false
+        onTriggered: {
+            if (root._lat === 0 && root._lon === 0) {
+                root._geoRaw = ""
+                root._weatherRaw = ""
+                geoProc.running = true
+            }
+        }
     }
 
     function _loadCachedData() {
@@ -631,19 +690,7 @@ PanelWindow {
                 var city = j.city || j.regionName || j.country || "Desconocido"
                 root.cityName = city
                 root._cachedCityName = city
-                root._geoRaw  = ""
-                root._weatherRaw = ""
-                weatherProc.command = [
-                    "sh", "-c",
-                    "curl -s --max-time 10 'https://api.open-meteo.com/v1/forecast" +
-                    "?latitude="  + root._lat +
-                    "&longitude=" + root._lon +
-                    "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day" +
-                    "&hourly=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,surface_pressure,relative_humidity_2m,visibility,precipitation_probability,is_day" +
-                    "&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset" +
-                    "&forecast_days=7&wind_speed_unit=kmh&temperature_unit=celsius&timezone=auto'"
-                ]
-                weatherProc.running = true
+                _fetchWeather()
             } catch(e) {
                 root.cityName = "Error geo"; root.loading = false
             }
