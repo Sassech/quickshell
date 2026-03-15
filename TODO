@@ -1,0 +1,11 @@
+- Panel de notas
+- Arreglar el overview
+
+- Cheat sheet
+- app que deben instalarse, como pueden ser clipboard manager, app de wallpapers, etc
+
+- hacer que el widget del clima desplegable haga un prefetch de la información para que al abrirlo ya tenga los datos cargados
+
+--- Como puedo obtener una ubicacion mas precisa para el clima, ya que con la ubicación actual no es muy precisa
+
+- Revisar si se puede hacer un backend general para los widgets que se encargue de obtener la información necesaria para cada widget, como el clima, la ram, etc, para que los widgets solo se encarguen de mostrar la información y no de obtenerla, esto para mejorar el rendimiento y evitar que los widgets tengan que hacer consultas constantes a diferentes APIs, .py, .sh, etc para obtener la información necesaria, lo cual puede ser costoso en términos de rendimiento.

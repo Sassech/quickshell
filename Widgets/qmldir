@@ -1,0 +1,23 @@
+WorkspaceButton 1.0 WorkspaceButton.qml
+PowerButton 1.0 PowerButton.qml
+Clock 1.0 Clock.qml
+MediaPlayer 1.0 MediaPlayer.qml
+CavaVisualizer 1.0 CavaVisualizer.qml
+Weather 1.0 Weather.qml
+IdleInhibitor 1.0 IdleInhibitor.qml
+Battery 1.0 Battery.qml
+CpuWidget 1.0 CpuWidget.qml
+DiskWidget 1.0 DiskWidget.qml
+GpuWidget 1.0 GpuWidget.qml
+ClipboardWidget 1.0 ClipboardWidget.qml
+LanguageWidget 1.0 LanguageWidget.qml
+WifiWidget 1.0 WifiWidget.qml
+BluetoothWidget 1.0 BluetoothWidget.qml
+AudioWidget 1.0 AudioWidget.qml
+NetWidget 1.0 NetWidget.qml
+SystemTrayWidget 1.0 SystemTrayWidget.qml
+TrayIcon 1.0 TrayIcon.qml
+MinimizedAppIcon 1.0 MinimizedAppIcon.qml
+
+TrayAppManager 1.0 TrayAppManager.qml
+RamWidget 1.0 RamWidget.qml

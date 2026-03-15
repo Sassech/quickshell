@@ -1,0 +1,58 @@
+# Shell
+quickshell
+
+# Wallpaper
+swww
+swaybg
+matugen
+
+# Audio / Media
+pactl
+wpctl
+pw-dump
+mpdris2
+cava
+
+# Bluetooth
+bluez
+
+# Screenshot / Clipboard
+grim
+slurp
+wl-clipboard
+cliphist
+magick
+
+# Notifications
+mako
+libnotify
+
+# System stats
+dgop
+iproute2
+
+# Brightness
+brightnessctl
+
+
+# Network / Weather
+curl
+
+# File search / Launcher
+fd                      # find alternative
+xdg-utils
+
+# Hyprland
+hyprctl
+
+# Locale
+localectl
+
+# Scripting
+python3
+awk
+pkill
+pgrep
+nohup
+bash
+coreutils

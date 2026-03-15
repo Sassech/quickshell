@@ -1,0 +1,6 @@
+{
+	"chat.tools.terminal.autoApprove": {
+		"wpctl": true,
+		"pactl": true
+	}
+}

@@ -1,0 +1,345 @@
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import Quickshell
+import Quickshell.Io
+import Quickshell.Wayland
+import "../Components"
+
+PanelWindow {
+    id: root
+
+    visible: false
+    color: "transparent"
+
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+
+    anchors.top: true
+    anchors.bottom: true
+    anchors.left: true
+    anchors.right: true
+
+    // ── Data ─────────────────────────────────────────────
+    property var  allEntries:  []
+    property int  entryCount:  0
+
+    signal countChanged(int n)
+
+    onVisibleChanged: {
+        if (visible) {
+            searchField.text = ""
+            updateDisplay()   // muestra datos cacheados inmediatamente
+            loadEntries()     // refresca en segundo plano
+        }
+    }
+
+    // Pre-carga al inicio y mantiene datos frescos
+    Component.onCompleted: loadEntries()
+    Timer {
+        interval: 60000
+        running: true; repeat: true
+        onTriggered: if (!root.visible) loadEntries()
+    }
+
+    property string _listBuf: ""
+    property bool   _loading: false
+
+    function loadEntries() {
+        if (_loading) return
+        _loading = true
+        _listBuf = ""
+        listProc.running = true
+    }
+
+    function updateDisplay() {
+        var q = searchField.text.toLowerCase()
+        displayModel.clear()
+        var src = q ? allEntries.filter(function(e) {
+            return e.preview.toLowerCase().indexOf(q) >= 0
+        }) : allEntries
+        for (var i = 0; i < src.length; i++) displayModel.append(src[i])
+    }
+
+    // ── Carga la lista ────────────────────────────────────
+    Process {
+        id: listProc
+        command: ["bash", "/home/sassech/.config/quickshell/scripts/clipboard-list.sh"]
+        stdout: SplitParser {
+            splitMarker: ""
+            onRead: data => root._listBuf += data
+        }
+        onExited: {
+            try {
+                root.allEntries = JSON.parse(root._listBuf)
+            } catch(e) { root.allEntries = [] }
+            root._loading = false
+            root.entryCount = root.allEntries.length
+            root.countChanged(root.entryCount)
+            root.updateDisplay()
+        }
+    }
+
+    // ── Copia al portapapeles ─────────────────────────────
+    Process {
+        id: copyProc
+        property string pendingId: ""
+        command: ["bash", "/home/sassech/.config/quickshell/scripts/clipboard-copy.sh", pendingId]
+        onExited: {
+            // Pequeño delay para asegurar que wl-copy termine antes de cerrar
+            Qt.callLater(function() { root.visible = false })
+        }
+    }
+
+    // ── Limpia todo ───────────────────────────────────────
+    Process {
+        id: wipeProc
+        command: ["bash", "-c", "cliphist wipe 2>/dev/null"]
+        onExited: root.loadEntries()
+    }
+
+    ListModel { id: displayModel }
+
+    // ── UI ────────────────────────────────────────────────
+    // Overlay: click fuera cierra
+    MouseArea {
+        anchors.fill: parent
+        onClicked: root.visible = false
+    }
+
+    Rectangle {
+        id: card
+        anchors.centerIn: parent
+        width: 580
+        height: Math.min(520, root.height * 0.65)
+        radius: 14
+        color: Theme.base
+        border.color: Theme.surface2
+        border.width: 1
+        clip: true
+
+        // Top accent stripe
+        Rectangle {
+            width: parent.width; height: 3; radius: 2
+            anchors.top: parent.top
+            color: Theme.accent2
+            Rectangle { width: parent.width/2; height: parent.height; anchors.right: parent.right; color: Theme.accent }
+        }
+
+        // Consume clicks (no cerrar al hacer click dentro del card)
+        MouseArea { anchors.fill: parent; onClicked: {} }
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 16
+            anchors.topMargin: 20
+            spacing: 10
+
+            // ── Header ───────────────────────────────────
+            RowLayout {
+                spacing: 8
+                Layout.fillWidth: true
+
+                Text {
+                    text: "󱉫"
+                    font.pixelSize: 18
+                    color: Theme.accent2
+                }
+                Text {
+                    text: "Historial del portapapeles"
+                    font.pixelSize: 14
+                    font.weight: Font.DemiBold
+                    color: Theme.text
+                }
+                Text {
+                    text: "(" + displayModel.count + ")"
+                    font.pixelSize: 13
+                    color: Theme.muted3
+                }
+
+                Item { Layout.fillWidth: true }
+
+                // Limpiar todo
+                Rectangle {
+                    width: 28; height: 28; radius: 8
+                    color: wipeMa.containsMouse ? Theme.error : Theme.warning
+                    opacity: wipeMa.containsMouse ? 1.0 : 0.7
+                    Behavior on color { ColorAnimation { duration: 120 } }
+                    Behavior on opacity { NumberAnimation { duration: 120 } }
+                    Text {
+                        anchors.centerIn: parent
+                        text: "󱃦"
+                        font.pixelSize: 14
+                        color: wipeMa.containsMouse ? Theme.base : Theme.text
+                    }
+                    MouseArea {
+                        id: wipeMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: wipeProc.running = true
+                    }
+                }
+            }
+
+            // ── Buscador ──────────────────────────────────
+            Rectangle {
+                Layout.fillWidth: true
+                height: 36
+                radius: 10
+                color: Theme.base
+                border.color: searchField.activeFocus ? Theme.accent2 : Theme.surface2
+                border.width: 1
+                Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                Row {
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.left: parent.left
+                    anchors.leftMargin: 10
+                    spacing: 8
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "󰍉"
+                        font.pixelSize: 14
+                        color: Theme.muted3
+                    }
+
+                    TextInput {
+                        id: searchField
+                        width: card.width - 80
+                        anchors.verticalCenter: parent.verticalCenter
+                        font.pixelSize: 13
+                        color: Theme.text
+                        selectionColor: Theme.accent
+                        selectedTextColor: Theme.text
+
+                        Text {
+                            anchors.fill: parent
+                            text: "Buscar..."
+                            font.pixelSize: 13
+                            color: Theme.surface3
+                            visible: !parent.text && !parent.activeFocus
+                        }
+
+                        onTextChanged: root.updateDisplay()
+                    }
+                }
+            }
+
+            // ── Lista ─────────────────────────────────────
+            Item {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+
+                // Empty state
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 8
+                    visible: displayModel.count === 0
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: "󰆏"
+                        font.pixelSize: 32
+                        color: Theme.surface2
+                    }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: searchField.text ? "Sin resultados" : "No hay entradas en el portapapeles"
+                        font.pixelSize: 12
+                        color: Theme.surface3
+                    }
+                }
+
+                ListView {
+                    id: listView
+                    anchors.fill: parent
+                    model: displayModel
+                    spacing: 2
+                    clip: true
+                    ScrollBar.vertical: ScrollBar {
+                        policy: ScrollBar.AsNeeded
+                        contentItem: Rectangle {
+                            implicitWidth: 4
+                            radius: 2
+                            color: Theme.surface3
+                        }
+                    }
+
+                    delegate: Rectangle {
+                        id: row
+                        width: listView.width - 8
+                        height: hasThumb ? 84 : 40
+                        radius: 8
+                        color: rowMa.containsMouse ? Theme.surface2 : "transparent"
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                        clip: true
+
+                        required property var model
+                        required property int index
+
+                        property bool hasThumb: row.model.thumb !== undefined && row.model.thumb !== ""
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 6
+                            anchors.topMargin: hasThumb ? 6 : 0
+                            anchors.bottomMargin: hasThumb ? 6 : 0
+                            spacing: 8
+
+                            // Thumbnail de imagen
+                            Image {
+                                visible: row.hasThumb
+                                source: row.hasThumb ? ("file://" + row.model.thumb) : ""
+                                width: 72; height: 72
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                cache: true
+                                Layout.preferredWidth: 72
+                                Layout.preferredHeight: 72
+                                Rectangle {
+                                    anchors.fill: parent
+                                    color: "transparent"
+                                    border.color: Theme.surface3
+                                    border.width: 1
+                                    radius: 4
+                                }
+                            }
+
+                            // Icono de tipo (solo para texto)
+                            Text {
+                                visible: !row.hasThumb
+                                text: row.model.isBinary ? "󰋼" : "󰆏"
+                                font.pixelSize: 13
+                                color: row.model.isBinary ? Theme.sky : Theme.muted3
+                                Layout.preferredWidth: 16
+                            }
+
+                            // Preview / dimensiones
+                            Text {
+                                Layout.fillWidth: true
+                                text: row.model.preview
+                                font.pixelSize: row.hasThumb ? 10 : 12
+                                color: row.model.isBinary ? Theme.muted3 : Theme.text
+                                elide: Text.ElideRight
+                                font.italic: row.model.isBinary && !row.hasThumb
+                            }
+                        }
+
+                        MouseArea {
+                            id: rowMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                copyProc.pendingId = row.model.id
+                                copyProc.running = true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
