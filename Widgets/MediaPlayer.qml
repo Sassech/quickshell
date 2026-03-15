@@ -49,6 +49,11 @@ Row {
 
     visible: true
 
+    Item {
+        width: 1
+        height: 1
+    }
+
     // ── Fade al cambiar de canción ─────────────────────────────────────────
     onMediaInfoChanged: songChangeAnim.restart()
 
@@ -72,6 +77,11 @@ Row {
 
     CavaVisualizer {
         isPlaying: root.isPlaying
+    }
+
+    Item {
+        width: 1
+        height: 1
     }
 
     // ── Contenedor de texto con scroll ────────────────────────────────────
