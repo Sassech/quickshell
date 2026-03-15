@@ -1,4 +1,5 @@
 import QtQuick
+import QtPositioning
 import Quickshell
 import Quickshell.Io
 import "../Components"
@@ -31,6 +32,64 @@ Rectangle {
     property double _lon: 0
     property string _geoRaw: ""
     property string _weatherRaw: ""
+    property bool _geoSourceSystem: false
+
+    // ── PositionSource (Qt Positioning / GeoClue2) ───────────────────────────
+    PositionSource {
+        id: positionSource
+        active: true
+        preferredPositioningMethods: PositionSource.AllPositioningMethods
+        updateInterval: 3600000 // 1 hour - we only need it once at startup
+
+        onPositionChanged: {
+            var pos = positionSource.position
+            if (pos.coordinate.latitude !== 0 && pos.coordinate.longitude !== 0) {
+                root._lat = pos.coordinate.latitude
+                root._lon = pos.coordinate.longitude
+                root._geoSourceSystem = true
+                root.cityName = "Ubicación actual"
+                fetchWeather()
+            }
+        }
+
+        onSourceErrorChanged: {
+            console.log("PositionSource error:", sourceError, "- falling back to IP")
+            fallbackToIpGeo()
+        }
+    }
+
+    Timer {
+        interval: 8000 // Wait 8 seconds for system position, then fallback
+        running: true
+        repeat: false
+        onTriggered: {
+            if (root._lat === 0 && root._lon === 0) {
+                fallbackToIpGeo()
+            }
+        }
+    }
+
+    function fallbackToIpGeo() {
+        if (root._lat !== 0) return // Already have position
+        root._geoRaw = ""
+        root._weatherRaw = ""
+        geoProcess.running = true
+    }
+
+    function fetchWeather() {
+        root._weatherRaw = ""
+        weatherProcess.command = [
+            "sh", "-c",
+            "curl -s --max-time 8 'https://api.open-meteo.com/v1/forecast" +
+            "?latitude="  + root._lat +
+            "&longitude=" + root._lon +
+            "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day" +
+            "&hourly=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,surface_pressure,relative_humidity_2m,visibility,precipitation_probability,is_day" +
+            "&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset" +
+            "&forecast_days=7&wind_speed_unit=kmh&temperature_unit=celsius&timezone=auto'"
+        ]
+        weatherProcess.running = true
+    }
 
     signal clicked()
 
@@ -73,11 +132,11 @@ Rectangle {
         onClicked: root.clicked()
     }
 
-    // ── 1. Obtener geolocalización por IP ─────────────────────────────────
+    // ── 1. Obtener geolocalización por IP (fallback) ────────────────────────
     Process {
         id: geoProcess
         command: ["sh", "-c", "curl -s --max-time 6 'http://ip-api.com/json/'"]
-        running: true
+        running: false
 
         stdout: SplitParser {
             splitMarker: ""
@@ -102,19 +161,7 @@ Rectangle {
                 root._lat      = parseFloat(j.lat)
                 root._lon      = parseFloat(j.lon)
                 root.cityName  = j.city || j.regionName || j.country || "Desconocido"
-                root._geoRaw     = ""
-                root._weatherRaw = ""
-                weatherProcess.command = [
-                    "sh", "-c",
-                    "curl -s --max-time 8 'https://api.open-meteo.com/v1/forecast" +
-                    "?latitude="  + root._lat +
-                    "&longitude=" + root._lon +
-                    "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day" +
-                    "&hourly=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,surface_pressure,relative_humidity_2m,visibility,precipitation_probability,is_day" +
-                    "&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset" +
-                    "&forecast_days=7&wind_speed_unit=kmh&temperature_unit=celsius&timezone=auto'"
-                ]
-                weatherProcess.running = true
+                fetchWeather()
             } catch(e) {
                 root.description = "Error geo"
                 retryTimer.start()
@@ -219,9 +266,13 @@ Rectangle {
         interval: 30000
         repeat: false
         onTriggered: {
-            root._geoRaw     = ""
-            root._weatherRaw = ""
-            geoProcess.running = true
+            if (root._geoSourceSystem) {
+                positionSource.update()
+            } else {
+                root._geoRaw     = ""
+                root._weatherRaw = ""
+                geoProcess.running = true
+            }
         }
     }
 
@@ -230,9 +281,13 @@ Rectangle {
         running:  true
         repeat:   true
         onTriggered: {
-            root._geoRaw      = ""
-            root._weatherRaw  = ""
-            geoProcess.running = true
+            if (root._geoSourceSystem) {
+                positionSource.update()
+            } else {
+                root._geoRaw      = ""
+                root._weatherRaw  = ""
+                geoProcess.running = true
+            }
         }
     }
 

@@ -110,5 +110,40 @@ fi
 ok "Servicio mpDris2 habilitado e iniciado (Restart=always)."
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 3. Geoclue2 — permisos de ubicación para el clima
+# ─────────────────────────────────────────────────────────────────────────────
+echo ""
+echo "▶ Configurando geoclue2 para ubicación del clima..."
+
+GEOCLUE_CONF_DIR="/etc/geoclue/conf.d"
+GEOCLUE_CONF="$GEOCLUE_CONF_DIR/quickshell.conf"
+
+if [ -d "$GEOCLUE_CONF_DIR" ]; then
+    if [ ! -f "$GEOCLUE_CONF" ]; then
+        echo "[quickshell]
+enable=true" | sudo tee "$GEOCLUE_CONF" > /dev/null
+        ok "Configuración de geoclue2 creada en $GEOCLUE_CONF"
+    else
+        ok "Configuración de geoclue2 ya existe."
+    fi
+    
+    # Configurar beaconDB como proveedor de ubicación (más preciso que Google)
+    BEACONDB_CONF="$GEOCLUE_CONF_DIR/99-beacondb.conf"
+    if [ ! -f "$BEACONDB_CONF" ]; then
+        echo "[wifi]
+enable=true
+url=https://api.beacondb.net/v1/geolocate" | sudo tee "$BEACONDB_CONF" > /dev/null
+        ok "Configuración beaconDB creada en $BEACONDB_CONF"
+    else
+        ok "Configuración beaconDB ya existe."
+    fi
+    
+    sudo systemctl try-restart geoclue 2>/dev/null || sudo systemctl restart geoclue 2>/dev/null || true
+    ok "Servicio geoclue reiniciado."
+else
+    warn "Directorio $GEOCLUE_CONF_DIR no existe. Instala geoclue2 si necesitas ubicación."
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
 echo ""
 ok "Instalación completa. Reinicia la sesión si es un entorno nuevo."
