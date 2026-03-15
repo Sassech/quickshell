@@ -31,7 +31,6 @@ ShellRoot {
     signal broadcastAudio(var screen)
     signal broadcastBrightness(int pct)
     signal broadcastVolume(int pct, bool muted)
-    signal broadcastMedia(var screen)
 
     // ============================================
     // BARRA SUPERIOR
@@ -50,7 +49,6 @@ ShellRoot {
             onDiskClicked: screen => root.broadcastDisk(screen)
             onGpuClicked: screen => root.broadcastGpu(screen)
             onClipboardClicked: screen => root.broadcastClipboard(screen)
-            onMediaClicked: screen => root.broadcastMedia(screen)
         }
     }
 
@@ -646,30 +644,6 @@ ShellRoot {
                     var was = audioModalInst.visible
                     root.broadcastCloseAll(screen)
                     audioModalInst.visible = !was
-                }
-            }
-        }
-    }
-
-    // ============================================
-    // MEDIA MODAL — una instancia por pantalla
-    // ============================================
-    Variants {
-        model: Quickshell.screens
-        MediaModal {
-            id: mediaModalInst
-            property var modelData
-            screen: modelData
-            Connections {
-                target: root
-                function onBroadcastCloseAll(screen) {
-                    if (mediaModalInst.modelData === screen) mediaModalInst.visible = false
-                }
-                function onBroadcastMedia(screen) {
-                    if (mediaModalInst.modelData !== screen) return
-                    var was = mediaModalInst.visible
-                    root.broadcastCloseAll(screen)
-                    mediaModalInst.visible = !was
                 }
             }
         }
