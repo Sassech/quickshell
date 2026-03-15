@@ -30,6 +30,57 @@ PanelWindow {
     property bool   isDay:       true
     property bool   loading:     false
 
+    // ── Cache ─────────────────────────────────────────────────────────────
+    property string _cachedTemperature: "--"
+    property string _cachedFeelsLike:   "--"
+    property string _cachedWindSpeed:   "--"
+    property string _cachedHumidity:    "--"
+    property string _cachedCityName:    "Cargando..."
+    property string _cachedWeatherIcon: "☁"
+    property string _cachedDescription: ""
+    property bool   _cachedIsDay:       true
+    property string _cachedSunrise:    "--:--"
+    property string _cachedSunset:     "--:--"
+    property var    _cachedHourlyData:    []
+    property var    _cachedAllHourlyData: []
+    property var    _cachedDailyData:     []
+
+    // ── Timer para caché (actualiza cada 10 minutos) ─────────────────────
+    Timer {
+        interval: 600000  // 10 min
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: refreshCache()
+    }
+
+    function refreshCache() {
+        _geoRaw = ""
+        _weatherRaw = ""
+        geoProc.running = true
+    }
+
+    function _loadCachedData() {
+        temperature  = _cachedTemperature
+        feelsLike    = _cachedFeelsLike
+        windSpeed    = _cachedWindSpeed
+        humidity     = _cachedHumidity
+        cityName     = _cachedCityName
+        weatherIcon  = _cachedWeatherIcon
+        description  = _cachedDescription
+        isDay        = _cachedIsDay
+        sunrise      = _cachedSunrise
+        sunset       = _cachedSunset
+        hourlyData   = _cachedHourlyData
+        allHourlyData = _cachedAllHourlyData
+        dailyData    = _cachedDailyData
+    }
+
+    function open() {
+        _loadCachedData()
+        root.visible = true
+    }
+
     property string sunrise:    "--:--"
     property string sunset:     "--:--"
     property var    hourlyData:    []
@@ -47,7 +98,17 @@ PanelWindow {
     readonly property color accent: root.isDay ? Theme.sky : Theme.accent2
 
     onVisibleChanged: {
-        if (visible && !loading) _startFetch()
+        if (visible) {
+            if (_cachedCityName !== "Cargando...") {
+                _loadCachedData()
+            }
+            if (!loading && _cachedCityName === "Cargando...") {
+                _startFetch()
+            } else if (!loading && !_geoRaw && !_weatherRaw) {
+                // Refresh if no fetch in progress and cache is stale
+                _startFetch()
+            }
+        }
     }
 
     function _startFetch() {
@@ -567,7 +628,9 @@ PanelWindow {
                 }
                 root._lat     = parseFloat(j.lat)
                 root._lon     = parseFloat(j.lon)
-                root.cityName = j.city || j.regionName || j.country || "Desconocido"
+                var city = j.city || j.regionName || j.country || "Desconocido"
+                root.cityName = city
+                root._cachedCityName = city
                 root._geoRaw  = ""
                 root._weatherRaw = ""
                 weatherProc.command = [
@@ -603,21 +666,45 @@ PanelWindow {
             try {
                 var j = JSON.parse(root._weatherRaw.trim())
                 var c = j.current
-                root.temperature = Math.round(c.temperature_2m)      + "°C"
-                root.feelsLike   = Math.round(c.apparent_temperature) + "°C"
-                root.windSpeed   = Math.round(c.wind_speed_10m)       + " km/h"
-                root.humidity    = c.relative_humidity_2m             + "%"
-                root.isDay       = (c.is_day === 1)
-                root.weatherIcon = wmoIcon(c.weather_code, c.is_day === 1)
-                root.description = wmoDescription(c.weather_code)
+                var tempVal = Math.round(c.temperature_2m)      + "°C"
+                var feelsVal = Math.round(c.apparent_temperature) + "°C"
+                var windVal = Math.round(c.wind_speed_10m)       + " km/h"
+                var humVal = c.relative_humidity_2m             + "%"
+                var isDayVal = (c.is_day === 1)
+                var iconVal = wmoIcon(c.weather_code, c.is_day === 1)
+                var descVal = wmoDescription(c.weather_code)
 
+                // Update current display
+                root.temperature = tempVal
+                root.feelsLike   = feelsVal
+                root.windSpeed   = windVal
+                root.humidity    = humVal
+                root.isDay       = isDayVal
+                root.weatherIcon = iconVal
+                root.description = descVal
+
+                // Update cache
+                root._cachedTemperature = tempVal
+                root._cachedFeelsLike   = feelsVal
+                root._cachedWindSpeed   = windVal
+                root._cachedHumidity    = humVal
+                root._cachedIsDay       = isDayVal
+                root._cachedWeatherIcon = iconVal
+                root._cachedDescription = descVal
+
+                var srVal = "--:--"
+                var ssVal = "--:--"
                 if (j.daily && j.daily.sunrise && j.daily.sunrise.length > 0) {
                     var srFull = j.daily.sunrise[0]
-                    root.sunrise = srFull.substring(srFull.indexOf("T") + 1)
+                    srVal = srFull.substring(srFull.indexOf("T") + 1)
+                    root.sunrise = srVal
+                    root._cachedSunrise = srVal
                 }
                 if (j.daily && j.daily.sunset && j.daily.sunset.length > 0) {
                     var ssFull = j.daily.sunset[0]
-                    root.sunset = ssFull.substring(ssFull.indexOf("T") + 1)
+                    ssVal = ssFull.substring(ssFull.indexOf("T") + 1)
+                    root.sunset = ssVal
+                    root._cachedSunset = ssVal
                 }
 
                 var nowHour = new Date().getHours()
@@ -652,8 +739,10 @@ PanelWindow {
                     }
                 }
                 root.allHourlyData    = allByDay
+                root._cachedAllHourlyData = allByDay
                 root.selectedDayIndex = 0
                 root.hourlyData       = allByDay.length > 0 ? allByDay[0] : []
+                root._cachedHourlyData = allByDay.length > 0 ? allByDay[0] : []
 
                 var days = ["dom","lun","mar","mié","jue","vie","sáb"]
                 var dailyArr = []
@@ -669,6 +758,7 @@ PanelWindow {
                     }
                 }
                 root.dailyData   = dailyArr
+                root._cachedDailyData = dailyArr
                 root._weatherRaw = ""
                 sunCanvas.requestPaint()
 
