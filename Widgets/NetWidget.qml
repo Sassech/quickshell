@@ -94,9 +94,9 @@ Rectangle {
         }
     }
 
-    // ── Poll every second ─────────────────────────────────────────────────
+    // ── Poll every 2 seconds ─────────────────────────────────────────────────
     Timer {
-        interval: 1000
+        interval: 2000
         running: true; repeat: true; triggeredOnStart: true
         onTriggered: netProc.running = true
     }

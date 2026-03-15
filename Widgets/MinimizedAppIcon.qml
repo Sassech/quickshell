@@ -63,6 +63,27 @@ Rectangle {
         }
     }
     
+    // Tooltip con el nombre de la aplicación
+    ToolTip {
+        visible: mouseArea.containsMouse
+        delay: 500
+        
+        contentItem: Text {
+            text: root.app.title || root.app.class
+            color: Theme.text
+            font.pixelSize: 11
+            elide: Text.ElideRight
+            maximumLineCount: 2
+        }
+        
+        background: Rectangle {
+            color: Theme.surface3
+            border.color: Theme.overlay
+            border.width: 1
+            radius: 4
+        }
+    }
+    
     // Efecto visual al presionar
     scale: mouseArea.pressed ? 0.95 : 1.0
     Behavior on scale {

@@ -9,21 +9,32 @@ Row {
 
     signal clicked()
 
-    // ── Active player (prefer Playing no-mpd, luego mpd Playing, luego primero) ────
+    // ── Cached player (recalculates only when players list changes) ─────────
+    property MprisPlayer _cachedPlayer: null
+    property var _lastPlayers: []
+    
     property MprisPlayer player: {
-        var playingOther = null
-        var playingMpd   = null
-        var first        = null
-        for (var i = 0; i < Mpris.players.values.length; i++) {
-            var p = Mpris.players.values[i]
-            if (!first) first = p
-            var isMpd = (p.identity ?? "").toLowerCase().includes("music player daemon")
-            if (p.playbackState === MprisPlaybackState.Playing) {
-                if (isMpd) { if (!playingMpd) playingMpd = p }
-                else       { if (!playingOther) playingOther = p }
+        var currentPlayers = Mpris.players.values || []
+        
+        // Recalculate only if players list changed
+        if (JSON.stringify(currentPlayers) !== JSON.stringify(root._lastPlayers)) {
+            root._lastPlayers = currentPlayers
+            
+            var playingOther = null
+            var playingMpd   = null
+            var first        = null
+            for (var i = 0; i < currentPlayers.length; i++) {
+                var p = currentPlayers[i]
+                if (!first) first = p
+                var isMpd = (p.identity ?? "").toLowerCase().includes("music player daemon")
+                if (p.playbackState === MprisPlaybackState.Playing) {
+                    if (isMpd) { if (!playingMpd) playingMpd = p }
+                    else       { if (!playingOther) playingOther = p }
+                }
             }
+            root._cachedPlayer = playingOther ?? playingMpd ?? first ?? null
         }
-        return playingOther ?? playingMpd ?? first ?? null
+        return root._cachedPlayer
     }
 
     property bool hasPlayer:  root.player !== null
