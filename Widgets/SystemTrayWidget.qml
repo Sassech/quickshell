@@ -4,34 +4,25 @@ import Quickshell.Hyprland
 import "../Components"
 
 // Widget de "System Tray" que muestra ventanas minimizadas en special:minimized
-// En lugar de usar StatusNotifierItem, consulta directamente hyprctl
 Item {
     id: root
     
-    // Propiedades configurables
     property int iconSize: 20
     property int spacing: 4
     
-    // Lista de apps minimizadas: [{class: "spotify", title: "...", address: "..."}]
     property var minimizedApps: []
     
-    // Cálculo automático del tamaño
     implicitWidth: trayRow.implicitWidth
     implicitHeight: 28
     
-    // Visible solo si hay apps minimizadas
     visible: minimizedApps.length > 0
     
-    // Polling periódico para actualizar la lista
     Timer {
-        interval: 1000
+        interval: 5000
         running: true
         repeat: true
         triggeredOnStart: true
-        onTriggered: {
-            // No limpiar, solo iniciar el polling
-            pollProc.running = true
-        }
+        onTriggered: pollProc.running = true
     }
     
     Process {
@@ -47,32 +38,25 @@ Item {
                 
                 var parts = line.split("|")
                 if (parts.length >= 3) {
-                    var app = {
+                    pollProc.tempApps.push({
                         class: parts[0],
                         title: parts[1],
                         address: parts[2]
-                    }
-                    pollProc.tempApps.push(app)
+                    })
                 }
             }
         }
         onExited: function() {
-            // Actualizar solo si hay cambios (comparar addresses)
-            var hasChanges = false
+            var oldAddrs = root.minimizedApps.map(a => a.address)
+            var newAddrs = pollProc.tempApps.map(a => a.address)
             
-            if (pollProc.tempApps.length !== root.minimizedApps.length) {
-                hasChanges = true
-            } else {
-                // Comparar addresses de las apps
-                for (var i = 0; i < pollProc.tempApps.length; i++) {
-                    var found = false
-                    for (var j = 0; j < root.minimizedApps.length; j++) {
-                        if (pollProc.tempApps[i].address === root.minimizedApps[j].address) {
-                            found = true
-                            break
-                        }
-                    }
-                    if (!found) {
+            var oldSet = new Set(oldAddrs)
+            var newSet = new Set(newAddrs)
+            
+            var hasChanges = oldSet.size !== newSet.size
+            if (!hasChanges) {
+                for (var addr of newSet) {
+                    if (!oldSet.has(addr)) {
                         hasChanges = true
                         break
                     }
@@ -81,7 +65,6 @@ Item {
             
             if (hasChanges) {
                 root.minimizedApps = pollProc.tempApps
-                console.log("SystemTray: Updated to", pollProc.tempApps.length, "minimized apps")
             }
             
             pollProc.tempApps = []
@@ -104,7 +87,6 @@ Item {
         }
     }
     
-    // Texto cuando no hay apps (no visible por el visible: false)
     Text {
         anchors.centerIn: parent
         text: "󰒲"

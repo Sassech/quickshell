@@ -15,7 +15,6 @@ PanelWindow {
     signal diskClicked(var screen)
     signal gpuClicked(var screen)
     signal clipboardClicked(var screen)
-    signal mediaClicked(var screen)
     // Propiedades expuestas del widget clima
     property alias weatherTemp:        weatherWidget.temperature
     property alias weatherFeelsLike:   weatherWidget.feelsLike
@@ -99,12 +98,7 @@ PanelWindow {
                 implicitWidth: mediaPlayerContent.implicitWidth + 12
                 implicitHeight: 28
 
-                // TapHandler detecta clicks en zonas vacías (padding, visualizador, texto)
-                // sin bloquear los botones ⏮/▶/⏭ que tienen sus propios MouseArea
-                TapHandler {
-                    onTapped: root.mediaClicked(root.screen)
-                }
-
+                // Media player controls (no click handler - just display)
                 MediaPlayer {
                     id: mediaPlayerContent
                     anchors.centerIn: parent
