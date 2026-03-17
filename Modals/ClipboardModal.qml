@@ -20,17 +20,21 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-    // ── Data ─────────────────────────────────────────────
+    // ── Paths ───────────────────────────────────────────────────────────
+    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
+
+    // ── Data ────────────────────────────────────────────────────────────
     property var  allEntries:  []
     property int  entryCount:  0
+    property bool isLoading:   false
 
     signal countChanged(int n)
 
     onVisibleChanged: {
         if (visible) {
             searchField.text = ""
-            updateDisplay()   // muestra datos cacheados inmediatamente
-            loadEntries()     // refresca en segundo plano
+            updateDisplay()
+            loadEntries()
         }
     }
 
@@ -48,6 +52,7 @@ PanelWindow {
     function loadEntries() {
         if (_loading) return
         _loading = true
+        isLoading = true
         _listBuf = ""
         listProc.running = true
     }
@@ -61,46 +66,76 @@ PanelWindow {
         for (var i = 0; i < src.length; i++) displayModel.append(src[i])
     }
 
-    // ── Carga la lista ────────────────────────────────────
+    // ── Carga la lista ──────────────────────────────────────────────────
     Process {
         id: listProc
-        command: ["bash", "/home/sassech/.config/quickshell/scripts/clipboard-list.sh"]
+        command: ["bash", root._scriptsPath + "/clipboard-list.sh"]
         stdout: SplitParser {
             splitMarker: ""
             onRead: data => root._listBuf += data
         }
-        onExited: {
+        onExited: function(code) {
+            if (code !== 0) {
+                console.log("[ClipboardModal] listProc failed with code:", code)
+            }
+
             try {
-                root.allEntries = JSON.parse(root._listBuf)
-            } catch(e) { root.allEntries = [] }
+                var parsed = JSON.parse(root._listBuf)
+                if (Array.isArray(parsed)) {
+                    root.allEntries = parsed
+                } else {
+                    console.log("[ClipboardModal] JSON invalid - expected array")
+                    root.allEntries = []
+                }
+            } catch(e) {
+                console.log("[ClipboardModal] JSON parse error:", e)
+                root.allEntries = []
+            }
+
             root._loading = false
+            root.isLoading = false
             root.entryCount = root.allEntries.length
             root.countChanged(root.entryCount)
             root.updateDisplay()
         }
     }
 
-    // ── Copia al portapapeles ─────────────────────────────
+    // ── Copia al portapapeles ───────────────────────────────────────────
     Process {
         id: copyProc
+
         property string pendingId: ""
-        command: ["bash", "/home/sassech/.config/quickshell/scripts/clipboard-copy.sh", pendingId]
-        onExited: {
-            // Pequeño delay para asegurar que wl-copy termine antes de cerrar
+
+        onPendingIdChanged: {
+            if (pendingId !== "") {
+                command = ["bash", root._scriptsPath + "/clipboard-copy.sh", pendingId]
+            }
+        }
+
+        onExited: function(code) {
+            if (code !== 0) {
+                console.log("[ClipboardModal] copyProc failed with code:", code)
+                return
+            }
             Qt.callLater(function() { root.visible = false })
         }
     }
 
-    // ── Limpia todo ───────────────────────────────────────
+    // ── Limpia todo ─────────────────────────────────────────────────────
     Process {
         id: wipeProc
-        command: ["bash", "-c", "cliphist wipe 2>/dev/null"]
-        onExited: root.loadEntries()
+        command: ["bash", "-c", "cliphist wipe 2>>/tmp/qs-clipboard.log"]
+        onExited: function(code) {
+            if (code !== 0) {
+                console.log("[ClipboardModal] wipeProc failed with code:", code)
+            }
+            root.loadEntries()
+        }
     }
 
     ListModel { id: displayModel }
 
-    // ── UI ────────────────────────────────────────────────
+    // ── UI ──────────────────────────────────────────────────────────────
     // Overlay: click fuera cierra
     MouseArea {
         anchors.fill: parent
@@ -135,7 +170,7 @@ PanelWindow {
             anchors.topMargin: 20
             spacing: 10
 
-            // ── Header ───────────────────────────────────
+            // ── Header ───────────────────────────────────────────────
             RowLayout {
                 spacing: 8
                 Layout.fillWidth: true
@@ -182,7 +217,7 @@ PanelWindow {
                 }
             }
 
-            // ── Buscador ──────────────────────────────────
+            // ── Buscador ──────────────────────────────────────────────
             Rectangle {
                 Layout.fillWidth: true
                 height: 36
@@ -227,25 +262,26 @@ PanelWindow {
                 }
             }
 
-            // ── Lista ─────────────────────────────────────
+            // ── Lista ─────────────────────────────────────────────────
             Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
-                // Empty state
+                // Empty / Loading state
                 Column {
                     anchors.centerIn: parent
                     spacing: 8
                     visible: displayModel.count === 0
+
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        text: "󰆏"
-                        font.pixelSize: 32
-                        color: Theme.surface2
+                        text: root.isLoading ? "Cargando..." : "󰆏"
+                        font.pixelSize: root.isLoading ? 13 : 32
+                        color: Theme.muted3
                     }
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        text: searchField.text ? "Sin resultados" : "No hay entradas en el portapapeles"
+                        text: root.isLoading ? "" : (searchField.text ? "Sin resultados" : "No hay entradas en el portapapeles")
                         font.pixelSize: 12
                         color: Theme.surface3
                     }
@@ -333,7 +369,8 @@ PanelWindow {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                copyProc.pendingId = row.model.id
+                                var id = row.model.id
+                                copyProc.pendingId = id
                                 copyProc.running = true
                             }
                         }

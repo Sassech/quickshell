@@ -1,16 +1,35 @@
 #!/bin/bash
-# clipboard-copy.sh <id>
-ID="$1"
+# clipboard-copy.sh <id> — Copia entrada al portapapeles
+set -eo pipefail
 
-# Usar grep con -F para búsqueda literal (evita problemas con caracteres especiales)
-ENTRY=$(cliphist list 2>/dev/null | grep -F -P "^${ID}\t")
-[[ -z "$ENTRY" ]] && exit 1
+LOG_FILE="/tmp/qs-clipboard.log"
+ID="${1:-}"
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE" 2>/dev/null || true
+}
+
+if [[ -z "$ID" ]]; then
+    log "[copy] Error: ID vacío"
+    exit 1
+fi
+
+# Capturar lista completa primero para evitar SIGPIPE
+LIST=$(cliphist list 2>/dev/null) || {
+    log "[copy] Error: cliphist list falló"
+    exit 2
+}
+
+ENTRY=$(echo "$LIST" | awk -v id="$ID" -F'\t' '$1 == id {print; exit}')
+
+if [[ -z "$ENTRY" ]]; then
+    log "[copy] Error: ID '$ID' no encontrado en cliphist"
+    exit 3
+fi
 
 PREVIEW=$(echo "$ENTRY" | cut -f2-)
 
-# Detectar si es binario (imagen)
 if [[ "$PREVIEW" =~ ^\[\[\ binary ]]; then
-    # Es binario, determinar el tipo MIME
     if [[ "$PREVIEW" =~ png ]]; then
         MIME="image/png"
     elif [[ "$PREVIEW" =~ jpe?g ]]; then
@@ -24,9 +43,11 @@ if [[ "$PREVIEW" =~ ^\[\[\ binary ]]; then
     else
         MIME="application/octet-stream"
     fi
-    # Copiar binario con tipo MIME
-    echo "$ENTRY" | cliphist decode 2>/dev/null | wl-copy --type "$MIME"
+    echo "$ENTRY" | cliphist decode | wl-copy --type "$MIME"
+    log "[copy] OK: $ID ($MIME)"
 else
-    # Es texto, copiar normalmente
-    echo "$ENTRY" | cliphist decode 2>/dev/null | wl-copy
+    echo "$ENTRY" | cliphist decode | wl-copy
+    log "[copy] OK: $ID (text)"
 fi
+
+exit 0
