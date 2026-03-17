@@ -153,6 +153,7 @@ PanelWindow {
     property double _lon:        0
     property string _geoRaw:     ""
     property string _weatherRaw: ""
+    property bool   _geoSourceSystem: false
 
     readonly property color accent: root.isDay ? Theme.sky : Theme.accent2
 

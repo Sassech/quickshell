@@ -389,25 +389,6 @@ ShellRoot {
         }
     }
 
-    Variants {
-        model: Quickshell.screens
-        OverviewModal {
-            id: overviewInst
-            property var modelData
-            screen: modelData
-            Connections {
-                target: root
-                function onBroadcastCloseAll(screen) {
-                    if (overviewInst.modelData === screen) overviewInst.close()
-                }
-                function onBroadcastOverview(screen) {
-                    if (overviewInst.modelData !== screen) return
-                    overviewInst.toggle()
-                }
-            }
-        }
-    }
-
     // ============================================
     // SPOTLIGHT — FIFO global + una instancia por pantalla
     // ============================================

@@ -9,42 +9,55 @@ Row {
 
     signal clicked()
 
-    // ── Cached player (recalculates only when players list changes) ─────────
+    // ── Player state (updated via signal, not computed property) ─────────────
     property MprisPlayer _cachedPlayer: null
-    property var _lastPlayers: []
     
-    property MprisPlayer player: {
+    // Track players to detect changes
+    property var _lastPlayers: []
+
+    // Explicit update function - call when players change
+    function _updateCachedPlayer() {
         var currentPlayers = Mpris.players.values || []
         
-        // Recalculate only if players list changed
-        if (JSON.stringify(currentPlayers) !== JSON.stringify(root._lastPlayers)) {
-            root._lastPlayers = currentPlayers
-            
-            var playingOther = null
-            var playingMpd   = null
-            var first        = null
-            for (var i = 0; i < currentPlayers.length; i++) {
-                var p = currentPlayers[i]
-                if (!first) first = p
-                var isMpd = (p.identity ?? "").toLowerCase().includes("music player daemon")
-                if (p.playbackState === MprisPlaybackState.Playing) {
-                    if (isMpd) { if (!playingMpd) playingMpd = p }
-                    else       { if (!playingOther) playingOther = p }
-                }
-            }
-            root._cachedPlayer = playingOther ?? playingMpd ?? first ?? null
+        if (JSON.stringify(currentPlayers) === JSON.stringify(root._lastPlayers)) {
+            return // No change
         }
-        return root._cachedPlayer
+        root._lastPlayers = currentPlayers
+        
+        var playingOther = null
+        var playingMpd   = null
+        var first        = null
+        for (var i = 0; i < currentPlayers.length; i++) {
+            var p = currentPlayers[i]
+            if (!first) first = p
+            var isMpd = (p.identity ?? "").toLowerCase().includes("music player daemon")
+            if (p.playbackState === MprisPlaybackState.Playing) {
+                if (isMpd) { if (!playingMpd) playingMpd = p }
+                else       { if (!playingOther) playingOther = p }
+            }
+        }
+        root._cachedPlayer = playingOther ?? playingMpd ?? first ?? null
     }
 
-    property bool hasPlayer:  root.player !== null
-    property bool isPlaying:  hasPlayer && root.player.playbackState === MprisPlaybackState.Playing
+    // Manual bindings - no circular dependencies
+    property MprisPlayer player: _cachedPlayer
+    property bool hasPlayer:  _cachedPlayer !== null
+    property bool isPlaying:  hasPlayer && _cachedPlayer.playbackState === MprisPlaybackState.Playing
+    
     property string mediaInfo: {
         if (!hasPlayer) return "No media"
-        var artist = root.player.trackArtist ?? ""
-        var title  = root.player.trackTitle  ?? ""
+        var artist = _cachedPlayer.trackArtist ?? ""
+        var title  = _cachedPlayer.trackTitle  ?? ""
         if (artist && title) return artist + " - " + title
         return title || artist || "No media"
+    }
+
+    // Listen to player changes via timer (avoids binding loop)
+    Timer {
+        interval: 500
+        running: true
+        repeat: true
+        onTriggered: root._updateCachedPlayer()
     }
 
     visible: true
@@ -137,9 +150,9 @@ Row {
         width: 20
         height: 20
         cursorShape: Qt.PointingHandCursor
-        enabled: root.hasPlayer && (root.player.canGoPrevious ?? false)
+        enabled: root.hasPlayer && (root._cachedPlayer?.canGoPrevious ?? false)
         opacity: enabled ? 1.0 : 0.35
-        onClicked: root.player.previous()
+        onClicked: root._cachedPlayer?.previous()
 
         Text {
             anchors.centerIn: parent
@@ -156,7 +169,7 @@ Row {
         cursorShape: Qt.PointingHandCursor
         enabled: root.hasPlayer
         opacity: enabled ? 1.0 : 0.35
-        onClicked: root.player.togglePlaying()
+        onClicked: root._cachedPlayer?.togglePlaying()
 
         Text {
             anchors.centerIn: parent
@@ -171,9 +184,9 @@ Row {
         width: 20
         height: 20
         cursorShape: Qt.PointingHandCursor
-        enabled: root.hasPlayer && (root.player.canGoNext ?? false)
+        enabled: root.hasPlayer && (root._cachedPlayer?.canGoNext ?? false)
         opacity: enabled ? 1.0 : 0.35
-        onClicked: root.player.next()
+        onClicked: root._cachedPlayer?.next()
 
         Text {
             anchors.centerIn: parent

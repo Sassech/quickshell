@@ -10,7 +10,6 @@ ClipboardModal 1.0 ClipboardModal.qml
 SpotlightModal 1.0 SpotlightModal.qml
 WallpaperPickerModal 1.0 WallpaperPickerModal.qml
 FolderBrowserModal 1.0 FolderBrowserModal.qml
-OverviewModal 1.0 OverviewModal.qml
 LanguageModal 1.0 LanguageModal.qml
 WifiModal 1.0 WifiModal.qml
 BluetoothModal 1.0 BluetoothModal.qml

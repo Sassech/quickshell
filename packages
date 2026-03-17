@@ -56,3 +56,6 @@ pgrep
 nohup
 bash
 coreutils
+
+
+qt6-qtpositioning
