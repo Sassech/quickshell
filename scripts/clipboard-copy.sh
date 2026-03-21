@@ -14,7 +14,12 @@ if [[ -z "$ID" ]]; then
     exit 1
 fi
 
-# Capturar lista completa primero para evitar SIGPIPE
+TMPDIR="/tmp/qs-clip"
+mkdir -p "$TMPDIR"
+TMPFILE=$(mktemp --suffix=.bin -p "$TMPDIR")
+TMPDEC=$(mktemp -p "$TMPDIR")
+trap "rm -f '$TMPFILE' '$TMPDEC'" RETURN
+
 LIST=$(cliphist list 2>/dev/null) || {
     log "[copy] Error: cliphist list falló"
     exit 2
@@ -29,7 +34,9 @@ fi
 
 PREVIEW=$(echo "$ENTRY" | cut -f2-)
 
-if [[ "$PREVIEW" =~ ^\[\[\ binary ]]; then
+echo "$ENTRY" | cliphist decode > "$TMPDEC"
+
+if [[ "$PREVIEW" =~ \[\[\ binary ]]; then
     if [[ "$PREVIEW" =~ png ]]; then
         MIME="image/png"
     elif [[ "$PREVIEW" =~ jpe?g ]]; then
@@ -43,11 +50,20 @@ if [[ "$PREVIEW" =~ ^\[\[\ binary ]]; then
     else
         MIME="application/octet-stream"
     fi
-    echo "$ENTRY" | cliphist decode | wl-copy --type "$MIME"
+    
+    cp "$TMPDEC" "$TMPFILE"
+    wl-copy --type "$MIME" < "$TMPFILE"
     log "[copy] OK: $ID ($MIME)"
 else
-    echo "$ENTRY" | cliphist decode | wl-copy
-    log "[copy] OK: $ID (text)"
+    MIME_TYPE=$(file -b --mime-type "$TMPDEC" 2>/dev/null || echo "text/plain")
+    
+    if [[ "$MIME_TYPE" =~ ^image/ ]]; then
+        wl-copy --type "$MIME_TYPE" < "$TMPDEC"
+        log "[copy] OK: $ID ($MIME_TYPE - auto-detected)"
+    else
+        wl-copy < "$TMPDEC"
+        log "[copy] OK: $ID (text)"
+    fi
 fi
 
 exit 0

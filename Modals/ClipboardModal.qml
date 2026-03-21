@@ -104,21 +104,39 @@ PanelWindow {
     Process {
         id: copyProc
 
-        property string pendingId: ""
+            property bool _isCopying: false
 
-        onPendingIdChanged: {
-            if (pendingId !== "") {
-                command = ["bash", root._scriptsPath + "/clipboard-copy.sh", pendingId]
-            }
+        function copyEntry(id) {
+            if (_isCopying) return
+            _isCopying = true
+            copyProc.command = ["bash", root._scriptsPath + "/clipboard-copy.sh", id]
+            copyProc.running = true
         }
 
         onExited: function(code) {
+            _isCopying = false
             if (code !== 0) {
                 console.log("[ClipboardModal] copyProc failed with code:", code)
+                root.visible = false
                 return
             }
-            Qt.callLater(function() { root.visible = false })
+            // No recargar inmediatamente - los IDs cambian al copiar porque
+            // cliphist store detecta el cambio y crea nueva entrada
+            // El usuario puede recargar manualmente si necesita ver actualizaciones
+            delayClose.start()
         }
+    }
+
+    // Timer para cerrar modal después de copiar
+    Timer {
+        id: delayClose
+        interval: 100
+        onTriggered: root.visible = false
+    }
+
+    // Recargar manualmente con boton o al abrir
+    function refresh() {
+        loadEntries()
     }
 
     // ── Limpia todo ─────────────────────────────────────────────────────
@@ -369,9 +387,7 @@ PanelWindow {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                var id = row.model.id
-                                copyProc.pendingId = id
-                                copyProc.running = true
+                                copyProc.copyEntry(row.model.id)
                             }
                         }
                     }
