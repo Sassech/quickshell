@@ -59,11 +59,11 @@ PanelWindow {
                 onClicked: root.audioClicked(root.screen)
             }
 
-            WifiWidget {
+            NetworkWidget {
                 anchors.verticalCenter: parent.verticalCenter
                 onClicked: root.wifiClicked(root.screen)
             }
-            
+
             BluetoothWidget {
                 anchors.verticalCenter: parent.verticalCenter
                 onClicked: root.bluetoothClicked(root.screen)
@@ -72,10 +72,6 @@ PanelWindow {
             LanguageWidget {
                 anchors.verticalCenter: parent.verticalCenter
                 onClicked: root.languageClicked(root.screen)
-            }
-
-            NetWidget {
-                anchors.verticalCenter: parent.verticalCenter
             }
         }
     }

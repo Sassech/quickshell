@@ -11,10 +11,9 @@ DiskWidget 1.0 DiskWidget.qml
 GpuWidget 1.0 GpuWidget.qml
 ClipboardWidget 1.0 ClipboardWidget.qml
 LanguageWidget 1.0 LanguageWidget.qml
-WifiWidget 1.0 WifiWidget.qml
 BluetoothWidget 1.0 BluetoothWidget.qml
 AudioWidget 1.0 AudioWidget.qml
-NetWidget 1.0 NetWidget.qml
+NetworkWidget 1.0 NetworkWidget.qml
 SystemTrayWidget 1.0 SystemTrayWidget.qml
 TrayIcon 1.0 TrayIcon.qml
 
