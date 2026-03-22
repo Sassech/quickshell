@@ -1,9 +1,11 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import QtQml
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
+import Quickshell.Bluetooth
 import "../Components"
 
 PanelWindow {
@@ -18,16 +20,66 @@ PanelWindow {
     anchors.top: true; anchors.bottom: true
     anchors.left: true; anchors.right: true
 
-    // ── State ─────────────────────────────────────────────────────────────
-    property bool   available:    false
-    property bool   powered:      false
-    property bool   scanning:     false
-    property bool   working:      false
-    property string statusMsg:    ""
+    // ── Estado ─────────────────────────────────────────────────────────────
+    property var    adapter:   Bluetooth.defaultAdapter
+    property bool   available: adapter !== null
+    property bool   powered:   adapter ? adapter.enabled : false
+    property bool   scanning:  adapter ? adapter.discovering : false
+    property bool   working:   false
+    property string statusMsg: ""
 
-    // devices: [{mac, name, paired, connected, trusted}]
-    property var pairedDevices:  []
-    property var nearbyDevices:  []
+    property int devicesRevision: 0
+    property var devices: adapter ? adapter.devices.values : []
+
+    property int pairedCount: {
+        devicesRevision
+        var list = devices
+        var c = 0
+        for (var i = 0; i < list.length; i++) if (list[i].paired) c++
+        return c
+    }
+
+    property int nearbyCount: {
+        devicesRevision
+        var list = devices
+        var c = 0
+        for (var i = 0; i < list.length; i++) if (!list[i].paired) c++
+        return c
+    }
+
+    property int connectedCount: {
+        devicesRevision
+        var list = devices
+        var c = 0
+        for (var i = 0; i < list.length; i++) if (list[i].connected) c++
+        return c
+    }
+
+    property var pairedList: {
+        devicesRevision
+        var list = devices
+        var out = []
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].paired) out.push(list[i])
+        }
+        return out
+    }
+
+    property var nearbyList: {
+        devicesRevision
+        var list = devices
+        var out = []
+        for (var i = 0; i < list.length; i++) {
+            if (!list[i].paired) out.push(list[i])
+        }
+        return out
+    }
+
+    property var    actionDevice: null
+    property string actionType: ""
+    property bool   autoConnectRunning: false
+    property var    autoConnectQueue: []
+    property var    autoConnectDevice: null
 
     // codec info map: { "AA:BB:CC:DD:EE:FF" → {codec, active, rate, profiles:[{id,label}]} }
     property var    codecData:        ({})
@@ -53,29 +105,129 @@ PanelWindow {
         setCodecProc.running = true
     }
 
-    // ── Auto-stop scan after 13 s (fallback, por si el proceso no termina) ─
+    function resetAction(msg) {
+        root.working = false
+        root.actionDevice = null
+        root.actionType = ""
+        if (msg !== undefined) root.statusMsg = msg
+        actionTimeout.stop()
+    }
+
+    function autoConnectTrusted() {
+        if (!root.available || !root.powered) return
+        if (root.autoConnectRunning) return
+        var q = []
+        for (var i = 0; i < devices.length; i++) {
+            var d = devices[i]
+            if (d.paired && d.trusted && !d.connected) q.push(d)
+        }
+        root.autoConnectQueue = q
+        root.autoConnectRunning = true
+        root.autoConnectDevice = null
+        autoConnectNext()
+    }
+
+    function autoConnectNext() {
+        if (!root.autoConnectRunning) return
+        autoConnectTimer.stop()
+        root.autoConnectDevice = null
+        if (root.autoConnectQueue.length === 0) {
+            root.autoConnectRunning = false
+            return
+        }
+        root.autoConnectDevice = root.autoConnectQueue.shift()
+        root.autoConnectQueue = root.autoConnectQueue
+        if (root.autoConnectDevice) {
+            root.autoConnectDevice.connect()
+            autoConnectTimer.restart()
+        } else {
+            autoConnectNext()
+        }
+    }
+
+    function togglePower() {
+        if (!root.adapter) return
+        root.adapter.enabled = !root.adapter.enabled
+    }
+
+    function toggleScan() {
+        if (!root.adapter) return
+        if (root.adapter.discovering) {
+            root.adapter.stopDiscovery()
+            scanTimer.stop()
+        } else {
+            root.adapter.startDiscovery()
+            scanTimer.restart()
+        }
+    }
+
+    function connectDevice(device) {
+        if (!device) return
+        root.actionDevice = device
+        root.actionType = "connect"
+        root.working = true
+        root.statusMsg = "Conectando..."
+        device.connect()
+        actionTimeout.restart()
+    }
+
+    function disconnectDevice(device) {
+        if (!device) return
+        root.actionDevice = device
+        root.actionType = "disconnect"
+        root.working = true
+        root.statusMsg = "Desconectando..."
+        device.disconnect()
+        actionTimeout.restart()
+    }
+
+    function pairDevice(device) {
+        if (!device) return
+        root.actionDevice = device
+        root.actionType = "pair"
+        root.working = true
+        root.statusMsg = "Emparejando..."
+        device.pair()
+        actionTimeout.restart()
+    }
+
+    function forgetDevice(device) {
+        if (!device) return
+        root.actionDevice = device
+        root.actionType = "forget"
+        root.working = true
+        root.statusMsg = "Olvidando..."
+        device.forget()
+        actionTimeout.restart()
+    }
+
+    // ── Auto-stop scan after 13 s ─────────────────────────────────────────
     Timer {
         id: scanTimer
         interval: 13000
         onTriggered: {
-            if (root.scanning) {
-                if (scanOnProc.running) scanOnProc.running = false
-                scanOffProc.running = true
-                root.scanning = false
+            if (root.adapter && root.adapter.discovering) {
+                root.adapter.stopDiscovery()
             }
         }
     }
-    // ── Refresh nearby devices every 3 s while scanning ───────────────
+
+    // ── Timer de acciones ─────────────────────────────────────────────────
     Timer {
-        id: scanRefreshTimer
-        interval: 3000
-        repeat: true
-        running: root.scanning
+        id: actionTimeout
+        interval: 10000
         onTriggered: {
-            if (!nearbyProc.running)
-                nearbyProc.running = true
+            if (root.working) resetAction("✗ Tiempo de espera")
         }
     }
+
+    // ── Auto-connect timer ────────────────────────────────────────────────
+    Timer {
+        id: autoConnectTimer
+        interval: 1500
+        onTriggered: autoConnectNext()
+    }
+
     // ── Refresh codec info every 4 s mientras el modal está abierto ───
     Timer {
         id: codecRefreshTimer
@@ -85,225 +237,109 @@ PanelWindow {
         onTriggered: {
             if (codecProc.running || setCodecProc.running) return
             var q = []
-            root.pairedDevices.forEach(d => { if (d.connected) q.push(d.mac) })
+            var list = Bluetooth.devices.values
+            for (var i = 0; i < list.length; i++) {
+                if (list[i].connected) q.push(list[i].address)
+            }
             if (q.length > 0) {
                 root._codecQueue = q
                 root._runNextCodecQuery()
             }
         }
     }
+
     // Stop scan when modal closes
     onVisibleChanged: {
         if (visible) {
             statusMsg = ""
-            loadDevices()
+            if (powered) autoConnectTrusted()
         } else {
-            if (scanning) { if (scanOnProc.running) scanOnProc.running = false; scanOffProc.running = true; scanning = false }
+            if (adapter && adapter.discovering) adapter.stopDiscovery()
             scanTimer.stop()
         }
     }
 
-    // ── Data loading ──────────────────────────────────────────────────────
-    property string _adapterBuf: ""
-    property string _pairedBuf:  ""
-    property string _nearbyBuf:  ""
-
-    function loadDevices() {
-        root.working = true
-        adapterProc.running = true
-        pairedProc.running  = true
-        nearbyProc.running  = true
-    }
-
-    Process {
-        id: adapterProc
-        command: ["bash", "-c",
-            "printf 'show\\n' | bluetoothctl 2>/dev/null | grep 'Powered:' | awk '{print $2}'"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._adapterBuf += d }
-        onExited: {
-            var v = root._adapterBuf.trim().toLowerCase()
-            root._adapterBuf = ""
-            root.available = v !== ""
-            root.powered   = v === "yes"
-        }
-    }
-
-    // Known devices: one per line "Device <mac> <name>"
-    Process {
-        id: pairedProc
-        command: ["bash", "-c",
-            "printf 'devices Paired\\n' | bluetoothctl 2>/dev/null | grep '^Device'"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._pairedBuf += d + "\n" }
-        onExited: {
-            var lines = root._pairedBuf.trim().split("\n")
-            root._pairedBuf = ""
-            var result = []
-            for (var i = 0; i < lines.length; i++) {
-                var l = lines[i].trim()
-                // "Device AA:BB:CC:DD:EE:FF Device Name"
-                var m = l.match(/^Device\s+([0-9A-Fa-f:]{17})\s+(.+)$/)
-                if (!m) continue
-                result.push({ mac: m[1], name: m[2], paired: true, connected: false })
-            }
-            root.pairedDevices = result
-            root.working = false
-            // Check which are connected
-            connectedProc.running = true
-        }
-    }
-
-    property string _connBuf: ""
-    Process {
-        id: connectedProc
-        command: ["bash", "-c", "printf 'devices Connected\\n' | bluetoothctl 2>/dev/null | grep '^Device'"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._connBuf += d + "\n" }
-        onExited: {
-            var lines = root._connBuf.trim().split("\n")
-            root._connBuf = ""
-            var connMacs = {}
-            for (var i = 0; i < lines.length; i++) {
-                var m = lines[i].trim().match(/^Device\s+([0-9A-Fa-f:]{17})/)
-                if (m) connMacs[m[1].toUpperCase()] = true
-            }
-            var updated = root.pairedDevices.map(d => ({
-                mac:       d.mac,
-                name:      d.name,
-                paired:    d.paired,
-                connected: !!connMacs[d.mac.toUpperCase()]
-            }))
-            root.pairedDevices = updated
-            // Queue codec queries for all connected devices
-            var q = []
-            updated.forEach(d => { if (d.connected) q.push(d.mac) })
-            root._codecQueue = q
-            Qt.callLater(() => root._runNextCodecQuery())
-        }
-    }
-
-    // Nearby discovered (non-paired) - only useful while scanning
-    Process {
-        id: nearbyProc
-        command: ["bash", "-c", "printf 'devices\\n' | bluetoothctl 2>/dev/null | grep '^Device'"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._nearbyBuf += d + "\n" }
-        onExited: {
-            var lines = root._nearbyBuf.trim().split("\n")
-            root._nearbyBuf = ""
-            var paired = {}
-            root.pairedDevices.forEach(d => paired[d.mac.toUpperCase()] = true)
-            var result = []
-            for (var i = 0; i < lines.length; i++) {
-                var l = lines[i].trim()
-                var m = l.match(/^Device\s+([0-9A-Fa-f:]{17})\s+(.+)$/)
-                if (!m) continue
-                if (paired[m[1].toUpperCase()]) continue
-                if (m[2].match(/^[0-9A-Fa-f:]{17}$/)) continue  // unnamed
-                result.push({ mac: m[1], name: m[2] })
-            }
-            root.nearbyDevices = result
-        }
-    }
-
-    // ── BT Actions ────────────────────────────────────────────────────────
-    Process { id: powerProc;     command: ["bash", "-c", ""]
-        onExited: Qt.callLater(() => { root.working = false; root.loadDevices() }) }
-    function togglePower() {
-        root.working = true
-        powerProc.command = ["bash", "-c",
-            "bluetoothctl power " + (root.powered ? "off" : "on") + " 2>/dev/null"]
-        powerProc.running = true
-    }
-
-    // scan on: --timeout mantiene el proceso vivo (y el discovery activo) durante 12 s
-    Process {
-        id: scanOnProc
-        command: ["bash", "-c", "bluetoothctl --timeout 12 scan on 2>/dev/null"]
-        onExited: {
-            // El proceso termina a los 12 s (o si se mató con scan off)
-            root.scanning = false
-            scanTimer.stop()
-            Qt.callLater(() => root.loadDevices())
-        }
-    }
-    Process { id: scanOffProc; command: ["bash", "-c", "bluetoothctl scan off 2>/dev/null"]
-        onExited: Qt.callLater(() => root.loadDevices()) }
-    function toggleScan() {
-        if (root.scanning) {
-            root.scanning = false
-            scanTimer.stop()
-            if (scanOnProc.running) scanOnProc.running = false
-            scanOffProc.running = true
+    onPoweredChanged: {
+        if (!powered) {
+            root.codecData = ({})
+            root._codecQueue = []
+            root.autoConnectQueue = []
+            root.autoConnectRunning = false
+            root.autoConnectDevice = null
+            resetAction("")
         } else {
-            root.scanning = true
-            scanTimer.restart()
-            scanOnProc.running = true
+            autoConnectTrusted()
+        }
+    }
+
+    onAdapterChanged: {
+        root.devicesRevision++
+    }
+
+    // Observa cambios en dispositivos
+    Connections {
+        target: root.adapter ? root.adapter.devices : null
+        function onObjectInsertedPost(object, index) { root.devicesRevision++ }
+        function onObjectRemovedPost(object, index) {
+            root.devicesRevision++
+            if (root.actionType === "forget" && root.actionDevice === object) {
+                resetAction("✓ Dispositivo olvidado")
+            }
+        }
+    }
+
+    Instantiator {
+        model: root.adapter ? root.adapter.devices : null
+        delegate: Connections {
+            required property var modelData
+            target: modelData
+            function onPairedChanged() { root.devicesRevision++ }
+            function onConnectedChanged() { root.devicesRevision++ }
+            function onTrustedChanged() { root.devicesRevision++ }
+            function onNameChanged() { root.devicesRevision++ }
+            function onDeviceNameChanged() { root.devicesRevision++ }
+        }
+    }
+
+    Connections {
+        target: root.actionDevice
+        function onConnectedChanged() {
+            if (!root.actionDevice) return
+            if (root.actionType === "connect" && root.actionDevice.connected) {
+                resetAction("✓ Conectado")
+            } else if (root.actionType === "disconnect" && !root.actionDevice.connected) {
+                resetAction("✓ Desconectado")
+            }
+        }
+        function onPairedChanged() {
+            if (!root.actionDevice) return
+            if (root.actionType === "pair" && root.actionDevice.paired) {
+                root.actionDevice.trusted = true
+                root.actionType = "connect"
+                root.statusMsg = "Conectando..."
+                root.actionDevice.connect()
+                actionTimeout.restart()
+            }
+        }
+        function onPairingChanged() {
+            if (!root.actionDevice) return
+            if (root.actionType === "pair" && !root.actionDevice.pairing && !root.actionDevice.paired) {
+                resetAction("✗ No se pudo emparejar")
+            }
+        }
+    }
+
+    Connections {
+        target: root.autoConnectDevice
+        function onConnectedChanged() {
+            if (root.autoConnectDevice && root.autoConnectDevice.connected) {
+                autoConnectTimer.stop()
+                autoConnectNext()
+            }
         }
     }
 
     // ── Codec processes ───────────────────────────────────────────────────
-    Process {
-        id: codecProc
-        command: ["bash", "-c", ""]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._codecBuf += d }
-        onExited: {
-            try {
-                var info = JSON.parse(root._codecBuf.trim())
-                var d = root.codecData
-                d[root._currentCodecMac.toUpperCase()] = info
-                root.codecData = d
-            } catch(e) {}
-            Qt.callLater(() => root._runNextCodecQuery())
-        }
-    }
-
-    Process {
-        id: setCodecProc
-        command: ["bash", "-c", ""]
-        onExited: (ec) => {
-            root.statusMsg = ec === 0 ? "✓ Codec aplicado" : "✗ Error al cambiar codec"
-            // Re-query codec info para ver el cambio reflejado
-            root._codecQueue = [root._currentCodecMac]
-            Qt.callLater(() => root._runNextCodecQuery())
-        }
-    }
-
-    Process { id: btActionProc; command: ["bash", "-c", ""]
-        onExited: (ec) => {
-            root.working  = false
-            root.statusMsg = ec === 0 ? "✓ Listo" : "✗ Error al ejecutar acción"
-            Qt.callLater(() => root.loadDevices())
-        }
-    }
-    function connectDevice(mac) {
-        root.working = true; root.statusMsg = ""
-        btActionProc.command = ["bash", "-c", "bluetoothctl connect " + mac + " 2>/dev/null"]
-        btActionProc.running = true
-    }
-    function disconnectDevice(mac) {
-        root.working = true; root.statusMsg = ""
-        btActionProc.command = ["bash", "-c", "bluetoothctl disconnect " + mac + " 2>/dev/null"]
-        btActionProc.running = true
-    }
-    function pairDevice(mac) {
-        root.working = true; root.statusMsg = "Emparejando..."
-        // Usa bt-pair.sh que envía los comandos con delays para que el
-        // handshake de bonding complete antes del trust.
-        btActionProc.command = ["/home/sassech/.config/quickshell/scripts/bt-pair.sh", mac]
-        btActionProc.running = true
-    }
-
-    Process { id: forgetProc; command: ["bash", "-c", ""]
-        onExited: (ec) => {
-            root.working   = false
-            root.statusMsg = ec === 0 ? "✓ Dispositivo olvidado" : "✗ Error al olvidar dispositivo"
-            Qt.callLater(() => root.loadDevices())
-        }
-    }
-    function forgetDevice(mac) {
-        root.working = true; root.statusMsg = ""
-        forgetProc.command = ["bash", "-c", "bluetoothctl remove " + mac + " 2>/dev/null"]
-        forgetProc.running = true
-    }
-
     // ── Backdrop ──────────────────────────────────────────────────────────
     Rectangle {
         anchors.fill: parent
@@ -447,16 +483,16 @@ PanelWindow {
                     text: "Dispositivos emparejados"
                     font.pixelSize: 11; font.weight: Font.Normal; color: Theme.muted1
                     bottomPadding: 4
-                    visible: root.pairedDevices.length > 0
+                    visible: root.pairedList.length > 0
                 }
 
                 Repeater {
-                    model: root.pairedDevices
+                    model: root.pairedList
 
                     delegate: Item {
                         id: deviceItem
                         required property var modelData
-                        property string devMac:        modelData.mac.toUpperCase()
+                        property string devMac:        modelData.address.toUpperCase()
                         property var    cInfo:         root.codecData[devMac] ?? null
                         property bool   hasCodec:      modelData.connected
                                                        && cInfo !== null
@@ -496,9 +532,9 @@ PanelWindow {
 
                                 Column {
                                     Layout.fillWidth: true; spacing: 1
-                                    Text { text: deviceItem.modelData.name; font.pixelSize: 12; color: Theme.text
+                                    Text { text: deviceItem.modelData.name || deviceItem.modelData.deviceName; font.pixelSize: 12; color: Theme.text
                                         elide: Text.ElideRight; width: parent.width }
-                                    Text { text: deviceItem.modelData.mac; font.pixelSize: 9; color: Theme.muted2 }
+                                    Text { text: deviceItem.modelData.address; font.pixelSize: 9; color: Theme.muted2 }
                                 }
 
                                 Rectangle {
@@ -508,12 +544,14 @@ PanelWindow {
                                     Text { anchors.centerIn: parent
                                         text: deviceItem.modelData.connected ? "Desconectar" : "Conectar"
                                         font.pixelSize: 10; color: "white" }
-                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                    MouseArea { anchors.fill: parent
+                                        enabled: !root.working
+                                        cursorShape: root.working ? Qt.ArrowCursor : Qt.PointingHandCursor
                                         onClicked: {
                                             if (deviceItem.modelData.connected)
-                                                root.disconnectDevice(deviceItem.modelData.mac)
+                                                root.disconnectDevice(deviceItem.modelData)
                                             else
-                                                root.connectDevice(deviceItem.modelData.mac)
+                                                root.connectDevice(deviceItem.modelData)
                                         }
                                     }
                                 }
@@ -566,7 +604,7 @@ PanelWindow {
                                             } else {
                                                 forgetCancelTimer.stop()
                                                 deviceItem.pendingForget = false
-                                                root.forgetDevice(deviceItem.modelData.mac)
+                                                root.forgetDevice(deviceItem.modelData)
                                             }
                                         }
                                     }
@@ -637,7 +675,7 @@ PanelWindow {
                                             hoverEnabled: true
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: root.setCodec(
-                                                deviceItem.modelData.mac,
+                                                deviceItem.modelData.address,
                                                 profileBtn.modelData.id
                                             )
                                         }
@@ -649,23 +687,23 @@ PanelWindow {
                 }
 
                 Text {
-                    visible: root.pairedDevices.length === 0 && !root.working
+                    visible: root.pairedList.length === 0 && !root.working
                     text: "No hay dispositivos emparejados"
                     font.pixelSize: 12; color: Theme.muted1; topPadding: 8
                 }
 
                 // ── Nearby (discovered during scan) ───────────────────────
                 Item { width: parent.width; height: 12
-                    visible: root.scanning && root.nearbyDevices.length > 0 }
+                    visible: root.scanning && root.nearbyList.length > 0 }
 
                 Text {
-                    visible: root.scanning && root.nearbyDevices.length > 0
+                    visible: root.scanning && root.nearbyList.length > 0
                     text: "Dispositivos cercanos"
                     font.pixelSize: 11; font.weight: Font.Normal; color: Theme.muted1; bottomPadding: 4
                 }
 
                 Repeater {
-                    model: root.scanning ? root.nearbyDevices : []
+                    model: root.scanning ? root.nearbyList : []
 
                     Rectangle {
                         required property var modelData
@@ -679,9 +717,9 @@ PanelWindow {
 
                             Column {
                                 Layout.fillWidth: true; spacing: 1
-                                Text { text: modelData.name; font.pixelSize: 12; color: Theme.text
+                                Text { text: modelData.name || modelData.deviceName; font.pixelSize: 12; color: Theme.text
                                     elide: Text.ElideRight; width: parent.width }
-                                Text { text: modelData.mac; font.pixelSize: 9; color: Theme.muted2 }
+                                Text { text: modelData.address; font.pixelSize: 9; color: Theme.muted2 }
                             }
 
                             Rectangle {
@@ -689,7 +727,7 @@ PanelWindow {
                                 Text { anchors.centerIn: parent; text: "Emparejar"
                                     font.pixelSize: 10; color: Theme.text }
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.pairDevice(modelData.mac) }
+                                    onClicked: root.pairDevice(modelData) }
                             }
                         }
                     }

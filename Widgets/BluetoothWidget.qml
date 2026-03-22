@@ -1,5 +1,7 @@
 import QtQuick
-import Quickshell.Io
+import QtQml
+import Quickshell
+import Quickshell.Bluetooth
 import "../Components"
 
 Rectangle {
@@ -12,10 +14,20 @@ Rectangle {
 
     signal clicked()
 
-    property bool   available:    false  // adapter present
-    property bool   powered:      false
-    property bool   connected:    false
-    property string deviceName:   ""
+    property var  adapter:   Bluetooth.defaultAdapter
+    property bool available: adapter !== null
+    property bool powered:   adapter ? adapter.enabled : false
+
+    property int devicesRevision: 0
+    property var connectedDevices: {
+        devicesRevision
+        return Bluetooth.devices.values
+    }
+
+    property bool   connected:  connectedDevices.length > 0
+    property string deviceName: connected
+        ? (connectedDevices[0].name || connectedDevices[0].deviceName)
+        : ""
 
     Behavior on color { ColorAnimation { duration: 100 } }
 
@@ -32,44 +44,20 @@ Rectangle {
         return Theme.muted1
     }
 
-    // ── Poll every 5 s ────────────────────────────────────────────────────
-    Timer {
-        interval: 5000; running: true; repeat: true; triggeredOnStart: true
-        onTriggered: btProc.running = true
+    Connections {
+        target: Bluetooth.devices
+        function onObjectInsertedPost(object, index) { root.devicesRevision++ }
+        function onObjectRemovedPost(object, index) { root.devicesRevision++ }
     }
 
-    property string _buf: ""
-
-    Process {
-        id: btProc
-        // Line 1: "yes" if adapter found and powered, "no" otherwise
-        // Line 2: first connected device name (empty if none)
-        command: ["bash", "-c",
-            "result=$(printf 'show\\ndevices Connected\\n' | bluetoothctl 2>/dev/null); "
-            + "powered=$(echo \"$result\" | grep 'Powered:' | awk '{print $2}'); "
-            + "if [ -z \"$powered\" ]; then echo 'unavailable'; echo ''; exit 0; fi; "
-            + "echo \"$powered\"; "
-            + "echo \"$result\" | grep '^Device' | head -1 | sed 's/Device [^ ]* //'"]
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => root._buf += data + "\n"
-        }
-        onExited: {
-            var lines   = root._buf.trim().split("\n")
-            root._buf   = ""
-            var line0   = (lines[0] || "").trim()
-            if (line0 === "unavailable") {
-                root.available  = false
-                root.powered    = false
-                root.connected  = false
-                root.deviceName = ""
-            } else {
-                root.available  = true
-                root.powered    = line0.toLowerCase() === "yes"
-                var dev         = (lines[1] || "").trim()
-                root.connected  = dev !== ""
-                root.deviceName = dev
-            }
+    Instantiator {
+        model: Bluetooth.devices
+        delegate: Connections {
+            required property var modelData
+            target: modelData
+            function onConnectedChanged() { root.devicesRevision++ }
+            function onNameChanged() { root.devicesRevision++ }
+            function onDeviceNameChanged() { root.devicesRevision++ }
         }
     }
 
