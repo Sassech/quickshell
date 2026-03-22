@@ -43,7 +43,12 @@ PanelWindow {
     property string ethernetMac:      ""
     property string ethernetSpeed:    ""
 
-    // Parsed network list: [{ssid, signal, security, active, channel, linkSpeed, mac}]
+    // WiFi connection info
+    property string wifiIp:      ""
+    property string wifiGateway: ""
+    property string wifiDns:     ""
+
+    // Parsed network list: [{ssid, signal, security, active}]
     property var networks: []
 
     // Set of saved connection names (ssid → true)
@@ -57,7 +62,7 @@ PanelWindow {
 
     // Network info panel
     property int infoOpenIdx: -1
-    property var infoData:    ({})   // {ssid, signal, security, active, isSaved, ip, gateway, dns}
+    property var infoData:    ({})   // {ssid, signal, security, active, isSaved, ip}
 
     // Debug output
     property string _connectOutput: ""
@@ -204,7 +209,7 @@ PanelWindow {
                 if (seen[ssid]) continue     // deduplicate
                 seen[ssid] = true
                 if (active) root.connectedSsid = ssid
-                result.push({ ssid: ssid, signal: sig, security: security, active: active, channel: 0, linkSpeed: "", mac: "" })
+                result.push({ ssid: ssid, signal: sig, security: security, active: active })
             }
             // Sort: active first, then by signal descending
             result.sort((a, b) => {
@@ -214,66 +219,31 @@ PanelWindow {
             root.networks = result
             root.working  = false
 
-            // Load extra info (channel, link speed, MAC) after networks are loaded
+            // Load WiFi connection info (IP, Gateway, DNS)
             if (root.wifiIface) {
-                wifiExtraProc.running = true
+                wifiInfoProc.running = true
             }
         }
     }
 
-    // Get WiFi extra info (channel, link speed, MAC)
+    // Get WiFi connection info (IP, Gateway, DNS)
     Process {
-        id: wifiExtraProc
+        id: wifiInfoProc
         property string _buf: ""
         command: ["bash", "-c",
-            "WIFI_IFACE=$(LANG=C nmcli -t -f DEVICE,TYPE,STATE dev 2>/dev/null | grep ':wifi:connected' | cut -d: -f1 | head -1); "
-            + "if [ -n \"$WIFI_IFACE\" ]; then "
-            + "echo \"MAC:$(LANG=C nmcli dev show \"$WIFI_IFACE\" 2>/dev/null | grep 'GENERAL.HWADDR:' | awk '{print $2}')\"; "
-            + "iw dev \"$WIFI_IFACE\" link 2>/dev/null | grep -E '^[[:space:]]*freq:|^[[:space:]]*tx bitrate:'; "
+            "IFACE=$(nmcli dev | grep wifi | grep -v p2p | awk '{print $1}' | head -1); "
+            + "if [ -n \"$IFACE\" ]; then "
+            + "nmcli -g IP4.ADDRESS dev show \"$IFACE\" 2>/dev/null; "
+            + "nmcli -g IP4.GATEWAY dev show \"$IFACE\" 2>/dev/null; "
+            + "nmcli -g IP4.DNS dev show \"$IFACE\" 2>/dev/null; "
             + "fi"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => wifiExtraProc._buf += d + "\n" }
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => wifiInfoProc._buf += d + "\n" }
         onExited: {
-            var lines = wifiExtraProc._buf.trim().split("\n")
-            wifiExtraProc._buf = ""
-            var channel = 0
-            var linkSpeed = ""
-            var mac = ""
-            for (var i = 0; i < lines.length; i++) {
-                var line = (lines[i] || "").trim()
-                if (line.startsWith("MAC:")) {
-                    mac = line.substring(4)
-                } else if (line.includes("freq:")) {
-                    // freq can be in MHz (2407-2484) or GHz (5000-5900)
-                    var freqMatch = line.match(/freq:\s*([\d.]+)/)
-                    if (freqMatch) {
-                        var freq = parseFloat(freqMatch[1])
-                        if (freq > 1000) {
-                            // Likely in MHz, calculate channel
-                            if (freq >= 2407 && freq <= 2484) {
-                                channel = Math.round((freq - 2407) / 5)
-                            } else if (freq >= 5000 && freq <= 5900) {
-                                channel = Math.round((freq - 5000) / 5)
-                            }
-                        }
-                    }
-                } else if (line.includes("tx bitrate:")) {
-                    var speedMatch = line.match(/tx bitrate:\s*([\d.]+)/)
-                    if (speedMatch) {
-                        linkSpeed = speedMatch[1] + " MBit/s"
-                    }
-                }
-            }
-            // Update networks with extra info
-            for (var j = 0; j < root.networks.length; j++) {
-                if (root.networks[j].active) {
-                    root.networks[j].channel = channel
-                    root.networks[j].linkSpeed = linkSpeed
-                    root.networks[j].mac = mac
-                    break
-                }
-            }
-            // Trigger refresh to show updated info
-            root.networks = root.networks
+            var lines = wifiInfoProc._buf.trim().split("\n")
+            wifiInfoProc._buf = ""
+            root.wifiIp      = (lines[0] || "").split("/")[0].trim()
+            root.wifiGateway = (lines[1] || "").trim()
+            root.wifiDns     = (lines[2] || "").trim()
         }
     }
 
@@ -528,9 +498,7 @@ PanelWindow {
                 var kv = line.split(":")
                 var key = kv[0].trim().toLowerCase()
                 var val = kv.slice(1).join(":").trim()
-                if (key === "ip4.address[1]") d.ip      = val.split("/")[0]
-                if (key === "ip4.gateway")    d.gateway = val
-                if (key === "ip4.dns[1]")     d.dns     = val
+                if (key === "ip4.address[1]") d.ip = val.split("/")[0]
             })
             root.infoData = d
         }
@@ -547,12 +515,12 @@ PanelWindow {
             security: net.security,
             active:   root.connectedSsid === net.ssid,
             isSaved:  root.savedSsids[net.ssid] || false,
-            ip: "", gateway: "", dns: ""
+            ip: ""
         }
         root.infoOpenIdx = idx
         if (root.connectedSsid === net.ssid && root.wifiIface !== "") {
             menuInfoProc.command = ["bash", "-c",
-                "LANG=C nmcli -t -f IP4.ADDRESS,IP4.GATEWAY,IP4.DNS dev show "
+                "LANG=C nmcli -t -f IP4.ADDRESS dev show "
                 + root.wifiIface + " 2>/dev/null"]
             menuInfoProc.running = true
         }
@@ -972,7 +940,7 @@ PanelWindow {
                                             root.infoData = {
                                                 ssid: modelData.ssid, signal: modelData.signal,
                                                 security: modelData.security, active: true,
-                                                isSaved: netRow.isSaved, ip: "", gateway: "", dns: ""
+                                                isSaved: netRow.isSaved, ip: ""
                                             }
                                             menuInfoProc.command = ["bash", "-c",
                                                 "LANG=C nmcli -t -f IP4.ADDRESS,IP4.GATEWAY,IP4.DNS dev show "
@@ -1100,24 +1068,6 @@ PanelWindow {
                                         Text { text: modelData.signal + "%"; font.pixelSize: 11; color: Theme.text }
                                     }
                                     Row {
-                                        visible: modelData.channel > 0
-                                        width: parent.width; spacing: 6
-                                        Text { text: "Canal:"; font.pixelSize: 11; color: Theme.muted1; width: 90 }
-                                        Text { text: "Ch " + modelData.channel; font.pixelSize: 11; color: Theme.text }
-                                    }
-                                    Row {
-                                        visible: modelData.linkSpeed !== ""
-                                        width: parent.width; spacing: 6
-                                        Text { text: "Velocidad:"; font.pixelSize: 11; color: Theme.muted1; width: 90 }
-                                        Text { text: modelData.linkSpeed || ""; font.pixelSize: 11; color: Theme.text }
-                                    }
-                                    Row {
-                                        visible: modelData.mac !== ""
-                                        width: parent.width; spacing: 6
-                                        Text { text: "MAC:"; font.pixelSize: 11; color: Theme.muted1; width: 90 }
-                                        Text { text: modelData.mac || ""; font.pixelSize: 11; color: Theme.text; font.family: "monospace" }
-                                    }
-                                    Row {
                                         width: parent.width; spacing: 6
                                         Text { text: "Seguridad:"; font.pixelSize: 11; color: Theme.muted1; width: 90 }
                                         Text { text: (modelData.security && modelData.security !== "--") ? modelData.security : "Abierta"; font.pixelSize: 11; color: Theme.text }
@@ -1128,22 +1078,19 @@ PanelWindow {
                                         Text { text: netRow.isActive ? "Conectada" : (netRow.isSaved ? "Guardada" : "No guardada"); font.pixelSize: 11; color: Theme.text }
                                     }
                                     Row {
-                                        visible: netRow.isActive && root.infoData.ssid === modelData.ssid && (root.infoData.ip || "") !== ""
                                         width: parent.width; spacing: 6
                                         Text { text: "IP:"; font.pixelSize: 11; color: Theme.muted1; width: 90 }
-                                        Text { text: root.infoData.ip || ""; font.pixelSize: 11; color: Theme.text; elide: Text.ElideRight; width: parent.width - 96 }
+                                        Text { text: root.wifiIp !== "" ? root.wifiIp : "—"; font.pixelSize: 11; color: Theme.text; elide: Text.ElideRight; width: parent.width - 96 }
                                     }
                                     Row {
-                                        visible: netRow.isActive && root.infoData.ssid === modelData.ssid && (root.infoData.gateway || "") !== ""
                                         width: parent.width; spacing: 6
-                                        Text { text: "Puerta enlace:"; font.pixelSize: 11; color: Theme.muted1; width: 90 }
-                                        Text { text: root.infoData.gateway || ""; font.pixelSize: 11; color: Theme.text }
+                                        Text { text: "Gateway:"; font.pixelSize: 11; color: Theme.muted1; width: 90 }
+                                        Text { text: root.wifiGateway !== "" ? root.wifiGateway : "—"; font.pixelSize: 11; color: Theme.text }
                                     }
                                     Row {
-                                        visible: netRow.isActive && root.infoData.ssid === modelData.ssid && (root.infoData.dns || "") !== ""
                                         width: parent.width; spacing: 6
                                         Text { text: "DNS:"; font.pixelSize: 11; color: Theme.muted1; width: 90 }
-                                        Text { text: root.infoData.dns || ""; font.pixelSize: 11; color: Theme.text }
+                                        Text { text: root.wifiDns !== "" ? root.wifiDns : "—"; font.pixelSize: 11; color: Theme.text }
                                     }
                                 }
 
