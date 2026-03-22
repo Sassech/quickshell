@@ -193,9 +193,9 @@ Rectangle {
                 wifiSignalProc.running = true
             }
 
-            // Line 3: rx_bytes tx_bytes
-            if (lines.length >= 3) {
-                var netParts = (lines[2] || "").trim().split(/\s+/)
+            // Line 5: rx_bytes tx_bytes
+            if (lines.length >= 5) {
+                var netParts = (lines[4] || "").trim().split(/\s+/)
                 if (netParts.length >= 2) {
                     var rx = parseFloat(netParts[0]) || 0
                     var tx = parseFloat(netParts[1]) || 0

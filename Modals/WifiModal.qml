@@ -1078,16 +1078,19 @@ PanelWindow {
                                         Text { text: netRow.isActive ? "Conectada" : (netRow.isSaved ? "Guardada" : "No guardada"); font.pixelSize: 11; color: Theme.text }
                                     }
                                     Row {
+                                        visible: netRow.isActive
                                         width: parent.width; spacing: 6
                                         Text { text: "IP:"; font.pixelSize: 11; color: Theme.muted1; width: 90 }
                                         Text { text: root.wifiIp !== "" ? root.wifiIp : "—"; font.pixelSize: 11; color: Theme.text; elide: Text.ElideRight; width: parent.width - 96 }
                                     }
                                     Row {
+                                        visible: netRow.isActive
                                         width: parent.width; spacing: 6
                                         Text { text: "Gateway:"; font.pixelSize: 11; color: Theme.muted1; width: 90 }
                                         Text { text: root.wifiGateway !== "" ? root.wifiGateway : "—"; font.pixelSize: 11; color: Theme.text }
                                     }
                                     Row {
+                                        visible: netRow.isActive
                                         width: parent.width; spacing: 6
                                         Text { text: "DNS:"; font.pixelSize: 11; color: Theme.muted1; width: 90 }
                                         Text { text: root.wifiDns !== "" ? root.wifiDns : "—"; font.pixelSize: 11; color: Theme.text }
