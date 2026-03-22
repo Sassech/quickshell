@@ -11,18 +11,20 @@ Rectangle {
     color: ma.containsMouse ? Theme.surface3 : Theme.surface2
 
     // ── State ────────────────────────────────────────────────────────────
-    property bool   radioOn:    true
-    property bool   connected:  false
-    property string ssid:       ""
-    property int    signal_:    0   // 0-100
-    property real   downSpeed:  0   // bytes/s
-    property real   upSpeed:    0   // bytes/s
-    property real   _prevRx:    -1
-    property real   _prevTx:    -1
+    property bool   radioOn:        true
+    property bool   connected:     false
+    property string connectionType: "none"  // "wifi", "ethernet", "none"
+    property string ssid:          ""
+    property int    signal_:       0   // 0-100
+    property real   downSpeed:     0   // bytes/s
+    property real   upSpeed:       0   // bytes/s
+    property real   _prevRx:       -1
+    property real   _prevTx:       -1
 
-    // ── Icon based on state ───────────────────────────────────────────────
-    property string wifiIcon: {
-        if (!radioOn)   return "󰤮"
+    // ── Icon based on connection type ────────────────────────────────────
+    property string networkIcon: {
+        if (connectionType === "ethernet") return "󰈀"
+        if (!radioOn) return "󰤮"
         if (!connected) return "󰤭"
         if (signal_ >= 80) return "󰤨"
         if (signal_ >= 60) return "󰤥"
@@ -31,7 +33,8 @@ Rectangle {
     }
 
     property color iconColor: {
-        if (!radioOn)   return Theme.muted1
+        if (connectionType === "ethernet") return Theme.success
+        if (!radioOn) return Theme.muted1
         if (!connected) return Theme.muted2
         if (signal_ >= 60) return Theme.success
         if (signal_ >= 40) return Theme.warning
@@ -61,18 +64,19 @@ Rectangle {
         anchors.horizontalCenterOffset: 4
         spacing: 8
 
-        // WiFi icon
+        // Network icon
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.wifiIcon
+            text: root.networkIcon
             font.pixelSize: 13
             color: root.iconColor
         }
 
-        // SSID
+        // Connection text
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text: {
+                if (connectionType === "ethernet") return "Ethernet"
                 if (!radioOn) return "Apagado"
                 if (!connected) return "Desc."
                 return root.ssid || "WiFi"
@@ -158,21 +162,35 @@ Rectangle {
             var lines = root._netBuf.trim().split("\n")
             root._netBuf = ""
 
-            // Line 1: radio state
+            // Line 1: wifi radio state
             var radioLine = (lines[0] || "").trim()
             root.radioOn = radioLine === "enabled"
 
-            // Line 2: active:ssid:signal
-            var netLine = (lines[1] || "").trim()
-            if (netLine && netLine.startsWith("yes:")) {
-                var parts = netLine.split(":")
+            // Line 2: connection_type:ssid (wifi:SSID or ethernet: or none:)
+            var connLine = (lines[1] || "").trim()
+            if (connLine.startsWith("ethernet:")) {
+                root.connectionType = "ethernet"
+                root.connected = true
+                root.ssid = ""
+                root.signal_ = 0
+            } else if (connLine.startsWith("wifi:")) {
+                root.connectionType = "wifi"
+                var parts = connLine.split(":")
                 root.connected = true
                 root.ssid = parts[1] || ""
-                root.signal_ = parseInt(parts[2]) || 0
+                // Get signal from nmcli if available
+                var signalLine = (lines[1] || "").trim()
+                // Already have ssid, signal will be updated separately
             } else {
+                root.connectionType = "none"
                 root.connected = false
                 root.ssid = ""
                 root.signal_ = 0
+            }
+
+            // Get wifi signal strength if connected via wifi
+            if (root.connectionType === "wifi") {
+                wifiSignalProc.running = true
             }
 
             // Line 3: rx_bytes tx_bytes
@@ -188,6 +206,21 @@ Rectangle {
                     root._prevRx = rx
                     root._prevTx = tx
                 }
+            }
+        }
+    }
+
+    // Get WiFi signal strength
+    Process {
+        id: wifiSignalProc
+        command: ["bash", "-c",
+            "LANG=C nmcli -t -f active,ssid,signal dev wifi list 2>/dev/null | " +
+            "grep '^yes:' | cut -d: -f3 | head -1"]
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => {
+                var sig = parseInt(data.trim()) || 0
+                root.signal_ = sig
             }
         }
     }

@@ -25,11 +25,25 @@ PanelWindow {
     property string wifiIface:     ""
     property int    selectedIdx:   -1
     property bool   showPassword:  false
-    property string passwordText:  ""
     property string statusMsg:     ""
+    property var    passwordByIndex: ({})  // { index: password }
     property bool   working:       false
+    property string logFile:      "/tmp/qs-wifi-connect.log"
 
-    // Parsed network list: [{ssid, signal, security, active}]
+    // Log status changes
+    onStatusMsgChanged: {
+        if (statusMsg !== "") {
+            console.log("[WifiModal] STATUS:", statusMsg)
+        }
+    }
+
+    // Ethernet state
+    property bool   ethernetConnected: false
+    property string ethernetIp:       ""
+    property string ethernetMac:      ""
+    property string ethernetSpeed:    ""
+
+    // Parsed network list: [{ssid, signal, security, active, channel, linkSpeed, mac}]
     property var networks: []
 
     // Set of saved connection names (ssid → true)
@@ -45,13 +59,16 @@ PanelWindow {
     property int infoOpenIdx: -1
     property var infoData:    ({})   // {ssid, signal, security, active, isSaved, ip, gateway, dns}
 
+    // Debug output
+    property string _connectOutput: ""
+
     onSelectedIdxChanged: infoOpenIdx = -1
 
     onVisibleChanged: {
         if (visible) {
             selectedIdx  = -1
             showPassword = false
-            passwordText = ""
+            passwordByIndex = ({})
             statusMsg    = ""
             loadNetworks()
         } else {
@@ -68,12 +85,22 @@ PanelWindow {
         radioProc.running   = true
         netListProc.running = true
         savedProc.running   = true
+        ethernetProc.running = true
+    }
+
+    // ── Auto-refresh every 8 seconds when visible ──────────────────────────
+    Timer {
+        interval: 8000
+        running: root.visible && !root.working
+        repeat: true
+        onTriggered: root.loadNetworks()
     }
 
     property string _ifaceBuf: ""
     property string _radioBuf: ""
     property string _netBuf: ""
     property string _savedBuf: ""
+    property string _ethBuf: ""
 
     // Load saved wifi connection names
     Process {
@@ -121,6 +148,29 @@ PanelWindow {
         }
     }
 
+    // Load ethernet info
+    Process {
+        id: ethernetProc
+        command: ["bash", "-c",
+            "ETH_IFACE=$(LANG=C nmcli -t -f DEVICE,TYPE,STATE dev 2>/dev/null | grep ':ethernet:connected' | cut -d: -f1); "
+            + "if [ -n \"$ETH_IFACE\" ]; then "
+            + "echo \"connected\"; "
+            + "LANG=C nmcli -t -f IP4.ADDRESS dev show \"$ETH_IFACE\" 2>/dev/null | cut -d: -f2 | cut -d/ -f1; "
+            + "LANG=C nmcli -t -f DEVICE,HWADDR dev show 2>/dev/null | grep \"^$ETH_IFACE:\" | cut -d: -f2; "
+            + "ethtool \"$ETH_IFACE\" 2>/dev/null | grep \"Speed:\" | awk '{print $2}'; "
+            + "else echo \"disconnected\"; fi"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._ethBuf += d + "\n" }
+        onExited: {
+            var lines = root._ethBuf.trim().split("\n")
+            root._ethBuf = ""
+            var state = (lines[0] || "").trim()
+            root.ethernetConnected = state === "connected"
+            root.ethernetIp = (lines[1] || "").trim()
+            root.ethernetMac = (lines[2] || "").trim()
+            root.ethernetSpeed = (lines[3] || "").trim()
+        }
+    }
+
     Process {
         id: netListProc
         command: ["bash", "-c",
@@ -131,6 +181,14 @@ PanelWindow {
             root._netBuf = ""
             var seen   = {}
             var result = []
+
+            // Get WiFi interface MAC
+            var wifiMac = ""
+            var wifiIface = root.wifiIface
+            if (wifiIface) {
+                // MAC will be fetched separately
+            }
+
             for (var i = 0; i < lines.length; i++) {
                 var l = lines[i].trim()
                 if (!l) continue
@@ -146,7 +204,7 @@ PanelWindow {
                 if (seen[ssid]) continue     // deduplicate
                 seen[ssid] = true
                 if (active) root.connectedSsid = ssid
-                result.push({ ssid: ssid, signal: sig, security: security, active: active })
+                result.push({ ssid: ssid, signal: sig, security: security, active: active, channel: 0, linkSpeed: "", mac: "" })
             }
             // Sort: active first, then by signal descending
             result.sort((a, b) => {
@@ -155,6 +213,67 @@ PanelWindow {
             })
             root.networks = result
             root.working  = false
+
+            // Load extra info (channel, link speed, MAC) after networks are loaded
+            if (root.wifiIface) {
+                wifiExtraProc.running = true
+            }
+        }
+    }
+
+    // Get WiFi extra info (channel, link speed, MAC)
+    Process {
+        id: wifiExtraProc
+        property string _buf: ""
+        command: ["bash", "-c",
+            "WIFI_IFACE=$(LANG=C nmcli -t -f DEVICE,TYPE,STATE dev 2>/dev/null | grep ':wifi:connected' | cut -d: -f1 | head -1); "
+            + "if [ -n \"$WIFI_IFACE\" ]; then "
+            + "echo \"MAC:$(LANG=C nmcli dev show \"$WIFI_IFACE\" 2>/dev/null | grep 'GENERAL.HWADDR:' | awk '{print $2}')\"; "
+            + "iw dev \"$WIFI_IFACE\" link 2>/dev/null | grep -E '^[[:space:]]*freq:|^[[:space:]]*tx bitrate:'; "
+            + "fi"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => wifiExtraProc._buf += d + "\n" }
+        onExited: {
+            var lines = wifiExtraProc._buf.trim().split("\n")
+            wifiExtraProc._buf = ""
+            var channel = 0
+            var linkSpeed = ""
+            var mac = ""
+            for (var i = 0; i < lines.length; i++) {
+                var line = (lines[i] || "").trim()
+                if (line.startsWith("MAC:")) {
+                    mac = line.substring(4)
+                } else if (line.includes("freq:")) {
+                    // freq can be in MHz (2407-2484) or GHz (5000-5900)
+                    var freqMatch = line.match(/freq:\s*([\d.]+)/)
+                    if (freqMatch) {
+                        var freq = parseFloat(freqMatch[1])
+                        if (freq > 1000) {
+                            // Likely in MHz, calculate channel
+                            if (freq >= 2407 && freq <= 2484) {
+                                channel = Math.round((freq - 2407) / 5)
+                            } else if (freq >= 5000 && freq <= 5900) {
+                                channel = Math.round((freq - 5000) / 5)
+                            }
+                        }
+                    }
+                } else if (line.includes("tx bitrate:")) {
+                    var speedMatch = line.match(/tx bitrate:\s*([\d.]+)/)
+                    if (speedMatch) {
+                        linkSpeed = speedMatch[1] + " MBit/s"
+                    }
+                }
+            }
+            // Update networks with extra info
+            for (var j = 0; j < root.networks.length; j++) {
+                if (root.networks[j].active) {
+                    root.networks[j].channel = channel
+                    root.networks[j].linkSpeed = linkSpeed
+                    root.networks[j].mac = mac
+                    break
+                }
+            }
+            // Trigger refresh to show updated info
+            root.networks = root.networks
         }
     }
 
@@ -188,33 +307,125 @@ PanelWindow {
         rescanProc.running = true
     }
 
-    Process { id: connectProc; command: ["bash", "-c", ""]
-        onExited: (ec) => {
+    Process {
+        id: connectProc
+        command: ["bash", "-c", ""]
+        property string _buf: ""
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: d => connectProc._buf += d + "\n"
+        }
+        onExited: function(exitCode) {
+            var output = connectProc._buf.trim()
+            connectProc._buf = ""
             root.working = false
-            if (ec === 0) {
-                root.statusMsg   = "✓ Conectado"
+            
+            // Verify actual connection state
+            var verifyCmd = ["bash", "-c",
+                "nmcli -t -f GENERAL.CONNECTION,STATE dev show " + (root.wifiIface || "wlan0") + " 2>/dev/null | grep -v ':$'"]
+            verifyProc.command = verifyCmd
+            verifyProc.running = true
+            
+            // Store output for debug
+            root._connectOutput = output
+            
+            // Log to file for debugging
+            var logCmd = ["bash", "-c", 
+                "echo '" + (new Date()).toISOString() + " CONNECT EXIT: " + exitCode + "' >> /tmp/qs-wifi-connect.log; " +
+                "echo 'STATUS_MSG: " + (exitCode === 0 ? "\\u2713 Conectado" : "\\u2717 Error") + "' >> /tmp/qs-wifi-connect.log"
+            ]
+            
+            // Show result based on exit code
+            if (exitCode === 0) {
+                root.statusMsg = "✓ Conectado"
                 root.selectedIdx = -1
                 root.showPassword = false
-                root.passwordText = ""
+                root.passwordByIndex = ({})
             } else {
-                root.statusMsg = "✗ No se pudo conectar"
+                // Show first line of error if available
+                var errLines = output.split("\n")
+                var errMsg = errLines.filter(l => l && !l.startsWith("DEBUG:") && !l.startsWith("EXIT_CODE:"))[0] || "Error de conexión"
+                root.statusMsg = "✗ " + errMsg.substring(0, 40)
             }
             Qt.callLater(() => root.loadNetworks())
+        }
+    }
+    
+    Process {
+        id: verifyProc
+        command: ["bash", "-c", ""]
+        onExited: function(ec) {
+            // Connection verified
         }
     }
     function connectTo(ssid, password) {
         root.working   = true
         root.statusMsg = ""
-        var cmd = "LANG=C nmcli dev wifi connect " + JSON.stringify(ssid)
-        if (password) cmd += " password " + JSON.stringify(password)
-        cmd += " 2>&1"
-        connectProc.command = ["bash", "-c", cmd]
+        
+        // Log start
+        console.log("[WifiModal] Connecting to:", ssid, "password length:", password.length)
+        
+        // Escape special characters for bash
+        var escapedSsid = ssid.replace(/'/g, "'\"'\"'")
+        var escapedPass = password.replace(/'/g, "'\"'\"'")
+        
+        var cmd = [
+            "bash", "-c",
+            "LOG=/tmp/qs-wifi-connect.log; " +
+            "echo \"=== WIFI CONNECT DEBUG ===\" > $LOG; " +
+            "date >> $LOG; " +
+            "SSID='" + escapedSsid + "'; " +
+            "PASS='" + escapedPass + "'; " +
+            "echo \"SSID=$SSID\" >> $LOG; " +
+            "echo \"PASS_LEN=${#PASS}\" >> $LOG; " +
+            "IFACE=$(nmcli dev | grep wifi | grep -v p2p | awk '{print $1}' | head -1); " +
+            "echo \"IFACE=$IFACE\" >> $LOG; " +
+            "echo \"--- Delete existing --- \" >> $LOG; " +
+            "nmcli con delete \"$SSID\" 2>&1 >> $LOG || true; " +
+            "echo \"--- Rescan --- \" >> $LOG; " +
+            "nmcli dev wifi rescan 2>&1 >> $LOG; " +
+            "echo \"--- Wait 2s --- \" >> $LOG; " +
+            "sleep 2; " +
+            "echo \"--- Add connection --- \" >> $LOG; " +
+            "nmcli con add type wifi con-name \"$SSID\" ssid \"$SSID\" " +
+            "wifi-sec.key-mgmt wpa-psk wifi-sec.psk \"$PASS\" 2>&1 >> $LOG; " +
+            "echo \"--- Connect --- \" >> $LOG; " +
+            "nmcli con up \"$SSID\" ifname \"$IFACE\" 2>&1 >> $LOG; " +
+            "EXIT=$?; " +
+            "echo \"EXIT_CODE=$EXIT\" >> $LOG; " +
+            "echo \"--- Final state --- \" >> $LOG; " +
+            "nmcli device status >> $LOG; " +
+            "cat $LOG; " +
+            "exit $EXIT"
+        ]
+        connectProc.command = cmd
         connectProc.running = true
     }
 
     Process { id: disconnectProc; command: ["bash", "-c", ""]
         onExited: { root.working = false; Qt.callLater(() => root.loadNetworks()) }
     }
+
+    Process {
+        id: savedPwProc
+        property string ssid: ""
+        property int index: -1
+        property string _buf: ""
+        command: ["bash", "-c", ""]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => savedPwProc._buf += d }
+        onExited: function(ec) {
+            var pw = savedPwProc._buf.trim()
+            savedPwProc._buf = ""
+            console.log("[WifiModal] Saved password length:", pw.length)
+            root.working = false
+            if (pw.length > 0) {
+                root.connectTo(savedPwProc.ssid, pw)
+            } else {
+                root.statusMsg = "✗ No se pudo obtener contraseña guardada"
+            }
+        }
+    }
+
     function disconnect_() {
         root.working = true
         disconnectProc.command = ["bash", "-c",
@@ -229,16 +440,29 @@ PanelWindow {
         command: ["bash", "-c", ""]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => menuCopyFetchProc._buf += d }
         onExited: {
-            var pw = menuCopyFetchProc._buf.trim()
+            var output = menuCopyFetchProc._buf.trim()
             menuCopyFetchProc._buf = ""
+            
+            // Parse output: "PASS:xxx" or "ERROR:message"
+            var pw = ""
+            var errorMsg = ""
+            
+            var lines = output.split("\n")
+            for (var i = 0; i < lines.length; i++) {
+                var line = lines[i].trim()
+                if (line.startsWith("PASS:")) {
+                    pw = line.substring(5)
+                    break
+                } else if (line.startsWith("ERROR:")) {
+                    errorMsg = line.substring(6)
+                }
+            }
+            
             if (pw !== "") {
-                // Pass password as positional $1 to avoid any shell quoting issues.
-                // printf "%s" does NOT add a trailing newline; stdin mode is more
-                // reliable with clipboard managers than argument mode.
                 menuCopyExecProc.command = ["bash", "-c", 'printf "%s" "$1" | wl-copy', "--", pw]
                 menuCopyExecProc.running = true
             } else {
-                root.statusMsg = "✗ No se encontró la contraseña"
+                root.statusMsg = "✗ " + (errorMsg || "No se encontró la contraseña")
             }
         }
     }
@@ -258,9 +482,21 @@ PanelWindow {
     function menuCopyPassword() {
         var ssid = root.menuOpenSsid
         root.menuOpenIdx = -1
+        // Try multiple methods to get saved password
         menuCopyFetchProc.command = ["bash", "-c",
-            "nmcli -s -t -f 802-11-wireless-security.psk con show "
-            + JSON.stringify(ssid) + " 2>/dev/null | cut -d: -f2-"]
+            "SSID=" + JSON.stringify(ssid) + "; " +
+            "PASS=$(nmcli -s -g 802-11-wireless-security.psk connection show \"$SSID\" 2>/dev/null); " +
+            "if [ -z \"$PASS\" ]; then " +
+            "  CONN_FILE=$(find /etc/NetworkManager/system-connections -name '*' -type f 2>/dev/null | xargs grep -l \"ssid=$SSID\" 2>/dev/null | head -1); " +
+            "  if [ -n \"$CONN_FILE\" ]; then " +
+            "    PASS=$(grep '^psk=' \"$CONN_FILE\" 2>/dev/null | head -1 | cut -d= -f2-); " +
+            "  fi; " +
+            "fi; " +
+            "if [ -z \"$PASS\" ]; then " +
+            "  PASS=$(nmcli -s device wifi show-password 2>/dev/null | grep '^psk:' | cut -d: -f2- | tr -d ' '); " +
+            "fi; " +
+            "if [ -n \"$PASS\" ]; then echo \"PASS:$PASS\"; else echo \"ERROR:No se encontró la contraseña\"; fi"
+        ]
         menuCopyFetchProc.running = true
     }
     Process {
@@ -424,6 +660,86 @@ PanelWindow {
 
             // Separator
             Rectangle { width: parent.width; height: 1; color: Theme.surface2 }
+
+            // ── Ethernet section ─────────────────────────────────────────────
+            Item {
+                visible: root.ethernetConnected
+                width: parent.width
+                height: ethernetConnected ? 64 : 0
+                Behavior on height { NumberAnimation { duration: 150 } }
+
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.topMargin: 8
+                    radius: 10
+                    color: Qt.rgba(Theme.success.r, Theme.success.g, Theme.success.b, 0.12)
+                    border.color: Qt.rgba(Theme.success.r, Theme.success.g, Theme.success.b, 0.3)
+
+                    Row {
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        spacing: 12
+
+                        Text {
+                            text: "󰈀"
+                            font.pixelSize: 20
+                            color: Theme.success
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        Column {
+                            spacing: 2
+                            anchors.verticalCenter: parent.verticalCenter
+
+                            Text {
+                                text: "Ethernet"
+                                font.pixelSize: 13
+                                font.weight: Font.DemiBold
+                                color: Theme.text
+                            }
+                            Text {
+                                text: root.ethernetIp || "Sin IP"
+                                font.pixelSize: 10
+                                color: Theme.muted1
+                            }
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        Column {
+                            spacing: 2
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: root.ethernetSpeed !== ""
+
+                            Text {
+                                text: root.ethernetSpeed
+                                font.pixelSize: 10
+                                color: Theme.muted1
+                                anchors.right: parent.right
+                            }
+                        }
+
+                        Column {
+                            spacing: 2
+                            anchors.verticalCenter: parent.verticalCenter
+
+                            Text {
+                                text: root.ethernetMac || ""
+                                font.pixelSize: 9
+                                color: Theme.muted2
+                                font.family: "monospace"
+                                anchors.right: parent.right
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Separator
+            Rectangle {
+                visible: root.ethernetConnected
+                width: parent.width; height: 1; color: Theme.surface2
+            }
 
             // Status message
             Text {
@@ -594,21 +910,38 @@ PanelWindow {
                                     MouseArea {
                                         anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                         onClicked: {
+                                            console.log("[WifiModal] Button clicked - index:", index, "ssid:", modelData.ssid)
                                             if (netRow.isActive) {
                                                 root.disconnect_()
                                             } else {
-                                                var secured = modelData.security && modelData.security !== "--"
+                                                var needsPw = modelData.security && modelData.security !== "--"
+                                                // If panel not expanded, expand it
                                                 if (root.selectedIdx !== index) {
                                                     root.selectedIdx  = index
-                                                    root.showPassword = secured
-                                                    root.passwordText = ""
+                                                    root.showPassword = needsPw && !netRow.isSaved
+                                                    root.passwordByIndex[index] = ""
                                                     showPwText = false
+                                                    console.log("[WifiModal] Panel expanded - password reset")
                                                 } else {
-                                                    var needsPw = modelData.security && modelData.security !== "--"
-                                                    if (needsPw && !netRow.isSaved && root.passwordText === "") {
-                                                        root.statusMsg = "✗ Ingresa una contraseña"
+                                                    // Panel already expanded - connect
+                                                    // Get password from TextInput or saved password
+                                                    var pw = pwInput ? pwInput.text : (root.passwordByIndex[index] || "")
+                                                    console.log("[WifiModal] Connecting - isSaved:", netRow.isSaved, "pw length:", pw.length, "ssid:", modelData.ssid)
+                                                    if (needsPw && pw === "") {
+                                                        if (netRow.isSaved) {
+                                                            // Get saved password and connect
+                                                            root.working = true
+                                                            root.statusMsg = "Obteniendo contraseña guardada..."
+                                                            savedPwProc.ssid = modelData.ssid
+                                                            savedPwProc.index = index
+                                                            savedPwProc.command = ["bash", "-c",
+                                                                "nmcli -s -g 802-11-wireless-security.psk connection show " + JSON.stringify(modelData.ssid) + " 2>/dev/null"]
+                                                            savedPwProc.running = true
+                                                        } else {
+                                                            root.statusMsg = "✗ Ingresa una contraseña"
+                                                        }
                                                     } else {
-                                                        root.connectTo(modelData.ssid, root.passwordText)
+                                                        root.connectTo(modelData.ssid, pw)
                                                     }
                                                 }
                                             }
@@ -701,17 +1034,18 @@ PanelWindow {
                                             id: pwInput
                                             anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
                                             visible: !netRow.isSaved
-                                            text: root.passwordText
-                                            onTextChanged: root.passwordText = text
+                                            text: root.passwordByIndex[index] || ""
+                                            onTextChanged: root.passwordByIndex[index] = text
                                             echoMode: netRow.showPwText ? TextInput.Normal : TextInput.Password
                                             color: Theme.text; font.pixelSize: 12
                                             verticalAlignment: TextInput.AlignVCenter
                                             Keys.onReturnPressed: {
                                                 var needsPw = modelData.security && modelData.security !== "--"
-                                                if (needsPw && !netRow.isSaved && root.passwordText === "") {
+                                                var pw = root.passwordByIndex[index] || ""
+                                                if (needsPw && !netRow.isSaved && pw === "") {
                                                     root.statusMsg = "✗ Ingresa una contraseña"
                                                 } else {
-                                                    root.connectTo(modelData.ssid, root.passwordText)
+                                                    root.connectTo(modelData.ssid, pw)
                                                 }
                                             }
                                         }
@@ -764,6 +1098,24 @@ PanelWindow {
                                         width: parent.width; spacing: 6
                                         Text { text: "Señal:"; font.pixelSize: 11; color: Theme.muted1; width: 90 }
                                         Text { text: modelData.signal + "%"; font.pixelSize: 11; color: Theme.text }
+                                    }
+                                    Row {
+                                        visible: modelData.channel > 0
+                                        width: parent.width; spacing: 6
+                                        Text { text: "Canal:"; font.pixelSize: 11; color: Theme.muted1; width: 90 }
+                                        Text { text: "Ch " + modelData.channel; font.pixelSize: 11; color: Theme.text }
+                                    }
+                                    Row {
+                                        visible: modelData.linkSpeed !== ""
+                                        width: parent.width; spacing: 6
+                                        Text { text: "Velocidad:"; font.pixelSize: 11; color: Theme.muted1; width: 90 }
+                                        Text { text: modelData.linkSpeed || ""; font.pixelSize: 11; color: Theme.text }
+                                    }
+                                    Row {
+                                        visible: modelData.mac !== ""
+                                        width: parent.width; spacing: 6
+                                        Text { text: "MAC:"; font.pixelSize: 11; color: Theme.muted1; width: 90 }
+                                        Text { text: modelData.mac || ""; font.pixelSize: 11; color: Theme.text; font.family: "monospace" }
                                     }
                                     Row {
                                         width: parent.width; spacing: 6
