@@ -17,7 +17,5 @@ AudioWidget 1.0 AudioWidget.qml
 NetWidget 1.0 NetWidget.qml
 SystemTrayWidget 1.0 SystemTrayWidget.qml
 TrayIcon 1.0 TrayIcon.qml
-MinimizedAppIcon 1.0 MinimizedAppIcon.qml
 
-TrayAppManager 1.0 TrayAppManager.qml
 RamWidget 1.0 RamWidget.qml
