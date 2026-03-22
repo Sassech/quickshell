@@ -19,6 +19,15 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
+    // ── Confirmación corta ───────────────────────────────────────────────
+    property string pendingAction: ""
+
+    Timer {
+        id: confirmTimer
+        interval: 2500
+        onTriggered: root.pendingAction = ""
+    }
+
     // Overlay oscuro — click fuera cierra
     Rectangle {
         anchors.fill: parent
@@ -28,6 +37,13 @@ PanelWindow {
         MouseArea {
             anchors.fill: parent
             onClicked: root.visible = false
+        }
+    }
+
+    onVisibleChanged: {
+        if (!visible) {
+            root.pendingAction = ""
+            confirmTimer.stop()
         }
     }
 
@@ -83,18 +99,21 @@ PanelWindow {
 
             Repeater {
                 model: [
-                    { icon: "⏻",  label: "Apagar",        sub: "systemctl poweroff",   color: Theme.error },
-                    { icon: "󰜉",  label: "Reiniciar",      sub: "systemctl reboot",     color: Theme.warning },
-                    { icon: "󰒲",  label: "Suspender",      sub: "systemctl suspend",    color: Theme.accent },
-                    { icon: "󰍃",  label: "Cerrar Sesión",  sub: "hyprctl dispatch exit",color: Theme.yellow }
+                    { id: "poweroff", icon: "⏻",  label: "Apagar",        sub: "systemctl poweroff",    color: Theme.error },
+                    { id: "reboot",   icon: "󰜉",  label: "Reiniciar",      sub: "systemctl reboot",      color: Theme.warning },
+                    { id: "suspend",  icon: "󰒲",  label: "Suspender",      sub: "systemctl suspend",     color: Theme.accent },
+                    { id: "logout",   icon: "󰍃",  label: "Cerrar Sesión",  sub: "hyprctl dispatch exit", color: Theme.yellow }
                 ]
 
                 Rectangle {
                     Layout.fillWidth: true
                     height: 52
                     radius: 8
-                    color: itemMouse.containsMouse ? Qt.darker(modelData.color, 3.8) : Theme.surface2
-                    border.color: itemMouse.containsMouse ? modelData.color : "transparent"
+                    property bool isConfirming: root.pendingAction === modelData.id
+                    color: isConfirming
+                        ? Qt.rgba(modelData.color.r, modelData.color.g, modelData.color.b, 0.18)
+                        : (itemMouse.containsMouse ? Qt.darker(modelData.color, 3.8) : Theme.surface2)
+                    border.color: isConfirming ? modelData.color : (itemMouse.containsMouse ? modelData.color : "transparent")
                     border.width: 1
 
                     Behavior on color { ColorAnimation { duration: 120 } }
@@ -113,13 +132,13 @@ PanelWindow {
                         Column {
                             spacing: 2
                             Text {
-                                text: modelData.label
+                                text: isConfirming ? "Confirmar" : modelData.label
                                 font.pixelSize: 13
                                 font.weight: Font.Normal
                                 color: Theme.text
                             }
                             Text {
-                                text: modelData.sub
+                                text: isConfirming ? "Click de nuevo" : modelData.sub
                                 font.pixelSize: 9
                                 color: Theme.muted3
                             }
@@ -132,11 +151,22 @@ PanelWindow {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
+                            var critical = modelData.id === "poweroff" || modelData.id === "reboot"
+                            if (critical) {
+                                if (root.pendingAction === modelData.id) {
+                                    root.pendingAction = ""
+                                    confirmTimer.stop()
+                                } else {
+                                    root.pendingAction = modelData.id
+                                    confirmTimer.restart()
+                                    return
+                                }
+                            }
                             root.visible = false
-                            if      (index === 0) poweroffProc.running = true
-                            else if (index === 1) rebootProc.running   = true
-                            else if (index === 2) suspendProc.running  = true
-                            else if (index === 3) logoutProc.running   = true
+                            if      (modelData.id === "poweroff") poweroffProc.running = true
+                            else if (modelData.id === "reboot")   rebootProc.running   = true
+                            else if (modelData.id === "suspend")  suspendProc.running  = true
+                            else if (modelData.id === "logout")   logoutProc.running   = true
                         }
                     }
                 }
@@ -151,4 +181,3 @@ PanelWindow {
     Process { id: suspendProc;  running: false; command: ["systemctl", "suspend"]  }
     Process { id: logoutProc;   running: false; command: ["hyprctl", "dispatch", "exit"] }
 }
-

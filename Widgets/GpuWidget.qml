@@ -16,6 +16,7 @@ Rectangle {
     property int gpuPercent: -1
     property int gpuTemp: 0
     property string gpuName: ""
+    property int _failCount: 0
 
     property bool hasData: gpuPercent >= 0
 
@@ -26,19 +27,9 @@ Rectangle {
         return Theme.accent2
     }
 
-    // Left accent border
-    Rectangle {
-        width: 3; height: parent.height * 0.6
-        radius: 2
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.left: parent.left; anchors.leftMargin: 4
-        color: root.accentColor
-    }
-
     Row {
         id: row
         anchors.centerIn: parent
-        anchors.horizontalCenterOffset: 4
         spacing: 5
 
         Text {
@@ -50,7 +41,7 @@ Rectangle {
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.hasData ? root.gpuPercent + "%" : "N/A"
+            text: root.hasData ? root.gpuPercent + "%" : "—%"
             font.pixelSize: 11
             font.weight: Font.Normal
             font.family: "monospace"
@@ -71,9 +62,21 @@ Rectangle {
     }
 
     Timer {
-        interval: 2000
-        running: true; repeat: true; triggeredOnStart: true
+        id: pollTimer
+        interval: 4000
+        running: true
+        repeat: true
+        triggeredOnStart: true
         onTriggered: gpuProc.running = true
+    }
+
+    Timer {
+        id: backoffTimer
+        interval: 300000
+        onTriggered: {
+            root._failCount = 0
+            pollTimer.start()
+        }
     }
 
     property string _buf: ""
@@ -86,9 +89,30 @@ Rectangle {
         }
         onExited: {
             var lines = root._buf.trim().split("\n")
-            if (lines.length >= 1) { var p = parseInt(lines[0]); root.gpuPercent = isNaN(p) ? -1 : p }
-            if (lines.length >= 2) { var t = parseInt(lines[1]); if (!isNaN(t)) root.gpuTemp = t }
-            if (lines.length >= 3) root.gpuName = lines[2].trim()
+            var ok = false
+            var p = root.gpuPercent
+            var t = root.gpuTemp
+            var n = root.gpuName
+            if (lines.length >= 1) {
+                var p0 = parseInt(lines[0])
+                if (!isNaN(p0) && p0 >= 0) { p = p0; ok = true }
+            }
+            if (lines.length >= 2) { var t0 = parseInt(lines[1]); if (!isNaN(t0)) t = t0 }
+            if (lines.length >= 3) n = lines[2].trim()
+
+            if (ok) {
+                if (p !== root.gpuPercent) root.gpuPercent = p
+                if (t !== root.gpuTemp) root.gpuTemp = t
+                if (n !== root.gpuName) root.gpuName = n
+                root._failCount = 0
+            } else {
+                root.gpuPercent = -1
+                root._failCount++
+                if (root._failCount >= 3) {
+                    pollTimer.stop()
+                    backoffTimer.restart()
+                }
+            }
             root._buf = ""
         }
     }

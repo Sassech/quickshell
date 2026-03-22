@@ -49,19 +49,10 @@ Rectangle {
         return (bps / (1024*1024*1024)).toFixed(2) + " GB/s"
     }
 
-    // ── Left accent strip ────────────────────────────────────────────────
-    Rectangle {
-        width: 3; height: parent.height * 0.6
-        radius: 2
-        anchors { verticalCenter: parent.verticalCenter; left: parent.left; leftMargin: 4 }
-        color: root.connected ? Theme.accent : Theme.muted2
-    }
-
     // ── Content Row ──────────────────────────────────────────────────────
     Row {
         id: contentRow
         anchors.centerIn: parent
-        anchors.horizontalCenterOffset: 4
         spacing: 8
 
         // Network icon

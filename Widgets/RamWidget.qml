@@ -18,61 +18,66 @@ Rectangle {
     property real ramTotalGb: 0.0
     property real ramAvailGb: 0.0
     property int swapPercent: 0
+    property bool dataAvailable: false
+    property int _failCount: 0
 
     property color accentColor: {
+        if (!dataAvailable) return Theme.muted2
         if (ramPercent >= 90) return Theme.error   // rojo - crítico
         if (ramPercent >= 75) return Theme.warning   // naranja - alto
         if (ramPercent >= 60) return Theme.yellow   // amarillo - medio
         return Theme.accent                          // azul - normal
     }
 
-    // Left accent border
-    Rectangle {
-        width: 3; height: parent.height * 0.6
-        radius: 2
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.left: parent.left; anchors.leftMargin: 4
-        color: root.accentColor
-    }
-
     Row {
         id: row
         anchors.centerIn: parent
-        anchors.horizontalCenterOffset: 4
         spacing: 5
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: ""
+            text: "󰘚"
             font.pixelSize: 13
             color: root.accentColor
         }
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.ramPercent + "%"
+            text: root.dataAvailable ? (root.ramPercent + "%") : "—%"
             font.pixelSize: 11
             font.weight: Font.Normal
             font.family: "monospace"
-            color: Theme.text
-            width: 34
+            color: root.dataAvailable ? Theme.text : Theme.muted3
+            width: 32
             horizontalAlignment: Text.AlignRight
         }
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.ramUsedGb.toFixed(1) + "G"
+            text: root.dataAvailable ? (root.ramUsedGb.toFixed(1) + "GB") : "— GB"
             font.pixelSize: 10
             color: Theme.muted1
-            width: 30
+            width: 34
             horizontalAlignment: Text.AlignRight
         }
     }
 
     Timer {
-        interval: 3000
-        running: true; repeat: true; triggeredOnStart: true
+        id: pollTimer
+        interval: 4000
+        running: true
+        repeat: true
+        triggeredOnStart: true
         onTriggered: ramProc.running = true
+    }
+
+    Timer {
+        id: backoffTimer
+        interval: 300000
+        onTriggered: {
+            root._failCount = 0
+            pollTimer.start()
+        }
     }
 
     property string _buf: ""
@@ -85,11 +90,38 @@ Rectangle {
         }
         onExited: {
             var lines = root._buf.trim().split("\n")
-            if (lines.length >= 1) { var p = parseInt(lines[0]); if (!isNaN(p)) root.ramPercent = p }
-            if (lines.length >= 2) { var u = parseFloat(lines[1]); if (!isNaN(u)) root.ramUsedGb = u }
-            if (lines.length >= 3) { var t = parseFloat(lines[2]); if (!isNaN(t)) root.ramTotalGb = t }
-            if (lines.length >= 4) { var a = parseFloat(lines[3]); if (!isNaN(a)) root.ramAvailGb = a }
-            if (lines.length >= 5) { var s = parseInt(lines[4]); if (!isNaN(s)) root.swapPercent = s }
+            var ok = false
+            var p = root.ramPercent
+            var u = root.ramUsedGb
+            var t = root.ramTotalGb
+            var a = root.ramAvailGb
+            var s = root.swapPercent
+
+            if (lines.length >= 1) {
+                var p0 = parseInt(lines[0])
+                if (!isNaN(p0)) { p = p0; ok = true }
+            }
+            if (lines.length >= 2) { var u0 = parseFloat(lines[1]); if (!isNaN(u0)) u = u0 }
+            if (lines.length >= 3) { var t0 = parseFloat(lines[2]); if (!isNaN(t0)) t = t0 }
+            if (lines.length >= 4) { var a0 = parseFloat(lines[3]); if (!isNaN(a0)) a = a0 }
+            if (lines.length >= 5) { var s0 = parseInt(lines[4]); if (!isNaN(s0)) s = s0 }
+
+            if (ok) {
+                if (!root.dataAvailable || p !== root.ramPercent) root.ramPercent = p
+                if (u !== root.ramUsedGb) root.ramUsedGb = u
+                if (t !== root.ramTotalGb) root.ramTotalGb = t
+                if (a !== root.ramAvailGb) root.ramAvailGb = a
+                if (s !== root.swapPercent) root.swapPercent = s
+                root.dataAvailable = true
+                root._failCount = 0
+            } else {
+                root.dataAvailable = false
+                root._failCount++
+                if (root._failCount >= 3) {
+                    pollTimer.stop()
+                    backoffTimer.restart()
+                }
+            }
             root._buf = ""
         }
     }

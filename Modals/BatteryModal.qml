@@ -20,6 +20,11 @@ PanelWindow {
     anchors.right: true
 
     // ── Data read when opened ────────────────────────────────────────────
+    property bool batteryAvailable: false
+    property string batteryPath: ""
+    property string energyMode: "" // "energy" | "charge" | ""
+    property bool eppAvailable: true
+
     property real health: 0          // %
     property real capacityWh: 0      // Wh
     property int cycleCount: 0
@@ -30,15 +35,15 @@ PanelWindow {
 
     onVisibleChanged: {
         if (visible) {
+            root.batteryAvailable = false
+            root.batteryPath = ""
+            root.energyMode = ""
+            root.eppAvailable = true
             root.health = 0
             root.capacityWh = 0
             root.currentEpp = ""
             root.currentMode = ""
-            chargeFull.running = true
-            chargeDesign.running = true
-            voltageNow.running = true
-            cycles.running = true
-            eppRead.running = true
+            detectProc.running = true
         }
     }
 
@@ -47,11 +52,11 @@ PanelWindow {
         running: root.visible
         repeat: true
         onTriggered: {
-            chargeFull.running = true
-            chargeDesign.running = true
-            voltageNow.running = true
-            cycles.running = true
-            eppRead.running = true
+            if (!root.batteryPath) {
+                detectProc.running = true
+            } else {
+                refreshBatteryFiles()
+            }
         }
     }
 
@@ -82,11 +87,60 @@ PanelWindow {
 
     // ── Sysfs readers ───────────────────────────────────────────────────
     property string _cfBuf: ""; property string _cdBuf: ""; property string _vnBuf: ""; property string _ccBuf: ""; property string _eppBuf: ""
+    property string _efBuf: ""; property string _edBuf: ""
     property real _chargeFull: 0; property real _chargeDesign: 0; property real _voltNow: 0
+    property real _energyFull: 0; property real _energyDesign: 0
+
+    function refreshBatteryFiles() {
+        if (!root.batteryAvailable) return
+        if (root.energyMode === "energy") {
+            energyFull.running = true
+            energyDesign.running = true
+        } else if (root.energyMode === "charge") {
+            chargeFull.running = true
+            chargeDesign.running = true
+            voltageNow.running = true
+        }
+        cycles.running = true
+        eppRead.running = true
+    }
+
+    // Detect battery and energy/charge mode
+    property string _detectBuf: ""
+    Process {
+        id: detectProc
+        command: ["sh", "-c",
+            "BAT=$(ls -1 /sys/class/power_supply 2>/dev/null | grep '^BAT' | head -1); " +
+            "if [ -z \"$BAT\" ]; then exit 0; fi; " +
+            "BASE=/sys/class/power_supply/$BAT; " +
+            "if [ -r \"$BASE/energy_full\" ]; then MODE=energy; " +
+            "elif [ -r \"$BASE/charge_full\" ]; then MODE=charge; else MODE=none; fi; " +
+            "echo \"$BASE|$MODE\""
+        ]
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => root._detectBuf += data
+        }
+        onExited: {
+            var v = root._detectBuf.trim()
+            root._detectBuf = ""
+            if (v && v.indexOf("|") > 0) {
+                var parts = v.split("|")
+                root.batteryPath = parts[0]
+                root.energyMode = parts[1]
+                root.batteryAvailable = parts[1] !== "none"
+            } else {
+                root.batteryPath = ""
+                root.energyMode = ""
+                root.batteryAvailable = false
+            }
+            refreshBatteryFiles()
+        }
+    }
 
     Process {
         id: chargeFull
-        command: ["cat", "/sys/class/power_supply/BAT0/charge_full"]
+        command: ["sh", "-c", "cat \"" + root.batteryPath + "/charge_full\" 2>/dev/null"]
         stdout: SplitParser { splitMarker: "\n"; onRead: data => root._cfBuf += data }
         onExited: {
             root._chargeFull = parseFloat(root._cfBuf.trim()) || 0
@@ -96,7 +150,7 @@ PanelWindow {
     }
     Process {
         id: chargeDesign
-        command: ["cat", "/sys/class/power_supply/BAT0/charge_full_design"]
+        command: ["sh", "-c", "cat \"" + root.batteryPath + "/charge_full_design\" 2>/dev/null"]
         stdout: SplitParser { splitMarker: "\n"; onRead: data => root._cdBuf += data }
         onExited: {
             root._chargeDesign = parseFloat(root._cdBuf.trim()) || 0
@@ -106,7 +160,7 @@ PanelWindow {
     }
     Process {
         id: voltageNow
-        command: ["cat", "/sys/class/power_supply/BAT0/voltage_now"]
+        command: ["sh", "-c", "cat \"" + root.batteryPath + "/voltage_now\" 2>/dev/null"]
         stdout: SplitParser { splitMarker: "\n"; onRead: data => root._vnBuf += data }
         onExited: {
             root._voltNow = parseFloat(root._vnBuf.trim()) || 0
@@ -116,7 +170,7 @@ PanelWindow {
     }
     Process {
         id: cycles
-        command: ["cat", "/sys/class/power_supply/BAT0/cycle_count"]
+        command: ["sh", "-c", "cat \"" + root.batteryPath + "/cycle_count\" 2>/dev/null"]
         stdout: SplitParser { splitMarker: "\n"; onRead: data => root._ccBuf += data }
         onExited: {
             root.cycleCount = parseInt(root._ccBuf.trim()) || 0
@@ -124,22 +178,54 @@ PanelWindow {
         }
     }
     Process {
+        id: energyFull
+        command: ["sh", "-c", "cat \"" + root.batteryPath + "/energy_full\" 2>/dev/null"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: data => root._efBuf += data }
+        onExited: {
+            root._energyFull = parseFloat(root._efBuf.trim()) || 0
+            root._efBuf = ""
+            root._calcStats()
+        }
+    }
+    Process {
+        id: energyDesign
+        command: ["sh", "-c", "cat \"" + root.batteryPath + "/energy_full_design\" 2>/dev/null"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: data => root._edBuf += data }
+        onExited: {
+            root._energyDesign = parseFloat(root._edBuf.trim()) || 0
+            root._edBuf = ""
+            root._calcStats()
+        }
+    }
+    Process {
         id: eppRead
-        command: ["cat", "/sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference"]
+        command: ["sh", "-c",
+            "if [ -r /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference ]; then " +
+            "cat /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference; fi"]
         stdout: SplitParser { splitMarker: "\n"; onRead: data => root._eppBuf += data }
         onExited: {
             root.currentEpp = root._eppBuf.trim()
             root.currentMode = root.eppToMode(root.currentEpp)
+            root.eppAvailable = root.currentEpp !== ""
             root._eppBuf = ""
         }
     }
 
     function _calcStats() {
-        if (root._chargeFull > 0 && root._chargeDesign > 0) {
-            root.health = Math.round(root._chargeFull / root._chargeDesign * 100 * 10) / 10
-        }
-        if (root._chargeFull > 0 && root._voltNow > 0) {
-            root.capacityWh = Math.round(root._chargeFull * root._voltNow / 1e12 * 10) / 10
+        if (root.energyMode === "energy") {
+            if (root._energyFull > 0 && root._energyDesign > 0) {
+                root.health = Math.round(root._energyFull / root._energyDesign * 100 * 10) / 10
+            }
+            if (root._energyFull > 0) {
+                root.capacityWh = Math.round(root._energyFull / 1e6 * 10) / 10
+            }
+        } else if (root.energyMode === "charge") {
+            if (root._chargeFull > 0 && root._chargeDesign > 0) {
+                root.health = Math.round(root._chargeFull / root._chargeDesign * 100 * 10) / 10
+            }
+            if (root._chargeFull > 0 && root._voltNow > 0) {
+                root.capacityWh = Math.round(root._chargeFull * root._voltNow / 1e12 * 10) / 10
+            }
         }
     }
 
@@ -224,9 +310,24 @@ PanelWindow {
                 }
             }
 
+            Text {
+                visible: !root.batteryAvailable
+                text: "Sin batería detectada"
+                font.pixelSize: 11
+                color: Theme.muted1
+            }
+
+            Text {
+                visible: root.batteryAvailable && !root.eppAvailable
+                text: "EPP no disponible"
+                font.pixelSize: 10
+                color: Theme.muted2
+            }
+
             // Stats row
             RowLayout {
                 spacing: 6
+                visible: root.batteryAvailable
 
                 // Salud
                 Rectangle {
@@ -309,6 +410,7 @@ PanelWindow {
                 Layout.fillWidth: true
                 height: 1
                 color: Theme.surface2
+                visible: root.batteryAvailable
             }
 
             // Power mode section
@@ -318,10 +420,12 @@ PanelWindow {
                 font.weight: Font.Normal
                 color: Theme.muted1
                 leftPadding: 2
+                visible: root.batteryAvailable
             }
 
             RowLayout {
                 spacing: 6
+                visible: root.batteryAvailable
 
                 Repeater {
                     model: ["powersaver", "balanced", "performance"]
@@ -354,7 +458,7 @@ PanelWindow {
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            enabled: !root.applying && root.currentMode !== modelData
+                            enabled: root.eppAvailable && !root.applying && root.currentMode !== modelData
                             onClicked: root.applyMode(modelData)
                         }
                     }
