@@ -43,7 +43,7 @@ Rectangle {
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.dataAvailable ? (root.ramPercent + "%") : "—%"
+            text: root.dataAvailable ? (root.ramPercent + "%") : "--%"
             font.pixelSize: 11
             font.weight: Font.Normal
             font.family: "monospace"
@@ -54,7 +54,7 @@ Rectangle {
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.dataAvailable ? (root.ramUsedGb.toFixed(1) + "GB") : "— GB"
+            text: root.dataAvailable ? (root.ramUsedGb.toFixed(1) + "GB") : "-- GB"
             font.pixelSize: 10
             color: Theme.muted1
             width: 34

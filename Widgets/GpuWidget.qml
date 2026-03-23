@@ -41,7 +41,7 @@ Rectangle {
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.hasData ? root.gpuPercent + "%" : "—%"
+            text: root.hasData ? root.gpuPercent + "%" : "--%"
             font.pixelSize: 11
             font.weight: Font.Normal
             font.family: "monospace"

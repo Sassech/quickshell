@@ -1,6 +1,9 @@
 # Shell
 quickshell
 
+# Validar sintaxis con qmllint-qt6
+qt6-qtdeclarative-devel
+
 # Wallpaper
 swww
 swaybg
@@ -21,7 +24,7 @@ grim
 slurp
 wl-clipboard
 cliphist
-magick
+magickw
 
 # Notifications
 mako
