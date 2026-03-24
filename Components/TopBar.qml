@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Hyprland
 import QtQuick.Layouts
 import "../Widgets"
+import "."
 
 PanelWindow {
     id: root
@@ -15,15 +16,47 @@ PanelWindow {
     signal diskClicked(var screen)
     signal gpuClicked(var screen)
     signal clipboardClicked(var screen)
-    // Propiedades expuestas del widget clima
-    property alias weatherTemp:        weatherWidget.temperature
-    property alias weatherFeelsLike:   weatherWidget.feelsLike
-    property alias weatherWindSpeed:   weatherWidget.windSpeed
-    property alias weatherHumidity:    weatherWidget.humidity
-    property alias weatherCity:        weatherWidget.cityName
-    property alias weatherIcon:        weatherWidget.weatherIcon
-    property alias weatherDescription: weatherWidget.description
-    property alias weatherIsDay:       weatherWidget.isDay
+    signal clockClicked(var screen)
+    
+    // ── Provider instances ─────────────────────────────────────────────────
+    WeatherProvider {
+        id: weatherProvider
+    }
+    
+    WeatherHelpers {
+        id: weatherHelpers
+    }
+    
+    // ── Aliases al WeatherProvider ───────────────────────────────────────
+    property alias weatherTemp:        weatherHelper.temp
+    property alias weatherFeelsLike:   weatherHelper.feelsLike
+    property alias weatherWindSpeed:   weatherHelper.windSpeed
+    property alias weatherHumidity:    weatherHelper.humidity
+    property alias weatherCity:        weatherHelper.city
+    property alias weatherIcon:        weatherHelper.icon
+    property alias weatherDescription: weatherHelper.description
+    property alias weatherIsDay:       weatherHelper.isDay
+    
+    // Helper object para bindings
+    QtObject {
+        id: weatherHelper
+        property string temp: weatherProvider.hasData
+            ? Math.round(weatherProvider.temperature) + "°"
+            : "--"
+        property string feelsLike: weatherProvider.hasData
+            ? Math.round(weatherProvider.feelsLike) + "°"
+            : "--"
+        property string windSpeed: weatherProvider.hasData
+            ? Math.round(weatherProvider.windSpeed) + " km/h"
+            : "--"
+        property string humidity: weatherProvider.hasData
+            ? weatherProvider.humidity + "%"
+            : "--"
+        property string city: weatherProvider.cityName
+        property string icon: weatherHelpers.wmoIcon(weatherProvider.weatherCode, weatherProvider.isDay)
+        property string description: weatherHelpers.wmoDescription(weatherProvider.weatherCode)
+        property bool isDay: weatherProvider.isDay
+    }
     
     anchors {
         top: true
@@ -74,6 +107,11 @@ PanelWindow {
             anchors.centerIn: parent
             spacing: 10
 
+            Clock {
+                id: clockWidget
+                onClicked: root.clockClicked(root.screen)
+            }
+
             SystemTrayWidget {
             iconSize: 18
             spacing: 4
@@ -84,8 +122,6 @@ PanelWindow {
             onClicked: root.clipboardClicked(root.screen)
             }
             IdleInhibitor {}
-
-            Clock {}
 
             Weather {
                 id: weatherWidget

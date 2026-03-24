@@ -33,6 +33,7 @@ ShellRoot {
     signal broadcastAudio(var screen)
     signal broadcastBrightness(int pct)
     signal broadcastVolume(int pct, bool muted)
+    signal broadcastClock(var screen)
 
     // ============================================
     // BARRA SUPERIOR
@@ -51,6 +52,7 @@ ShellRoot {
             onDiskClicked: screen => root.broadcastDisk(screen)
             onGpuClicked: screen => root.broadcastGpu(screen)
             onClipboardClicked: screen => root.broadcastClipboard(screen)
+            onClockClicked: screen => root.broadcastClock(screen)
         }
     }
 
@@ -88,6 +90,30 @@ ShellRoot {
                     var was = powerMenuInst.visible
                     root.broadcastCloseAll(screen)
                     powerMenuInst.visible = !was
+                }
+            }
+        }
+    }
+
+    // ============================================
+    // CLOCK MODAL — una instancia por pantalla
+    // ============================================
+    Variants {
+        model: Quickshell.screens
+        ClockModal {
+            id: clockModalInst
+            property var modelData
+            screen: modelData
+            Connections {
+                target: root
+                function onBroadcastCloseAll(screen) {
+                    if (clockModalInst.modelData === screen) clockModalInst.visible = false
+                }
+                function onBroadcastClock(screen) {
+                    if (clockModalInst.modelData !== screen) return
+                    var was = clockModalInst.visible
+                    root.broadcastCloseAll(screen)
+                    clockModalInst.visible = !was
                 }
             }
         }
