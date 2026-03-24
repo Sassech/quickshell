@@ -19,7 +19,7 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-    // ── Active player (prefer Playing no-mpd, luego mpd Playing, luego primero) ────
+    // ── Active player ────────────────────────────────────────────────────────
     property MprisPlayer player: {
         var playingOther = null
         var playingMpd   = null
@@ -39,43 +39,48 @@ PanelWindow {
     property bool hasPlayer: player !== null
     property bool isPlaying: hasPlayer && player.playbackState === MprisPlaybackState.Playing
 
-    // ── Seguimiento local de posición ─────────────────────────────────────
+    // ── Position tracking optimizado ────────────────────────────────────────
     property real trackedPosition: 0
     property real trackLen: hasPlayer ? (player.trackLength ?? 0) : 0
 
     function syncPosition() {
-        if (root.hasPlayer) {
-            trackedPosition = root.player.position ?? 0
-        } else {
-            trackedPosition = 0
+        if (hasPlayer && player.position !== undefined) {
+            trackedPosition = player.position
         }
     }
 
-    onVisibleChanged:  { if (visible)  syncPosition() }
-    onIsPlayingChanged: { syncPosition() }
+    onVisibleChanged:  { if (visible) syncPosition() }
+    onIsPlayingChanged: {
+        syncPosition()
+        if (!isPlaying) positionTimer.running = false
+        else positionTimer.running = true
+    }
 
     // Reset posición al cambiar de canción
     Connections {
         target: root.player
         enabled: root.hasPlayer
-        function onTrackTitleChanged() { root.syncPosition() }
+        function onTrackTitleChanged() { 
+            syncPosition()
+        }
     }
 
-    // Actualiza posición cada segundo mientras reproduce
+    // Timer optimizado: solo corre cuando está visible y reproduciendo
     Timer {
+        id: positionTimer
         interval: 1000
         running: root.visible && root.isPlaying
         repeat: true
         onTriggered: {
-            root.trackedPosition += 1000
-            // Sincroniza con MPRIS cada 10 s para evitar drift
-            if (Math.round(root.trackedPosition / 1000) % 10 === 0) {
-                root.syncPosition()
+            trackedPosition += 1000
+            // Sincronizar cada 10s para evitar drift
+            if (Math.round(trackedPosition / 1000) % 10 === 0) {
+                syncPosition()
             }
         }
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
     function formatTime(ms) {
         if (!ms || ms <= 0) return "0:00"
         var totalSec = Math.floor(ms / 1000)
@@ -84,13 +89,13 @@ PanelWindow {
         return min + ":" + (sec < 10 ? "0" + sec : sec)
     }
 
-    // ── Backdrop ──────────────────────────────────────────────────────────
+    // ── Backdrop ────────────────────────────────────────────────────────────
     MouseArea {
         anchors.fill: parent
         onClicked: root.visible = false
     }
 
-    // ── Card ──────────────────────────────────────────────────────────────
+    // ── Card ────────────────────────────────────────────────────────────────
     Rectangle {
         id: card
         anchors.centerIn: parent
@@ -101,9 +106,8 @@ PanelWindow {
         color: Theme.cardBg
 
         layer.enabled: true
-        layer.effect: null   // sombra via shadow rect abajo
+        layer.effect: null
 
-        // Sombra
         Rectangle {
             anchors.fill: parent
             anchors.margins: -1
@@ -114,7 +118,6 @@ PanelWindow {
             z: -1
         }
 
-        // Consume clicks para que no lleguen al backdrop
         MouseArea {
             anchors.fill: parent
             onClicked: {}
@@ -172,7 +175,6 @@ PanelWindow {
                 Layout.fillWidth: true
                 spacing: 16
 
-                // Portada del álbum
                 Rectangle {
                     width: 96
                     height: 96
@@ -180,7 +182,6 @@ PanelWindow {
                     color: Theme.surface2
                     clip: true
 
-                    // Fallback icon
                     Text {
                         anchors.centerIn: parent
                         text: "♪"
@@ -192,7 +193,9 @@ PanelWindow {
                     Image {
                         id: artImage
                         anchors.fill: parent
-                        source: root.hasPlayer && (root.player.trackArtUrl ?? "") !== "" ? root.player.trackArtUrl : ""
+                        source: root.hasPlayer && (root.player.trackArtUrl ?? "") !== "" 
+                            ? root.player.trackArtUrl 
+                            : ""
                         fillMode: Image.PreserveAspectCrop
                         visible: status === Image.Ready && source !== ""
 
@@ -205,7 +208,6 @@ PanelWindow {
                     }
                 }
 
-                // Textos de información
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 4
@@ -249,7 +251,6 @@ PanelWindow {
 
                     Item { height: 2 }
 
-                    // Badge con el nombre del reproductor
                     Rectangle {
                         width: playerBadgeText.implicitWidth + 10
                         height: 17
@@ -274,19 +275,16 @@ PanelWindow {
                 spacing: 5
                 visible: root.hasPlayer && root.trackLen > 0
 
-                // Pista de progreso
                 Item {
                     Layout.fillWidth: true
                     height: 4
 
-                    // Fondo
                     Rectangle {
                         anchors.fill: parent
                         radius: 2
                         color: Theme.surface3
                     }
 
-                    // Progreso
                     Rectangle {
                         id: progressFill
                         width: {
@@ -304,7 +302,6 @@ PanelWindow {
                     }
                 }
 
-                // Tiempos
                 RowLayout {
                     Layout.fillWidth: true
 
@@ -370,7 +367,6 @@ PanelWindow {
 
                     HoverHandler { id: playHover }
 
-                    // Halo de hover
                     Rectangle {
                         anchors.fill: parent
                         radius: parent.radius
@@ -382,9 +378,7 @@ PanelWindow {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
                         enabled: root.hasPlayer
-                        onClicked: {
-                            root.player.togglePlaying()
-                        }
+                        onClicked: root.player.togglePlaying()
                     }
 
                     Text {

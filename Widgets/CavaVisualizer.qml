@@ -9,30 +9,41 @@ Rectangle {
     height: 20
     color: "transparent"
     radius: 4
-    border.color: Theme.surface2
-    border.width: 1
 
     property bool isPlaying: false
     property string cavaSource: ""
     property var audioLevels: [0, 0, 0, 0, 0, 0, 0, 0]
+    property bool sinkDetected: false
+    property int restartAttempts: 0
+    property int maxRestartAttempts: 3
+
+    Component.onCompleted: sinkProcess.running = true
 
     Process {
-        id: defaultSinkProcess
+        id: sinkProcess
         command: ["wpctl", "inspect", "@DEFAULT_AUDIO_SINK@"]
-        running: true
 
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => {
-                var line = data ? data.trim() : ""
-                if (!line || line.indexOf("node.name") === -1)
+                if (!data || data.indexOf("node.name") === -1)
                     return
 
-                var match = line.match(/node\.name\s*=\s*"([^"]+)"/)
+                var match = data.match(/node\.name\s*=\s*"([^"]+)"/)
                 if (match && match.length > 1) {
                     root.cavaSource = match[1] + ".monitor"
-                    if (!cavaProcess.running)
-                        cavaProcess.running = true
+                    root.sinkDetected = true
+                    sinkProcess.running = false
+                    cavaProcess.running = true
+                }
+            }
+        }
+
+        onExited: {
+            if (!root.sinkDetected) {
+                restartAttempts++
+                if (restartAttempts < maxRestartAttempts) {
+                    Qt.callLater(function() { sinkProcess.running = true })
                 }
             }
         }
@@ -41,23 +52,14 @@ Rectangle {
     Process {
         id: cavaProcess
         command: [
-            "sh",
-            "-c",
-            "cfg=\"${XDG_RUNTIME_DIR:-/tmp}/quickshell-cava-${UID:-1000}.conf\"; " +
-            "cat > \"$cfg\" <<EOF\n" +
-            "[general]\n" +
-            "bars = 8\n" +
-            "framerate = 60\n\n" +
-            "[input]\n" +
-            "method = pulse\n" +
-            "source = " + root.cavaSource + "\n\n" +
-            "[output]\n" +
-            "method = raw\n" +
-            "raw_target = /dev/stdout\n" +
-            "data_format = ascii\n" +
-            "ascii_max_range = 16\n" +
-            "bar_delimiter = 32\n" +
-            "EOF\n" +
+            "sh", "-c",
+            "cfg=\"${XDG_RUNTIME_DIR:-/tmp}/quickshell-cava-${UID:-1000}.conf\" && " +
+            "mkdir -p \"${XDG_RUNTIME_DIR:-/tmp}\" && " +
+            "cat > \"$cfg\" <<'CAVAEOF'\n" +
+            "[general]\nbars = 8\nframerate = 60\n\n" +
+            "[input]\nmethod = pulse\nsource = " + root.cavaSource + "\n\n" +
+            "[output]\nmethod = raw\nraw_target = /dev/stdout\n" +
+            "data_format = ascii\nascii_max_range = 16\nbar_delimiter = 32\nCAVAEOF\n" +
             "exec cava -p \"$cfg\""
         ]
         running: false
@@ -71,19 +73,20 @@ Rectangle {
                 var values = data.trim().split(/\s+/)
                 var nextLevels = []
                 for (var i = 0; i < 8; i++) {
-                    if (i < values.length && values[i] !== "") {
-                        nextLevels.push(Number(values[i]) || 0)
-                    } else {
-                        nextLevels.push(0)
-                    }
+                    nextLevels.push(i < values.length && values[i] !== "" 
+                        ? Number(values[i]) || 0 
+                        : 0)
                 }
                 root.audioLevels = nextLevels
             }
         }
 
-        onExited: () => {
-            if (root.cavaSource) {
-                cavaProcess.running = true
+        onExited: {
+            if (root.isPlaying && root.sinkDetected) {
+                restartAttempts++
+                if (restartAttempts < maxRestartAttempts) {
+                    Qt.callLater(function() { cavaProcess.running = true })
+                }
             }
         }
     }

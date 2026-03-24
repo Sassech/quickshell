@@ -9,26 +9,27 @@ Row {
 
     signal clicked()
 
-    // ── Player state (updated via signal, not computed property) ─────────────
+    // ── Player state ──────────────────────────────────────────────────────────
     property MprisPlayer _cachedPlayer: null
-    
-    // Track players to detect changes
-    property var _lastPlayers: []
+    property var _lastPlayerIds: []
 
-    // Explicit update function - call when players change
     function _updateCachedPlayer() {
-        var currentPlayers = Mpris.players.values || []
+        var players = Mpris.players.values || []
         
-        if (JSON.stringify(currentPlayers) === JSON.stringify(root._lastPlayers)) {
-            return // No change
+        // Extraer IDs para comparar (más eficiente que JSON.stringify)
+        var currentIds = players.map(p => p.identity + ":" + p.playbackState)
+        
+        if (arraysEqual(currentIds, _lastPlayerIds)) {
+            return
         }
-        root._lastPlayers = currentPlayers
+        _lastPlayerIds = currentIds
         
         var playingOther = null
         var playingMpd   = null
         var first        = null
-        for (var i = 0; i < currentPlayers.length; i++) {
-            var p = currentPlayers[i]
+        
+        for (var i = 0; i < players.length; i++) {
+            var p = players[i]
             if (!first) first = p
             var isMpd = (p.identity ?? "").toLowerCase().includes("music player daemon")
             if (p.playbackState === MprisPlaybackState.Playing) {
@@ -36,10 +37,18 @@ Row {
                 else       { if (!playingOther) playingOther = p }
             }
         }
-        root._cachedPlayer = playingOther ?? playingMpd ?? first ?? null
+        _cachedPlayer = playingOther ?? playingMpd ?? first ?? null
     }
 
-    // Manual bindings - no circular dependencies
+    function arraysEqual(a, b) {
+        if (a.length !== b.length) return false
+        for (var i = 0; i < a.length; i++) {
+            if (a[i] !== b[i]) return false
+        }
+        return true
+    }
+
+    // ── Bindings ─────────────────────────────────────────────────────────────
     property MprisPlayer player: _cachedPlayer
     property bool hasPlayer:  _cachedPlayer !== null
     property bool isPlaying:  hasPlayer && _cachedPlayer.playbackState === MprisPlaybackState.Playing
@@ -52,9 +61,9 @@ Row {
         return title || artist || "No media"
     }
 
-    // Listen to player changes via timer (avoids binding loop)
+    // ── Timer: 1s polling (era 500ms) ─────────────────────────────────────
     Timer {
-        interval: 500
+        interval: 1000
         running: true
         repeat: true
         onTriggered: root._updateCachedPlayer()
@@ -62,10 +71,7 @@ Row {
 
     visible: true
 
-    Item {
-        width: 1
-        height: 1
-    }
+    Item { width: 1; height: 1 }
 
     // ── Fade al cambiar de canción ─────────────────────────────────────────
     onMediaInfoChanged: songChangeAnim.restart()
@@ -92,10 +98,7 @@ Row {
         isPlaying: root.isPlaying
     }
 
-    Item {
-        width: 1
-        height: 1
-    }
+    Item { width: 1; height: 1 }
 
     // ── Contenedor de texto con scroll ────────────────────────────────────
     Item {
@@ -145,7 +148,7 @@ Row {
         }
     }
 
-    // ── Botón anterior ────────────────────────────────────────────────────
+    // ── Botón anterior ───────────────────────────────────────────────────
     MouseArea {
         width: 20
         height: 20
@@ -162,7 +165,7 @@ Row {
         }
     }
 
-    // ── Botón play/pause ──────────────────────────────────────────────────
+    // ── Botón play/pause ─────────────────────────────────────────────────
     MouseArea {
         width: 20
         height: 20
