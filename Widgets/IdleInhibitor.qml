@@ -11,11 +11,122 @@ Rectangle {
     radius: 5
     color:  mouseArea.containsMouse ? Theme.surface3 : Theme.surface2
 
+    signal clicked()
+
     property bool inhibiting: false
+    property string idleTime: "--"
+    property bool mediaPlaying: false
+    property string _loadBuf: ""
+    property string _idleBuf: ""
+    property string _mediaBuf: ""
 
     Behavior on color { ColorAnimation { duration: 120 } }
 
-    // ── Idle inhibit ────────────────────────────────────────────────
+    Component.onCompleted: {
+        loadState();
+    }
+
+    Process {
+        id: loadProc
+        running: false
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => {
+                root._loadBuf += data;
+                try {
+                    const d = JSON.parse(root._loadBuf.trim());
+                    if (d.inhibiting === true) {
+                        root.inhibiting = true;
+                        root.inhibitProc.running = true;
+                    }
+                    root._loadBuf = "";
+                } catch (e) {}
+            }
+        }
+    }
+
+    function loadState() {
+        _loadBuf = "";
+        loadProc.command = ["bash", "-c", "cat /home/sassech/.config/quickshell/idle-state.json 2>/dev/null || echo ''"];
+        loadProc.running = true;
+    }
+
+    function saveState(data) {
+        saveProc.command = ["bash", "-c", "echo '" + JSON.stringify(data) + "' > /home/sassech/.config/quickshell/idle-state.json"];
+        saveProc.running = true;
+    }
+
+    Process {
+        id: saveProc
+        running: false
+    }
+
+    Process {
+        id: idleProc
+        running: false
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => {
+                root._idleBuf += data;
+                const seconds = parseInt(root._idleBuf.trim()) || 0;
+                root.idleTime = formatIdleTime(seconds);
+                root._idleBuf = "";
+            }
+        }
+    }
+
+    Timer {
+        id: idleTimer
+        interval: 2000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: {
+            idleProc.command = ["bash", "-c", "loginctl --no-legend list-sessions 2>/dev/null | grep -oP '\\d+(?=.*seat0)' | head -1 | xargs -I{} loginctl show-session {} -p IdleSince --value 2>/dev/null | cut -d. -f1 || echo 0"];
+            idleProc.running = true;
+        }
+    }
+
+    function formatIdleTime(seconds) {
+        if (seconds < 60) return `${seconds}s`;
+        if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        return `${h}h ${m}m`;
+    }
+
+    Process {
+        id: mediaProc
+        running: false
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => {
+                root._mediaBuf += data;
+                const status = root._mediaBuf.trim();
+                root.mediaPlaying = (status === "Playing" || status === "0");
+                root._mediaBuf = "";
+                
+                if (root.mediaPlaying && !root.inhibiting) {
+                    root.inhibiting = true;
+                    root.inhibitProc.running = true;
+                    saveState({ inhibiting: true });
+                }
+            }
+        }
+    }
+
+    Timer {
+        id: mediaTimer
+        interval: 3000
+        running: true
+        repeat: true
+        triggeredOnStart: false
+        onTriggered: {
+            mediaProc.command = ["bash", "-c", "dbus-send --print-reply=literal --dest=org.freedesktop.MediaPlayer /org/freedesktop/MediaPlayer org.freedesktop.MediaPlayer.GetStatus 2>/dev/null | grep -oP 'state:\\\\K.+' | head -1 || echo 'stopped'"];
+            mediaProc.running = true;
+        }
+    }
+
     Process {
         id: inhibitProc
         command: [
@@ -27,30 +138,43 @@ Rectangle {
             "sleep", "infinity"
         ]
         running: false
+        stdout: SplitParser { splitMarker: "\n"; onRead: data => {} }
 
-        onExited: () => {
-            root.inhibiting = false
+        onExited: function(code) {
+            if (root.inhibiting && code !== 0) {
+                root.inhibiting = false;
+                sendNotif("error", "Error al bloquear idle", "systemd-inhibit falló");
+                saveState({ inhibiting: false });
+            }
         }
     }
 
-    // ── notify-send helper
     Process {
         id: notifProc
         running: false
+        stdout: SplitParser { splitMarker: "\n"; onRead: data => {} }
     }
 
-    // ── Icono café ────────────────────────────────────────────────────────
+    function sendNotif(urgency, title, msg) {
+        const icon = (urgency === "critical") ? "dialog-warning" : "dialog-information";
+        notifProc.command = [
+            "notify-send",
+            "-u", urgency,
+            "-i", icon,
+            title, msg
+        ];
+        notifProc.running = true;
+    }
+
     Text {
         anchors.centerIn: parent
-        text:           "☕"
+        text:           root.inhibiting ? "🔥" : "☕"
         font.pixelSize: 13
-        // Activo: cálido (amarillo-naranja); inactivo: gris frío
         color:          root.inhibiting ? Theme.warning : Theme.muted3
 
         Behavior on color { ColorAnimation { duration: 200 } }
     }
 
-    // ── Punto indicador activo ────────────────────────────────────────────
     Rectangle {
         visible:         root.inhibiting
         width:           5
@@ -60,9 +184,12 @@ Rectangle {
         anchors.top:     parent.top
         anchors.right:   parent.right
         anchors.margins: 2
+
+        PropertyAnimation on opacity {
+            from: 1; to: 0.4; duration: 800; loops: Animation.Infinite; running: root.inhibiting
+        }
     }
 
-    // ── Click ─────────────────────────────────────────────────────────────
     MouseArea {
         id: mouseArea
         anchors.fill: parent
@@ -70,20 +197,24 @@ Rectangle {
         cursorShape:  Qt.PointingHandCursor
 
         onClicked: {
-            root.inhibiting     = !root.inhibiting
-            inhibitProc.running = root.inhibiting
-            notifProc.command   = root.inhibiting
-                ? ["notify-send", "-u", "critical", "-i", "media-playback-pause", "☕ Idle bloqueado", "La pantalla no se apagará automáticamente"]
-                : ["notify-send", "-u", "normal",   "-i", "media-playback-start", "Idle restaurado",    "El sistema volverá al comportamiento normal"]
-            notifProc.running   = true
+            root.inhibiting = !root.inhibiting
+            
+            if (root.inhibiting) {
+                inhibitProc.running = true
+                sendNotif("critical", "☕ Idle bloqueado", "La pantalla no se apagará automáticamente");
+                saveState({ inhibiting: true });
+            } else {
+                inhibitProc.running = false
+                sendNotif("normal", "Idle restaurado", "El sistema volverá al comportamiento normal");
+                saveState({ inhibiting: false });
+            }
         }
     }
 
-    // ── Tooltip ───────────────────────────────────────────────────────────
     Rectangle {
         visible:         mouseArea.containsMouse
-        width:           tipText.implicitWidth + 12
-        height:          18
+        width:           tipText.implicitWidth + 16
+        height:          32
         radius:          4
         color:           Theme.base
         border.color:    Theme.surface2
@@ -93,12 +224,24 @@ Rectangle {
         anchors.bottomMargin: 4
         z: 10
 
-        Text {
-            id: tipText
+        Column {
             anchors.centerIn: parent
-            text:           root.inhibiting ? "☕ Idle bloqueado" : "Idle activo"
-            color:          Theme.text
-            font.pixelSize: 9
+            spacing: 2
+
+            Text {
+                id: tipText
+                text:           root.inhibiting ? "🔥 Bloqueado" : "☕ Activo"
+                color:          Theme.text
+                font.pixelSize: 9
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            Text {
+                text:           "Idle: " + root.idleTime + (root.mediaPlaying ? " • 🎵" : "")
+                color:          Theme.muted2
+                font.pixelSize: 7
+                horizontalAlignment: Text.AlignHCenter
+            }
         }
     }
 }
