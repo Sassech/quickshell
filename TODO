@@ -8,3 +8,5 @@
 
 - Arreglar bluethoht Dbus
 
+- Ver como se puede implemetar un sistema para controlar los ventiladores de la laptop, para evitar que se escuchen tanto, esto puede ser a través de un script que se ejecute cada cierto tiempo y que controle la velocidad de los ventiladores en función de la temperatura de la laptop, o a través de un widget que muestre la temperatura de la laptop y permita controlar la velocidad de los ventiladores manualmente.
+
