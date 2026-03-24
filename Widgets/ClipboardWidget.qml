@@ -6,7 +6,7 @@ import "../Components"
 Rectangle {
     id: root
 
-    implicitWidth:  60
+    implicitWidth:  50
     implicitHeight: 24
     radius: 8
     color: Theme.surface2
@@ -15,15 +15,6 @@ Rectangle {
 
     property int entryCount: 0
     property color accent: Theme.accent2
-
-    // Left accent border
-    Rectangle {
-        width: 3; height: parent.height * 0.6
-        radius: 2
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.left: parent.left; anchors.leftMargin: 4
-        color: root.accent
-    }
 
     Row {
         anchors.centerIn: parent
