@@ -654,68 +654,68 @@ PanelWindow {
                 }
             }
 
-            // Fan percent bars
-            ColumnLayout {
-                Layout.fillWidth: true
+            // Fan percent bars (150 = max %, values above show as 100%)
+            RowLayout {
                 spacing: 4
                 visible: root.fanAvailable
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 4
-                    Text {
-                        text: "CPU"
-                        font.pixelSize: 9
-                        color: Theme.muted1
-                        width: 30
-                    }
+                Text {
+                    text: "CPU"
+                    font.pixelSize: 9
+                    color: Theme.muted1
+                    width: 30
+                }
+                Rectangle {
+                    width: 200
+                    height: 8
+                    radius: 4
+                    color: Theme.surface2
                     Rectangle {
-                        Layout.fillWidth: true
-                        height: 8
-                        radius: 4
-                        color: Theme.surface2
-                        Rectangle {
-                            width: Math.max(4, parent.width * root.fan1Percent / 100)
-                            height: parent.height
-                            radius: parent.radius
-                            color: Theme.accent
-                        }
-                    }
-                    Text {
-                        text: root.fan1Percent + "%"
-                        font.pixelSize: 9
-                        color: Theme.muted1
-                        width: 30
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        anchors.margins: 1
+                        width: Math.max(2, (parent.width - 2) * Math.min(150, root.fan1Percent) / 150)
+                        radius: 2
+                        color: Theme.accent
                     }
                 }
+                Text {
+                    text: root.fan1Percent + "%"
+                    font.pixelSize: 9
+                    color: Theme.muted1
+                    width: 30
+                }
+            }
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 4
-                    Text {
-                        text: "GPU"
-                        font.pixelSize: 9
-                        color: Theme.muted1
-                        width: 30
-                    }
+            RowLayout {
+                spacing: 4
+                visible: root.fanAvailable
+                Text {
+                    text: "GPU"
+                    font.pixelSize: 9
+                    color: Theme.muted1
+                    width: 30
+                }
+                Rectangle {
+                    width: 200
+                    height: 8
+                    radius: 4
+                    color: Theme.surface2
                     Rectangle {
-                        Layout.fillWidth: true
-                        height: 8
-                        radius: 4
-                        color: Theme.surface2
-                        Rectangle {
-                            width: Math.max(4, parent.width * root.fan2Percent / 100)
-                            height: parent.height
-                            radius: parent.radius
-                            color: Theme.accent2
-                        }
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        anchors.margins: 1
+                        width: Math.max(2, (parent.width - 2) * Math.min(150, root.fan2Percent) / 150)
+                        radius: 2
+                        color: Theme.accent2
                     }
-                    Text {
-                        text: root.fan2Percent + "%"
-                        font.pixelSize: 9
-                        color: Theme.muted1
-                        width: 30
-                    }
+                }
+                Text {
+                    text: root.fan2Percent + "%"
+                    font.pixelSize: 9
+                    color: Theme.muted1
+                    width: 30
                 }
             }
 
