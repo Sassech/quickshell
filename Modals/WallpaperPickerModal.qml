@@ -48,8 +48,8 @@ PanelWindow {
         ]
         property string buf: ""
         stdout: SplitParser {
-            splitMarker: ""
-            onRead: d => configReadProc.buf += d
+            splitMarker: "\n"
+            onRead: d => configReadProc.buf += d + "\n"
         }
         onExited: {
             var parts = buf.split("---")
@@ -68,6 +68,12 @@ PanelWindow {
         }
     }
 
+    Component.onDestruction: {
+        listProc.running = false
+        setProc.running = false
+        saveConfigProc.running = false
+    }
+
     // ── Carga imágenes ─────────────────────────────────────────
     function loadImages() {
         if (_loading) return
@@ -84,14 +90,13 @@ PanelWindow {
             root.currentFolder
         ]
         stdout: SplitParser {
-            splitMarker: ""
-            onRead: d => root._listBuf += d
+            splitMarker: "\n"
+            onRead: d => root._listBuf += d + "\n"
         }
         onExited: {
             root._loading = false
             var items = []
             try { items = JSON.parse(root._listBuf) } catch(e) {}
-            imageModel.clear()
             for (var i = 0; i < items.length; i++) imageModel.append(items[i])
         }
     }
@@ -112,14 +117,14 @@ PanelWindow {
     // ── Guarda config ──────────────────────────────────────────
     Process {
         id: saveConfigProc
-        property string json: ""
-        command: ["bash", "-c", "echo '" + json + "' > /home/sassech/.config/quickshell/config/wallpaper-config.json"]
+        command: ["python3", "/home/sassech/.config/quickshell/scripts/wallpaper-save-config.py", ""]
+        property string pendingFolder: ""
         running: false
     }
 
     function saveFolder(f) {
         currentFolder = f
-        saveConfigProc.json = JSON.stringify({ folder: f })
+        saveConfigProc.command = ["python3", "/home/sassech/.config/quickshell/scripts/wallpaper-save-config.py", f]
         saveConfigProc.running = true
         loadImages()
     }
