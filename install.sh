@@ -13,16 +13,23 @@ warn() { echo "⚠️  $*"; }
 info() { echo "   $*"; }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. Regla sudoers para set-power-mode.sh
+# 1. Reglas sudoers para scripts de quickshell
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
-echo "▶ Configurando regla sudoers para set-power-mode.sh..."
+echo "▶ Configurando reglas sudoers para scripts..."
+
+# set-power-mode.sh
 echo "$CURRENT_USER ALL=(ALL) NOPASSWD: $SCRIPT_DIR/scripts/set-power-mode.sh" \
     | sudo tee /etc/sudoers.d/quickshell-power > /dev/null
-sudo chmod 440 /etc/sudoers.d/quickshell-power
+
+# fan-control.sh
+echo "$CURRENT_USER ALL=(ALL) NOPASSWD: $SCRIPT_DIR/scripts/fan-control.sh" \
+    | sudo tee /etc/sudoers.d/quickshell-fan > /dev/null
+
+sudo chmod 440 /etc/sudoers.d/quickshell-power /etc/sudoers.d/quickshell-fan
 
 if sudo visudo -c &>/dev/null; then
-    ok "Regla sudoers instalada."
+    ok "Reglas sudoers instaladas."
 else
     echo "❌ Error en la sintaxis de sudoers. Revisa manualmente."
     exit 1
