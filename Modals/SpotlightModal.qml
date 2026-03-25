@@ -37,6 +37,33 @@ PanelWindow {
     ListModel { id: resultModel }
     ListModel { id: filteredModel }
 
+    function getCurrentTabIndex() {
+        for (var i = 0; i < tabs.length; i++) {
+            if (tabs[i].id === activeTab) return i
+        }
+        return 0
+    }
+
+    function getTypeColor(type) {
+        switch(type) {
+            case "calc": return Theme.success
+            case "app":  return Theme.accent
+            case "file": return Theme.yellow
+            case "cmd":  return Theme.accent2
+            default:     return Theme.muted3
+        }
+    }
+
+    function getTypeColorSurface(type) {
+        switch(type) {
+            case "calc": return Theme.successSurface
+            case "app":  return Theme.accentSurface
+            case "file": return Theme.surface3
+            case "cmd":  return Theme.accentDim
+            default:     return Theme.base
+        }
+    }
+
     function rebuildFiltered() {
         filteredModel.clear()
         for (var i = 0; i < resultModel.count; i++) {
@@ -44,7 +71,7 @@ PanelWindow {
             if (activeTab === "all" || item.type === activeTab)
                 filteredModel.append(item)
         }
-        selectedIndex = 0
+        selectedIndex = Math.min(selectedIndex, Math.max(0, filteredModel.count - 1))
     }
 
     onActiveTabChanged: rebuildFiltered()
@@ -61,8 +88,8 @@ PanelWindow {
                "/home/sassech/.config/quickshell/scripts/spotlight-search.py",
                searchProc.query]
         stdout: SplitParser {
-            splitMarker: ""
-            onRead: data => root._searchBuf += data
+            splitMarker: "\n"
+            onRead: data => root._searchBuf += data + "\n"
         }
         onExited: {
             root._searching = false
@@ -82,6 +109,9 @@ PanelWindow {
     }
 
     function runSearch(q) {
+        if (searchProc.running) {
+            searchProc.running = false
+        }
         _searchBuf = ""
         _searching = true
         searchProc.query = q
@@ -109,7 +139,18 @@ PanelWindow {
     function closeSpotlight() {
         visible = false
         searchProc.running = false
+        launcher.running = false
         debounce.stop()
+    }
+
+    Component.onDestruction: {
+        searchProc.running = false
+        launcher.running = false
+        debounce.stop()
+    }
+
+    function sanitizeExec(exec) {
+        return exec.replace(/[;&|`$\\]/g, '\\$&')
     }
 
     function launchSelected() {
@@ -118,7 +159,7 @@ PanelWindow {
         var item = filteredModel.get(idx)
         if (!item) return
         launcher.running = false
-        launcher.command = ["bash", "-c", "setsid " + item.exec + " &>/dev/null &"]
+        launcher.command = ["bash", "-c", "setsid " + sanitizeExec(item.exec) + " &>/dev/null &"]
         launcher.running = true
         closeSpotlight()
     }
@@ -225,6 +266,18 @@ PanelWindow {
                         }
                     }
 
+                    // Foco visual
+                    Rectangle {
+                        anchors.fill: searchInput
+                        anchors.leftMargin: -4
+                        anchors.rightMargin: -4
+                        radius: 8
+                        color: "transparent"
+                        border.color: searchInput.activeFocus ? Theme.accent : "transparent"
+                        border.width: 2
+                        z: -1
+                    }
+
                     TextInput {
                         id: searchInput
                         width: parent.width - 46
@@ -257,6 +310,7 @@ PanelWindow {
                             }
                         }
 
+                        Keys.onEscapePressed: root.closeSpotlight()
                         Keys.onReturnPressed: root.launchSelected()
                         Keys.onEnterPressed:  root.launchSelected()
 
@@ -269,18 +323,23 @@ PanelWindow {
                             listView.positionViewAtIndex(root.selectedIndex, ListView.Contain)
                         }
                         Keys.onTabPressed: {
-                            var cur = 0
-                            for (var i = 0; i < root.tabs.length; i++) {
-                                if (root.tabs[i].id === root.activeTab) { cur = i; break }
-                            }
+                            var cur = root.getCurrentTabIndex()
                             root.activeTab = root.tabs[(cur + 1) % root.tabs.length].id
                         }
                         Keys.onBacktabPressed: {
-                            var cur = 0
-                            for (var i = 0; i < root.tabs.length; i++) {
-                                if (root.tabs[i].id === root.activeTab) { cur = i; break }
-                            }
+                            var cur = root.getCurrentTabIndex()
                             root.activeTab = root.tabs[(cur - 1 + root.tabs.length) % root.tabs.length].id
+                        }
+
+                        // Atajos Ctrl+1-5 para tabs
+                        Keys.onPressed: function(event) {
+                            if (event.modifiers & Qt.ControlModifier) {
+                                var num = parseInt(event.text)
+                                if (num >= 1 && num <= root.tabs.length) {
+                                    root.activeTab = root.tabs[num - 1].id
+                                    event.accepted = true
+                                }
+                            }
                         }
                     }
                 }
@@ -444,15 +503,7 @@ PanelWindow {
                                     text: resultRow.model.icon
                                     font.pixelSize: 22
                                     visible: resultRow.model.iconPath === ""
-                                    color: {
-                                        switch(resultRow.model.type) {
-                                            case "calc": return Theme.success
-                                            case "app":  return Theme.accent
-                                            case "file": return Theme.yellow
-                                            case "cmd":  return Theme.accent2
-                                            default:     return Theme.muted3
-                                        }
-                                    }
+                                    color: root.getTypeColor(resultRow.model.type)
                                 }
                             }
 
@@ -483,33 +534,18 @@ PanelWindow {
                             // ── Badge tipo ────────────────────
                             Rectangle {
                                 Layout.alignment: Qt.AlignVCenter
-                                width: badgeText.width + 10
+                                Layout.preferredWidth: badgeText.width + 10
+                                Layout.preferredHeight: 18
                                 height: 18
                                 radius: 5
-                                color: {
-                                    switch(resultRow.model.type) {
-                                        case "calc": return Theme.successSurface
-                                        case "app":  return Theme.accentSurface
-                                        case "file": return Theme.surface3
-                                        case "cmd":  return Theme.accentDim
-                                        default:     return Theme.base
-                                    }
-                                }
+                                color: root.getTypeColorSurface(resultRow.model.type)
                                 Text {
                                     id: badgeText
                                     anchors.centerIn: parent
                                     text: resultRow.model.type
                                     font.pixelSize: 9
                                     font.weight: Font.Normal
-                                    color: {
-                                        switch(resultRow.model.type) {
-                                            case "calc": return Theme.success
-                                            case "app":  return Theme.accent
-                                            case "file": return Theme.yellow
-                                            case "cmd":  return Theme.accent2
-                                            default:     return Theme.muted3
-                                        }
-                                    }
+                                    color: root.getTypeColor(resultRow.model.type)
                                 }
                             }
                         }
