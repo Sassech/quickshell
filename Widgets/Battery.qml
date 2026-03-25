@@ -20,6 +20,16 @@ Rectangle {
     property bool batteryAvailable: true
     property string batteryPath: ""
 
+    // Fan properties
+    property int fan1Rpm: 0
+    property int fan2Rpm: 0
+    property int fan1Percent: 0
+    property int fan2Percent: 0
+    property int cpuTemp: 0
+    property int gpuTemp: 0
+    property string fanProfile: ""
+    property bool fanAvailable: true
+
     property color levelColor: {
         if (!batteryAvailable) return Theme.muted2
         if (isCharging) return Theme.success
@@ -79,6 +89,14 @@ Rectangle {
                 font.pixelSize: 7
                 color: Theme.base
             }
+        }
+
+        // Fan indicator (small)
+        Text {
+            visible: root.fanAvailable
+            anchors.verticalCenter: parent.verticalCenter
+            text: "🌀"
+            font.pixelSize: 9
         }
 
         Text {
@@ -161,6 +179,93 @@ Rectangle {
             root.batteryStatus = s
             root.isCharging = (s === "Charging")
             root._statusBuf = ""
+        }
+    }
+
+    // Read fan RPM
+    property string _fanRpmBuf: ""
+    Process {
+        id: fanRpmProc
+        command: ["/home/sassech/.config/quickshell/scripts/fan-control.sh", "get_rpm"]
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => root._fanRpmBuf += data
+        }
+        onExited: {
+            var parts = root._fanRpmBuf.trim().split(",")
+            if (parts.length >= 2) {
+                root.fan1Rpm = parseInt(parts[0]) || 0
+                root.fan2Rpm = parseInt(parts[1]) || 0
+                root.fanAvailable = root.fan1Rpm > 0 || root.fan2Rpm > 0
+            }
+            root._fanRpmBuf = ""
+        }
+    }
+
+    // Read fan percent
+    property string _fanPercentBuf: ""
+    Process {
+        id: fanPercentProc
+        command: ["/home/sassech/.config/quickshell/scripts/fan-control.sh", "get_percent"]
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => root._fanPercentBuf += data
+        }
+        onExited: {
+            var parts = root._fanPercentBuf.trim().split(",")
+            if (parts.length >= 2) {
+                root.fan1Percent = parseInt(parts[0]) || 0
+                root.fan2Percent = parseInt(parts[1]) || 0
+            }
+            root._fanPercentBuf = ""
+        }
+    }
+
+    // Read temperature
+    property string _tempBuf: ""
+    Process {
+        id: tempProc
+        command: ["/home/sassech/.config/quickshell/scripts/fan-control.sh", "get_temp"]
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => root._tempBuf += data
+        }
+        onExited: {
+            var parts = root._tempBuf.trim().split(",")
+            if (parts.length >= 2) {
+                root.cpuTemp = parseInt(parts[0]) || 0
+                root.gpuTemp = parseInt(parts[1]) || 0
+            }
+            root._tempBuf = ""
+        }
+    }
+
+    // Read profile
+    property string _profileBuf: ""
+    Process {
+        id: profileProc
+        command: ["/home/sassech/.config/quickshell/scripts/fan-control.sh", "get_profile"]
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => root._profileBuf += data
+        }
+        onExited: {
+            root.fanProfile = root._profileBuf.trim()
+            root._profileBuf = ""
+        }
+    }
+
+    // Fan polling timer (every 30s when widget visible)
+    Timer {
+        interval: 30000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: {
+            fanRpmProc.running = true
+            fanPercentProc.running = true
+            tempProc.running = true
+            profileProc.running = true
         }
     }
 
