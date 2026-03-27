@@ -11,7 +11,35 @@ import "Modals"
 ShellRoot {
     id: root
 
-    // Señales globales
+    // ── Helpers ───────────────────────────────────────────────
+    function getFocusedScreen() {
+        var monCmd = ["bash", "-c",
+            "hyprctl monitors -j | python3 -c \"import json,sys; ms=json.load(sys.stdin); print(next((m['name'] for m in ms if m.get('focused')), ms[0]['name']))\""]
+        return monCmd
+    }
+
+    function getScreenFromMonName(monName) {
+        var name = monName.trim()
+        for (var i = 0; i < Quickshell.screens.length; i++) {
+            if (Quickshell.screens[i].name === name) {
+                return Quickshell.screens[i]
+            }
+        }
+        return Quickshell.screens[0]
+    }
+
+    function mkFifoCmd(fifoPath, callbackName) {
+        return [
+            "bash", "-c",
+            "rm -f " + fifoPath + "; mkfifo " + fifoPath + "; " +
+            "exec 3<>" + fifoPath + "; " +
+            "while IFS= read -r _ <&3; do " +
+            "hyprctl monitors -j | python3 -c \"import json,sys; ms=json.load(sys.stdin); print(next((m['name'] for m in ms if m.get('focused')), ms[0]['name']))\"; " +
+            "done"
+        ]
+    }
+
+    // ── Signals ───────────────────────────────────────────────
     signal broadcastNotify(string title, string body, string icon, bool active, bool isMedia)
     signal broadcastCloseAll(var screen)
     signal broadcastPowerMenu(var screen)
@@ -723,12 +751,29 @@ ShellRoot {
     Process {
         id: defaultPowerMode
         command: ["sudo", "/home/sassech/.config/quickshell/scripts/set-power-mode.sh", "balanced"]
+        onExited: function(ec) {
+            if (ec === 0) {
+                console.log("Power mode: balanced")
+            } else {
+                console.log("Power mode set failed (non-root?)")
+            }
+        }
     }
 
     Component.onCompleted: {
         console.log("Quickshell loaded")
         console.log("✅ Workspaces | Power Menu | Weather | Notifications")
         defaultPowerMode.running = true
+    }
+
+    Component.onDestruction: {
+        clipboardFifo.running = false
+        wallpaperFifo.running = false
+        overviewFifo.running = false
+        spotlightFifo.running = false
+        volumeFifo.running = false
+        brightnessFifo.running = false
+        defaultPowerMode.running = false
     }
 }
 
