@@ -26,6 +26,7 @@ PanelWindow {
     onVisibleChanged: {
         if (visible) {
             updateCalendar();
+            Qt.callLater(function() { root.forceActiveFocus() })
         }
     }
 
@@ -74,6 +75,7 @@ PanelWindow {
     // Card principal con altura fija
     Rectangle {
         id: card
+        focus: true
         anchors.centerIn: parent
         width: 380
         height: 380
@@ -81,6 +83,8 @@ PanelWindow {
         color: Theme.base
         border.color: Theme.surface2
         border.width: 1
+
+        Keys.onEscapePressed: root.visible = false
 
         MouseArea { anchors.fill: parent; onClicked: {} }
 
