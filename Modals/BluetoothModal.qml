@@ -24,12 +24,12 @@ PanelWindow {
     property var    adapter:   Bluetooth.defaultAdapter
     property bool   available: adapter !== null
     property bool   powered:   adapter ? adapter.enabled : false
-    property bool   scanning:  adapter ? adapter.discovering : false
+    property bool   scanning:  false
     property bool   working:   false
     property string statusMsg: ""
 
     property int devicesRevision: 0
-    property var devices: adapter ? adapter.devices.values : []
+    property var devices: Bluetooth.devices.values
 
     property int pairedCount: {
         devicesRevision
@@ -87,21 +87,28 @@ PanelWindow {
     property string _currentCodecMac: ""
     property string _codecBuf:        ""
 
+    function sanitizeMac(mac) {
+        return mac.replace(/[^0-9A-Fa-f:]/g, "")
+    }
+
     function _runNextCodecQuery() {
         if (_codecQueue.length === 0 || codecProc.running) return
         _currentCodecMac = _codecQueue[0]
         _codecQueue      = _codecQueue.slice(1)
         _codecBuf        = ""
+        var safeMac = sanitizeMac(_currentCodecMac)
         codecProc.command = ["bash", "-c",
-            "/home/sassech/.config/quickshell/scripts/bt-codec.sh info " + _currentCodecMac]
+            "/home/sassech/.config/quickshell/scripts/bt-codec.sh info " + safeMac]
         codecProc.running = true
     }
 
     function setCodec(mac, profile) {
         root.statusMsg = ""
         _currentCodecMac = mac
+        var safeMac = sanitizeMac(mac)
+        var safeProfile = profile.replace(/[^a-zA-Z0-9_-]/g, "")
         setCodecProc.command = ["bash", "-c",
-            "/home/sassech/.config/quickshell/scripts/bt-codec.sh set " + mac + " " + profile]
+            "/home/sassech/.config/quickshell/scripts/bt-codec.sh set " + safeMac + " " + safeProfile]
         setCodecProc.running = true
     }
 
@@ -119,8 +126,9 @@ PanelWindow {
         var q = []
         for (var i = 0; i < devices.length; i++) {
             var d = devices[i]
-            if (d.paired && d.trusted && !d.connected) q.push(d)
+            if (d.paired && d.trusted && !d.connecting && !d.connected) q.push(d)
         }
+        if (q.length === 0) return
         root.autoConnectQueue = q
         root.autoConnectRunning = true
         root.autoConnectDevice = null
@@ -151,18 +159,25 @@ PanelWindow {
     }
 
     function toggleScan() {
-        if (!root.adapter) return
-        if (root.adapter.discovering) {
-            root.adapter.stopDiscovery()
-            scanTimer.stop()
+        if (!root.powered) return
+        if (root.scanning) {
+            root.scanning = false
+            stopScanProc.running = true
         } else {
-            root.adapter.startDiscovery()
-            scanTimer.restart()
+            root.scanning = true
+            scanProc.running = true
         }
     }
 
     function connectDevice(device) {
         if (!device) return
+        if (!root.powered) {
+            root.statusMsg = "✗ Enciende el Bluetooth primero"
+            return
+        }
+        if (device.connecting || device.connected) {
+            return
+        }
         root.actionDevice = device
         root.actionType = "connect"
         root.working = true
@@ -173,6 +188,9 @@ PanelWindow {
 
     function disconnectDevice(device) {
         if (!device) return
+        if (!device.connected) {
+            return
+        }
         root.actionDevice = device
         root.actionType = "disconnect"
         root.working = true
@@ -183,6 +201,13 @@ PanelWindow {
 
     function pairDevice(device) {
         if (!device) return
+        if (!root.powered) {
+            root.statusMsg = "✗ Enciende el Bluetooth primero"
+            return
+        }
+        if (device.pairing || device.paired) {
+            return
+        }
         root.actionDevice = device
         root.actionType = "pair"
         root.working = true
@@ -206,9 +231,7 @@ PanelWindow {
         id: scanTimer
         interval: 13000
         onTriggered: {
-            if (root.adapter && root.adapter.discovering) {
-                root.adapter.stopDiscovery()
-            }
+            stopScanProc.running = true
         }
     }
 
@@ -228,10 +251,21 @@ PanelWindow {
         onTriggered: autoConnectNext()
     }
 
-    // ── Refresh codec info every 4 s mientras el modal está abierto ───
+    // ── Refresh devices list when scanning ───────────────────────────────
+    Timer {
+        id: devicesRefreshTimer
+        interval: 3000
+        repeat: true
+        running: root.visible && root.scanning
+        onTriggered: {
+            root.devicesRevision++
+        }
+    }
+
+    // ── Refresh codec info every 8 s mientras el modal está abierto ───
     Timer {
         id: codecRefreshTimer
-        interval: 4000
+        interval: 8000
         repeat: true
         running: root.visible
         onTriggered: {
@@ -254,9 +288,26 @@ PanelWindow {
             statusMsg = ""
             if (powered) autoConnectTrusted()
         } else {
-            if (adapter && adapter.discovering) adapter.stopDiscovery()
+            stopScanProc.running = true
             scanTimer.stop()
+            actionTimeout.stop()
+            autoConnectTimer.stop()
+            codecRefreshTimer.stop()
+            devicesRefreshTimer.stop()
+            root.scanning = false
         }
+    }
+
+    Component.onDestruction: {
+        scanTimer.stop()
+        actionTimeout.stop()
+        autoConnectTimer.stop()
+        codecRefreshTimer.stop()
+        devicesRefreshTimer.stop()
+        codecProc.running = false
+        setCodecProc.running = false
+        scanProc.running = false
+        stopScanProc.running = false
     }
 
     onPoweredChanged: {
@@ -339,7 +390,50 @@ PanelWindow {
         }
     }
 
+    // ── Bluetooth scan process ──────────────────────────────────────────
+    Process {
+        id: scanProc
+        command: ["bash", "-c", "LANG=C bluetoothctl scan on 2>/dev/null &"]
+        onExited: {
+            scanTimer.restart()
+        }
+    }
+
+    Process {
+        id: stopScanProc
+        command: ["bash", "-c", "LANG=C bluetoothctl scan off 2>/dev/null &"]
+        onExited: {
+            scanTimer.stop()
+        }
+    }
+
     // ── Codec processes ───────────────────────────────────────────────────
+    Process {
+        id: codecProc
+        property string _buf: ""
+        command: ["bash", "-c", ""]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => codecProc._buf += d + "\n" }
+        onExited: {
+            var output = codecProc._buf.trim()
+            codecProc._buf = ""
+            try {
+                var data = JSON.parse(output)
+                var mac = root._currentCodecMac.toUpperCase()
+                root.codecData[mac] = data
+            } catch(e) {}
+            root._runNextCodecQuery()
+        }
+    }
+
+    Process {
+        id: setCodecProc
+        command: ["bash", "-c", ""]
+        onExited: function(ec) {
+            root.statusMsg = ec === 0 ? "✓ Codec cambiado" : "✗ Error al cambiar codec"
+            Qt.callLater(() => root._runNextCodecQuery())
+        }
+    }
+
     // ── Backdrop ──────────────────────────────────────────────────────────
     Rectangle {
         anchors.fill: parent
@@ -349,12 +443,16 @@ PanelWindow {
 
     // ── Card ──────────────────────────────────────────────────────────────
     Rectangle {
+        id: btCard
+        focus: true
         anchors.centerIn: parent
         width:            400
         height:           Math.min(620, cardCol.implicitHeight + 32)
         radius:           14
         color:            Theme.base
         clip:             true
+
+        Keys.onEscapePressed: root.visible = false
 
         Rectangle {
             anchors.fill: parent; radius: parent.radius; color: "transparent"
