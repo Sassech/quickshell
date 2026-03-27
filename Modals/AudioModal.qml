@@ -48,7 +48,26 @@ PanelWindow {
         if (visible) {
             statusMsg = ""
             loadAudio()
+            Qt.callLater(function() { root.forceActiveFocus() })
+        } else {
+            hotplugPoll.stop()
+            volDebounce.stop()
+            statusClear.stop()
+            reloadDelay.stop()
         }
+    }
+
+    Component.onDestruction: {
+        hotplugPoll.stop()
+        volDebounce.stop()
+        statusClear.stop()
+        reloadDelay.stop()
+        volProc.running = false
+        deviceListProc.running = false
+        setVolProc.running = false
+        muteProc.running = false
+        setSinkProc.running = false
+        setSourceProc.running = false
     }
 
     // Delay timer so PipeWire has time to update after set-default
@@ -74,7 +93,7 @@ PanelWindow {
     // Poll for device hotplug while modal is open
     Timer {
         id: hotplugPoll
-        interval: 2500
+        interval: 1500
         repeat: true
         running: root.visible
         onTriggered: {
@@ -88,6 +107,7 @@ PanelWindow {
     // ── Helpers ───────────────────────────────────────────────────────────
     function loadAudio() {
         root._deviceBuf = ""
+        root._volBuf = ""
         working = true
         volProc.running        = true
         deviceListProc.running = true
@@ -207,13 +227,16 @@ PanelWindow {
         command: ["bash", "-c", ""]
         onExited: (ec) => {
             if (ec === 0) {
-                root.statusMsg = "✓ Salida cambiada"
                 reloadDelay.restart()
             } else {
-                root.statusMsg = "✗ Error al cambiar salida"
+                root.statusMsg = "Error al cambiar salida"
             }
         }
     }
+    function sanitizeName(name) {
+        return name.replace(/[^a-zA-Z0-9._-]/g, "")
+    }
+
     function setDefaultSink(name) {
         // Optimistically mark new sink as active for instant feedback
         var updated = []
@@ -223,7 +246,8 @@ PanelWindow {
                            icon: s.icon, active: s.id === name })
         }
         root.sinks = updated
-        setSinkProc.command = ["bash", "-c", "pactl set-default-sink " + name + " 2>/dev/null"]
+        var safeName = sanitizeName(name)
+        setSinkProc.command = ["bash", "-c", "pactl set-default-sink " + safeName + " 2>/dev/null"]
         setSinkProc.running = true
     }
 
@@ -248,7 +272,8 @@ PanelWindow {
                            icon: s.icon, active: s.id === name })
         }
         root.sources = updated
-        setSourceProc.command = ["bash", "-c", "pactl set-default-source " + name + " 2>/dev/null"]
+        var safeName = sanitizeName(name)
+        setSourceProc.command = ["bash", "-c", "pactl set-default-source " + safeName + " 2>/dev/null"]
         setSourceProc.running = true
     }
 
@@ -262,11 +287,14 @@ PanelWindow {
     // ── Card ──────────────────────────────────────────────────────────────
     Rectangle {
         id: audioCard
+        focus: true
         anchors.centerIn: parent
         width:  420
         height: Math.min(580, cardCol.implicitHeight + 32)
         radius: 14
         color:  Theme.base
+
+        Keys.onEscapePressed: root.visible = false
 
         Rectangle {
             anchors.fill: parent; radius: parent.radius
