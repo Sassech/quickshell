@@ -136,38 +136,59 @@ PanelWindow {
         loadDefaultApps()
     }
 
-    function closeSpotlight() {
+    function closeSpotlight(keepLauncherAlive) {
         visible = false
         searchProc.running = false
-        launcher.running = false
         debounce.stop()
+        if (keepLauncherAlive !== true) {
+            launcher.running = false
+        }
     }
 
     Component.onDestruction: {
         searchProc.running = false
-        launcher.running = false
         debounce.stop()
     }
 
     function sanitizeExec(exec) {
-        return exec.replace(/[;&|`$\\]/g, '\\$&')
+        if (!exec) return ""
+        if (exec.includes(" ") || exec.includes("'") || exec.includes('"')) {
+            return exec.replace(/'/g, "'\\''")
+        }
+        return exec
     }
 
     function launchSelected() {
+        console.log("launchSelected called, count:", filteredModel.count, "selectedIndex:", selectedIndex)
         if (filteredModel.count === 0) return
         var idx = Math.min(selectedIndex, filteredModel.count - 1)
         var item = filteredModel.get(idx)
-        if (!item) return
+        console.log("Launching item:", JSON.stringify(item))
+        if (!item || !item.exec) {
+            console.log("No item or no exec")
+            return
+        }
         launcher.running = false
-        launcher.command = ["bash", "-c", "setsid " + sanitizeExec(item.exec) + " &>/dev/null &"]
+        var exec = item.exec
+        var cmd
+        if (exec.includes(" ") || exec.includes("'") || exec.includes('"')) {
+            cmd = "setsid bash -c 'setsid " + exec.replace(/'/g, "'\\''") + "' &>/dev/null &"
+        } else {
+            cmd = "setsid " + exec + " &>/dev/null &"
+        }
+        console.log("Executing:", cmd)
+        launcher.command = ["bash", "-c", cmd]
         launcher.running = true
-        closeSpotlight()
+        closeSpotlight(true)
     }
 
     Process {
         id: launcher
         running: false
-        onExited: running = false
+        onExited: {
+            console.log("Launcher exited")
+            running = false
+        }
     }
 
     onVisibleChanged: {
@@ -244,54 +265,61 @@ PanelWindow {
                 width: parent.width
                 height: 64
 
-                Row {
-                    anchors.fill: parent
-                    anchors.leftMargin: 20
-                    anchors.rightMargin: 20
-                    anchors.topMargin: 0
+                RowLayout {
+                    x: 20
+                    width: parent.width - 40
+                    height: parent.height
                     spacing: 12
 
-                    // Icono lupa
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: _searching ? "󰔟" : "󰍉"
-                        font.pixelSize: 22
-                        color: searchInput.text !== "" ? Theme.accent2 : Theme.muted3
+                    // Contenedor para input + foco visual + icono
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 40
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.leftMargin: -4
+                        Layout.rightMargin: -4
 
-                        RotationAnimation on rotation {
-                            running: _searching
-                            from: 0; to: 360
-                            duration: 1000
-                            loops: Animation.Infinite
-                        }
-                    }
-
-                    // Foco visual
-                    Rectangle {
-                        anchors.fill: searchInput
-                        anchors.leftMargin: -4
-                        anchors.rightMargin: -4
-                        radius: 8
-                        color: "transparent"
-                        border.color: searchInput.activeFocus ? Theme.accent : "transparent"
-                        border.width: 2
-                        z: -1
-                    }
-
-                    TextInput {
-                        id: searchInput
-                        width: parent.width - 46
-                        anchors.verticalCenter: parent.verticalCenter
-                        font.pixelSize: 20
-                        color: Theme.text
-                        selectionColor: Theme.accent
-                        selectedTextColor: Theme.text
-                        clip: true
-
-                        // Placeholder
+                        // Icono lupa
                         Text {
-                            anchors.fill: parent
+                            anchors.left: parent.left
+                            anchors.leftMargin: 12
                             anchors.verticalCenter: parent.verticalCenter
+                            text: _searching ? "󰔟" : "󰍉"
+                            font.pixelSize: 22
+                            color: searchInput.text !== "" ? Theme.accent2 : Theme.muted3
+
+                            RotationAnimation on rotation {
+                                running: _searching
+                                from: 0; to: 360
+                                duration: 1000
+                                loops: Animation.Infinite
+                            }
+                        }
+
+                        // Foco visual (fondo del input)
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 8
+                            color: "transparent"
+                            border.color: searchInput.activeFocus ? Theme.accent : "transparent"
+                            border.width: 2
+                        }
+
+                        TextInput {
+                            id: searchInput
+                            anchors.fill: parent
+                            leftPadding: 46
+                            rightPadding: 12
+                            font.pixelSize: 20
+                            color: Theme.text
+                            selectionColor: Theme.accent
+                            selectedTextColor: Theme.text
+                            clip: true
+
+                            // Placeholder
+                            Text {
+                                anchors.fill: parent
+                                anchors.verticalCenter: parent.verticalCenter
                             text: "Buscar aplicaciones, archivos, comandos..."
                             font.pixelSize: 18
                             color: Theme.surface2
@@ -342,6 +370,7 @@ PanelWindow {
                             }
                         }
                     }
+                    }
                 }
 
                 // Separador
@@ -366,8 +395,8 @@ PanelWindow {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    anchors.leftMargin: 12
-                    anchors.rightMargin: 12
+                    leftPadding: 12
+                    rightPadding: 12
                     spacing: 4
 
                     Repeater {
@@ -389,7 +418,7 @@ PanelWindow {
                                 Text {
                                     text: modelData.icon
                                     font.pixelSize: 12
-                                    anchors.verticalCenter: parent.verticalCenter
+                                    verticalAlignment: Text.AlignVCenter
                                     color: root.activeTab === modelData.id
                                            ? Theme.accent : Theme.muted3
                                     Behavior on color { ColorAnimation { duration: 100 } }
@@ -397,7 +426,7 @@ PanelWindow {
                                 Text {
                                     text: modelData.label
                                     font.pixelSize: 12
-                                    anchors.verticalCenter: parent.verticalCenter
+                                    verticalAlignment: Text.AlignVCenter
                                     color: root.activeTab === modelData.id
                                            ? Theme.accent : Theme.muted3
                                     Behavior on color { ColorAnimation { duration: 100 } }
@@ -536,7 +565,6 @@ PanelWindow {
                                 Layout.alignment: Qt.AlignVCenter
                                 Layout.preferredWidth: badgeText.width + 10
                                 Layout.preferredHeight: 18
-                                height: 18
                                 radius: 5
                                 color: root.getTypeColorSurface(resultRow.model.type)
                                 Text {
@@ -557,6 +585,7 @@ PanelWindow {
                             cursorShape: Qt.PointingHandCursor
                             onEntered: root.selectedIndex = resultRow.index
                             onClicked: {
+                                console.log("Row clicked, index:", resultRow.index)
                                 root.selectedIndex = resultRow.index
                                 root.launchSelected()
                             }
