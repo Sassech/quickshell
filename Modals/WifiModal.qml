@@ -76,6 +76,7 @@ PanelWindow {
             passwordByIndex = ({})
             statusMsg    = ""
             loadNetworks()
+            Qt.callLater(function() { root.forceActiveFocus() })
         } else {
             scanning = false
             root.menuOpenIdx  = -1
@@ -83,6 +84,25 @@ PanelWindow {
         }
     }
 
+    Component.onDestruction: {
+        ifaceProc.running = false
+        radioProc.running = false
+        netListProc.running = false
+        savedProc.running = false
+        ethernetProc.running = false
+        wifiInfoProc.running = false
+        toggleRadioProc.running = false
+        rescanProc.running = false
+        connectProc.running = false
+        verifyProc.running = false
+        disconnectProc.running = false
+        savedPwProc.running = false
+        menuCopyFetchProc.running = false
+        menuCopyExecProc.running = false
+        menuForgetProc.running = false
+        menuInfoProc.running = false
+    }
+ 
     // ── Data loading ──────────────────────────────────────────────────────
     function loadNetworks() {
         root.working = true
@@ -93,9 +113,9 @@ PanelWindow {
         ethernetProc.running = true
     }
 
-    // ── Auto-refresh every 8 seconds when visible ──────────────────────────
+    // ── Auto-refresh every 15 seconds when visible ──────────────────────────
     Timer {
-        interval: 8000
+        interval: 15000
         running: root.visible && !root.working
         repeat: true
         onTriggered: root.loadNetworks()
@@ -352,10 +372,6 @@ PanelWindow {
             "echo \"IFACE=$IFACE\" >> $LOG; " +
             "echo \"--- Delete existing --- \" >> $LOG; " +
             "nmcli con delete \"$SSID\" 2>&1 >> $LOG || true; " +
-            "echo \"--- Rescan --- \" >> $LOG; " +
-            "nmcli dev wifi rescan 2>&1 >> $LOG; " +
-            "echo \"--- Wait 2s --- \" >> $LOG; " +
-            "sleep 2; " +
             "echo \"--- Add connection --- \" >> $LOG; " +
             "nmcli con add type wifi con-name \"$SSID\" ssid \"$SSID\" " +
             "wifi-sec.key-mgmt wpa-psk wifi-sec.psk \"$PASS\" 2>&1 >> $LOG; " +
@@ -397,6 +413,10 @@ PanelWindow {
     }
 
     function disconnect_() {
+        if (!root.wifiIface || root.wifiIface === "") {
+            root.statusMsg = "✗ No hay interfaz WiFi"
+            return
+        }
         root.working = true
         disconnectProc.command = ["bash", "-c",
             "LANG=C nmcli dev disconnect " + root.wifiIface + " 2>/dev/null"]
@@ -536,11 +556,14 @@ PanelWindow {
     // ── Card ──────────────────────────────────────────────────────────────
     Rectangle {
         id: wifiCard
+        focus: true
         anchors.centerIn:         parent
         width:                    400
         height:                   Math.min(560, cardCol.implicitHeight + 32)
         radius:                   14
         color:                    Theme.base
+
+        Keys.onEscapePressed: root.visible = false
 
         Rectangle {
             anchors.fill: parent; radius: parent.radius
