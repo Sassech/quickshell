@@ -65,6 +65,7 @@ PanelWindow {
     onVisibleChanged: {
         if (visible) {
             loadImages()
+            Qt.callLater(function() { root.forceActiveFocus() })
         }
     }
 
@@ -143,6 +144,7 @@ PanelWindow {
     // Card
     Rectangle {
         id: card
+        focus: true
         anchors.centerIn: parent
         width: 720
         height: Math.min(620, root.height * 0.82)
@@ -151,6 +153,8 @@ PanelWindow {
         border.color: Theme.surface2
         border.width: 1
         clip: true
+
+        Keys.onEscapePressed: root.visible = false
 
         // Stripe superior
         Rectangle {
