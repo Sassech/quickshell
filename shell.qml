@@ -59,6 +59,7 @@ ShellRoot {
     signal broadcastWifi(var screen)
     signal broadcastBluetooth(var screen)
     signal broadcastAudio(var screen)
+    signal broadcastMedia(var screen)
     signal broadcastBrightness(int pct)
     signal broadcastVolume(int pct, bool muted)
     signal broadcastClock(var screen)
@@ -81,6 +82,7 @@ ShellRoot {
             onGpuClicked: screen => root.broadcastGpu(screen)
             onClipboardClicked: screen => root.broadcastClipboard(screen)
             onClockClicked: screen => root.broadcastClock(screen)
+            onMediaClicked: screen => root.broadcastMedia(screen)
         }
     }
 
@@ -657,6 +659,30 @@ ShellRoot {
                     var was = btModalInst.visible
                     root.broadcastCloseAll(screen)
                     btModalInst.visible = !was
+                }
+            }
+        }
+    }
+
+    // ============================================
+    // MEDIA MODAL — una instancia por pantalla
+    // ============================================
+    Variants {
+        model: Quickshell.screens
+        MediaModal {
+            id: mediaModalInst
+            property var modelData
+            screen: modelData
+            Connections {
+                target: root
+                function onBroadcastCloseAll(screen) {
+                    if (mediaModalInst.modelData === screen) mediaModalInst.visible = false
+                }
+                function onBroadcastMedia(screen) {
+                    if (mediaModalInst.modelData !== screen) return
+                    var was = mediaModalInst.visible
+                    root.broadcastCloseAll(screen)
+                    mediaModalInst.visible = !was
                 }
             }
         }

@@ -17,6 +17,7 @@ PanelWindow {
     signal gpuClicked(var screen)
     signal clipboardClicked(var screen)
     signal clockClicked(var screen)
+    signal mediaClicked(var screen)
     
     // ── Provider instances ─────────────────────────────────────────────────
     WeatherProvider {
@@ -134,10 +135,17 @@ PanelWindow {
                 implicitWidth: mediaPlayerContent.implicitWidth + 12
                 implicitHeight: 28
 
-                // Media player controls (no click handler - just display)
                 MediaPlayer {
                     id: mediaPlayerContent
                     anchors.centerIn: parent
+                }
+
+                // Click en zona vacía del contenedor → abrir MediaModal
+                MouseArea {
+                    anchors.fill: parent
+                    z: -1
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.mediaClicked(root.screen)
                 }
             }
         }

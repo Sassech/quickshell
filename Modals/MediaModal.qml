@@ -8,6 +8,9 @@ import "../Components"
 PanelWindow {
     id: root
 
+    property var modelData
+    screen: modelData
+
     visible: false
     color: "transparent"
 
@@ -24,8 +27,9 @@ PanelWindow {
         var playingOther = null
         var playingMpd   = null
         var first        = null
-        for (var i = 0; i < Mpris.players.values.length; i++) {
-            var p = Mpris.players.values[i]
+        var players = Mpris.players.values
+        for (var i = 0; i < players.length; i++) {
+            var p = players[i]
             if (!first) first = p
             var isMpd = (p.identity ?? "").toLowerCase().includes("music player daemon")
             if (p.playbackState === MprisPlaybackState.Playing) {
@@ -58,24 +62,28 @@ PanelWindow {
 
     // Reset posición al cambiar de canción
     Connections {
-        target: root.player
-        enabled: root.hasPlayer
+        target: root.hasPlayer ? root.player : null
         function onTrackTitleChanged() { 
-            syncPosition()
+            root.syncPosition()
+            root._syncCounter = 0
         }
     }
 
     // Timer optimizado: solo corre cuando está visible y reproduciendo
+    property int _syncCounter: 0
+
     Timer {
         id: positionTimer
         interval: 1000
         running: root.visible && root.isPlaying
         repeat: true
         onTriggered: {
-            trackedPosition += 1000
+            root.trackedPosition += 1000
+            root._syncCounter++
             // Sincronizar cada 10s para evitar drift
-            if (Math.round(trackedPosition / 1000) % 10 === 0) {
-                syncPosition()
+            if (root._syncCounter >= 10) {
+                root._syncCounter = 0
+                root.syncPosition()
             }
         }
     }
@@ -277,27 +285,50 @@ PanelWindow {
 
                 Item {
                     Layout.fillWidth: true
-                    height: 4
+                    height: 14
 
-                    Rectangle {
+                    // Hit area amplia para facilitar click
+                    MouseArea {
                         anchors.fill: parent
-                        radius: 2
-                        color: Theme.surface3
+                        cursorShape: Qt.PointingHandCursor
+                        enabled: root.hasPlayer && root.trackLen > 0
+                        onClicked: function(mouse) {
+                            var ratio = mouse.x / width
+                            root.player.position = ratio * root.trackLen
+                            root.syncPosition()
+                            root._syncCounter = 0
+                        }
                     }
 
-                    Rectangle {
-                        id: progressFill
-                        width: {
-                            if (root.trackLen <= 0) return 0
-                            var ratio = Math.min(root.trackedPosition / root.trackLen, 1.0)
-                            return ratio * parent.width
+                    // Barra visual (centrada en el hit area)
+                    Item {
+                        anchors {
+                            left: parent.left
+                            right: parent.right
+                            verticalCenter: parent.verticalCenter
                         }
-                        height: parent.height
-                        radius: 2
-                        color: Theme.accent
+                        height: 4
 
-                        Behavior on width {
-                            NumberAnimation { duration: 800; easing.type: Easing.Linear }
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 2
+                            color: Theme.surface3
+                        }
+
+                        Rectangle {
+                            id: progressFill
+                            width: {
+                                if (root.trackLen <= 0) return 0
+                                var ratio = Math.min(root.trackedPosition / root.trackLen, 1.0)
+                                return ratio * parent.width
+                            }
+                            height: parent.height
+                            radius: 2
+                            color: Theme.accent
+
+                            Behavior on width {
+                                NumberAnimation { duration: 800; easing.type: Easing.Linear }
+                            }
                         }
                     }
                 }
