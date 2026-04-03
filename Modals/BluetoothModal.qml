@@ -29,7 +29,10 @@ PanelWindow {
     property string statusMsg: ""
 
     property int devicesRevision: 0
-    property var devices: Bluetooth.devices.values
+    property var devices: {
+        devicesRevision
+        return Bluetooth.devices.values
+    }
 
     property int pairedCount: {
         devicesRevision
@@ -419,7 +422,10 @@ PanelWindow {
             try {
                 var data = JSON.parse(output)
                 var mac = root._currentCodecMac.toUpperCase()
-                root.codecData[mac] = data
+                var newData = ({})
+                Object.assign(newData, root.codecData)
+                newData[mac] = data
+                root.codecData = newData
             } catch(e) {}
             root._runNextCodecQuery()
         }

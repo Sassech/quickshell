@@ -21,7 +21,12 @@ Rectangle {
     property int devicesRevision: 0
     property var connectedDevices: {
         devicesRevision
-        return Bluetooth.devices.values
+        var all = Bluetooth.devices.values
+        var out = []
+        for (var i = 0; i < all.length; i++) {
+            if (all[i].connected) out.push(all[i])
+        }
+        return out
     }
 
     property bool   connected:  connectedDevices.length > 0
@@ -45,13 +50,13 @@ Rectangle {
     }
 
     Connections {
-        target: Bluetooth.devices
+        target: root.adapter ? root.adapter.devices : null
         function onObjectInsertedPost(object, index) { root.devicesRevision++ }
         function onObjectRemovedPost(object, index) { root.devicesRevision++ }
     }
 
     Instantiator {
-        model: Bluetooth.devices
+        model: root.adapter ? root.adapter.devices : null
         delegate: Connections {
             required property var modelData
             target: modelData
