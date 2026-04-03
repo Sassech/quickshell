@@ -107,25 +107,25 @@ PanelWindow {
             anchors.centerIn: parent
             spacing: 10
 
-            Clock {
-                id: clockWidget
-                onClicked: root.clockClicked(root.screen)
-            }
-
             SystemTrayWidget {
-            iconSize: 18
-            spacing: 4
+                iconSize: 18
+                spacing: 4
             }
             
             ClipboardWidget {
-            id: clipboardWidget
-            onClicked: root.clipboardClicked(root.screen)
+                id: clipboardWidget
+                onClicked: root.clipboardClicked(root.screen)
             }
             IdleInhibitor {}
 
             Weather {
                 id: weatherWidget
                 onClicked: root.weatherClicked(root.screen)
+            }
+            
+            Clock {
+                id: clockWidget
+                onClicked: root.clockClicked(root.screen)
             }
 
             Rectangle {
