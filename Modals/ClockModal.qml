@@ -346,7 +346,7 @@ PanelWindow {
     Process {
         id: loadFormatProc
         running: false
-        command: ["bash", "-c", "cat /home/sassech/.config/quickshell/clock-prefs.json 2>/dev/null || echo '{\"use24h\":true}'"]
+        command: ["bash", "-c", "cat /home/sassech/.config/quickshell/config/clock-prefs.json 2>/dev/null || echo '{\"use24h\":true}'"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => {
@@ -360,7 +360,7 @@ PanelWindow {
 
     function setFormat(is24h) {
         root.use24hFormat = is24h;
-        saveFormatProc.command = ["bash", "-c", "echo '{\"use24h\":" + is24h + "}' > /home/sassech/.config/quickshell/clock-prefs.json"];
+        saveFormatProc.command = ["bash", "-c", "echo '{\"use24h\":" + is24h + "}' > /home/sassech/.config/quickshell/config/clock-prefs.json"];
         saveFormatProc.running = true;
     }
 

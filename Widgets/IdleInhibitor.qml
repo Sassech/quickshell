@@ -47,12 +47,12 @@ Rectangle {
 
     function loadState() {
         _loadBuf = "";
-        loadProc.command = ["bash", "-c", "cat /home/sassech/.config/quickshell/idle-state.json 2>/dev/null || echo ''"];
+        loadProc.command = ["bash", "-c", "cat /home/sassech/.config/quickshell/config/idle-state.json 2>/dev/null || echo ''"];
         loadProc.running = true;
     }
 
     function saveState(data) {
-        saveProc.command = ["bash", "-c", "echo '" + JSON.stringify(data) + "' > /home/sassech/.config/quickshell/idle-state.json"];
+        saveProc.command = ["bash", "-c", "echo '" + JSON.stringify(data) + "' > /home/sassech/.config/quickshell/config/idle-state.json"];
         saveProc.running = true;
     }
 

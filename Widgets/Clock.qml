@@ -61,12 +61,12 @@ Rectangle {
     }
 
     function loadPrefs() {
-        loadPrefsProc.command = ["bash", "-c", "cat /home/sassech/.config/quickshell/clock-prefs.json 2>/dev/null || echo '{}'"];
+        loadPrefsProc.command = ["bash", "-c", "cat /home/sassech/.config/quickshell/config/clock-prefs.json 2>/dev/null || echo '{}'"];
         loadPrefsProc.running = true;
     }
 
     function savePrefs() {
-        savePrefsProc.command = ["bash", "-c", "echo '" + JSON.stringify({use24h: root.use24h}) + "' > /home/sassech/.config/quickshell/clock-prefs.json"];
+        savePrefsProc.command = ["bash", "-c", "echo '" + JSON.stringify({use24h: root.use24h}) + "' > /home/sassech/.config/quickshell/config/clock-prefs.json"];
         savePrefsProc.running = true;
     }
 
