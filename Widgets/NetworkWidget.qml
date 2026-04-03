@@ -166,12 +166,9 @@ Rectangle {
                 root.signal_ = 0
             } else if (connLine.startsWith("wifi:")) {
                 root.connectionType = "wifi"
-                var parts = connLine.split(":")
-                root.connected = true
-                root.ssid = parts[1] || ""
-                // Get signal from nmcli if available
-                var signalLine = (lines[1] || "").trim()
-                // Already have ssid, signal will be updated separately
+                root.ssid = connLine.substring(5) // substring handles SSIDs with ':'
+                root.connected = root.ssid.length > 0
+                // Signal comes from Line 3
             } else {
                 root.connectionType = "none"
                 root.connected = false
@@ -179,9 +176,16 @@ Rectangle {
                 root.signal_ = 0
             }
 
-            // Get wifi signal strength if connected via wifi
-            if (root.connectionType === "wifi") {
-                wifiSignalProc.running = true
+            // Line 3: wifi_extra:signal:mac (only when wifi connected)
+            if (root.connectionType === "wifi" && lines.length >= 3) {
+                var extraLine = (lines[2] || "").trim()
+                if (extraLine.startsWith("wifi_extra:")) {
+                    var extraParts = extraLine.split(":")
+                    // wifi_extra:signal:mac — signal is index 1
+                    root.signal_ = parseInt(extraParts[1]) || 0
+                }
+            } else if (root.connectionType !== "wifi") {
+                root.signal_ = 0
             }
 
             // Line 5: rx_bytes tx_bytes
@@ -197,21 +201,6 @@ Rectangle {
                     root._prevRx = rx
                     root._prevTx = tx
                 }
-            }
-        }
-    }
-
-    // Get WiFi signal strength
-    Process {
-        id: wifiSignalProc
-        command: ["bash", "-c",
-            "LANG=C nmcli -t -f active,ssid,signal dev wifi list 2>/dev/null | " +
-            "grep '^yes:' | cut -d: -f3 | head -1"]
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => {
-                var sig = parseInt(data.trim()) || 0
-                root.signal_ = sig
             }
         }
     }

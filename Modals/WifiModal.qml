@@ -28,7 +28,6 @@ PanelWindow {
     property string statusMsg:     ""
     property var    passwordByIndex: ({})  // { index: password }
     property bool   working:       false
-    property string logFile:      "/tmp/qs-wifi-connect.log"
 
     // Log status changes
     onStatusMsgChanged: {
@@ -64,9 +63,6 @@ PanelWindow {
     property int infoOpenIdx: -1
     property var infoData:    ({})   // {ssid, signal, security, active, isSaved, ip}
 
-    // Debug output
-    property string _connectOutput: ""
-
     onSelectedIdxChanged: infoOpenIdx = -1
 
     onVisibleChanged: {
@@ -94,7 +90,6 @@ PanelWindow {
         toggleRadioProc.running = false
         rescanProc.running = false
         connectProc.running = false
-        verifyProc.running = false
         disconnectProc.running = false
         savedPwProc.running = false
         menuCopyFetchProc.running = false
@@ -218,13 +213,20 @@ PanelWindow {
                 var l = lines[i].trim()
                 if (!l) continue
                 // format: active:ssid:signal:security
-                // active may be "yes" (LANG=C ensured)
+                // SSID may contain ':', so we parse carefully:
+                //   - field 0: "yes" or "no" (active)
+                //   - field 1: ssid (everything between first and second-to-last ':')
+                //   - field N-1: signal (number)
+                //   - field N: security (may also contain ':')
+                // Strategy: split by ':', take first as active, last as security,
+                // second-to-last as signal, and everything in between as ssid.
                 var p = l.split(":")
                 if (p.length < 3) continue
                 var active   = p[0] === "yes"
-                var ssid     = p[1]
-                var sig      = parseInt(p[2]) || 0
-                var security = p.slice(3).join(":").trim()
+                var security = p[p.length - 1].trim()
+                var sig      = parseInt(p[p.length - 2]) || 0
+                // SSID is everything between index 1 and index (length-3)
+                var ssid     = p.slice(1, p.length - 2).join(":")
                 if (!ssid) continue          // hidden network
                 if (seen[ssid]) continue     // deduplicate
                 seen[ssid] = true
@@ -310,21 +312,6 @@ PanelWindow {
             connectProc._buf = ""
             root.working = false
             
-            // Verify actual connection state
-            var verifyCmd = ["bash", "-c",
-                "nmcli -t -f GENERAL.CONNECTION,STATE dev show " + (root.wifiIface || "wlan0") + " 2>/dev/null | grep -v ':$'"]
-            verifyProc.command = verifyCmd
-            verifyProc.running = true
-            
-            // Store output for debug
-            root._connectOutput = output
-            
-            // Log to file for debugging
-            var logCmd = ["bash", "-c", 
-                "echo '" + (new Date()).toISOString() + " CONNECT EXIT: " + exitCode + "' >> /tmp/qs-wifi-connect.log; " +
-                "echo 'STATUS_MSG: " + (exitCode === 0 ? "\\u2713 Conectado" : "\\u2717 Error") + "' >> /tmp/qs-wifi-connect.log"
-            ]
-            
             // Show result based on exit code
             if (exitCode === 0) {
                 root.statusMsg = "✓ Conectado"
@@ -332,57 +319,25 @@ PanelWindow {
                 root.showPassword = false
                 root.passwordByIndex = ({})
             } else {
-                // Show first line of error if available
                 var errLines = output.split("\n")
-                var errMsg = errLines.filter(l => l && !l.startsWith("DEBUG:") && !l.startsWith("EXIT_CODE:"))[0] || "Error de conexión"
+                var errMsg = errLines.filter(l => l && !l.startsWith("DEBUG:"))[0] || "Error de conexión"
                 root.statusMsg = "✗ " + errMsg.substring(0, 40)
             }
             Qt.callLater(() => root.loadNetworks())
         }
     }
-    
-    Process {
-        id: verifyProc
-        command: ["bash", "-c", ""]
-        onExited: function(ec) {
-            // Connection verified
-        }
-    }
     function connectTo(ssid, password) {
         root.working   = true
         root.statusMsg = ""
-        
-        // Log start
-        console.log("[WifiModal] Connecting to:", ssid, "password length:", password.length)
-        
-        // Escape special characters for bash
-        var escapedSsid = ssid.replace(/'/g, "'\"'\"'")
-        var escapedPass = password.replace(/'/g, "'\"'\"'")
-        
+
         var cmd = [
             "bash", "-c",
-            "LOG=/tmp/qs-wifi-connect.log; " +
-            "echo \"=== WIFI CONNECT DEBUG ===\" > $LOG; " +
-            "date >> $LOG; " +
-            "SSID='" + escapedSsid + "'; " +
-            "PASS='" + escapedPass + "'; " +
-            "echo \"SSID=$SSID\" >> $LOG; " +
-            "echo \"PASS_LEN=${#PASS}\" >> $LOG; " +
-            "IFACE=$(nmcli dev | grep wifi | grep -v p2p | awk '{print $1}' | head -1); " +
-            "echo \"IFACE=$IFACE\" >> $LOG; " +
-            "echo \"--- Delete existing --- \" >> $LOG; " +
-            "nmcli con delete \"$SSID\" 2>&1 >> $LOG || true; " +
-            "echo \"--- Add connection --- \" >> $LOG; " +
+            "SSID=$1; PASS=$2; IFACE=$(nmcli dev | grep wifi | grep -v p2p | awk '{print $1}' | head -1); " +
+            "nmcli con delete \"$SSID\" 2>/dev/null || true; " +
             "nmcli con add type wifi con-name \"$SSID\" ssid \"$SSID\" " +
-            "wifi-sec.key-mgmt wpa-psk wifi-sec.psk \"$PASS\" 2>&1 >> $LOG; " +
-            "echo \"--- Connect --- \" >> $LOG; " +
-            "nmcli con up \"$SSID\" ifname \"$IFACE\" 2>&1 >> $LOG; " +
-            "EXIT=$?; " +
-            "echo \"EXIT_CODE=$EXIT\" >> $LOG; " +
-            "echo \"--- Final state --- \" >> $LOG; " +
-            "nmcli device status >> $LOG; " +
-            "cat $LOG; " +
-            "exit $EXIT"
+            "wifi-sec.key-mgmt wpa-psk wifi-sec.psk \"$PASS\" 2>&1 && " +
+            "nmcli con up \"$SSID\" ifname \"$IFACE\" 2>&1",
+            "--", ssid, password
         ]
         connectProc.command = cmd
         connectProc.running = true
@@ -402,7 +357,6 @@ PanelWindow {
         onExited: function(ec) {
             var pw = savedPwProc._buf.trim()
             savedPwProc._buf = ""
-            console.log("[WifiModal] Saved password length:", pw.length)
             root.working = false
             if (pw.length > 0) {
                 root.connectTo(savedPwProc.ssid, pw)
@@ -901,26 +855,19 @@ PanelWindow {
                                     MouseArea {
                                         anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                         onClicked: {
-                                            console.log("[WifiModal] Button clicked - index:", index, "ssid:", modelData.ssid)
                                             if (netRow.isActive) {
                                                 root.disconnect_()
                                             } else {
                                                 var needsPw = modelData.security && modelData.security !== "--"
-                                                // If panel not expanded, expand it
                                                 if (root.selectedIdx !== index) {
                                                     root.selectedIdx  = index
                                                     root.showPassword = needsPw && !netRow.isSaved
                                                     root.passwordByIndex[index] = ""
                                                     showPwText = false
-                                                    console.log("[WifiModal] Panel expanded - password reset")
                                                 } else {
-                                                    // Panel already expanded - connect
-                                                    // Get password from TextInput or saved password
                                                     var pw = pwInput ? pwInput.text : (root.passwordByIndex[index] || "")
-                                                    console.log("[WifiModal] Connecting - isSaved:", netRow.isSaved, "pw length:", pw.length, "ssid:", modelData.ssid)
                                                     if (needsPw && pw === "") {
                                                         if (netRow.isSaved) {
-                                                            // Get saved password and connect
                                                             root.working = true
                                                             root.statusMsg = "Obteniendo contraseña guardada..."
                                                             savedPwProc.ssid = modelData.ssid
