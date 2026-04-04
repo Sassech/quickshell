@@ -40,7 +40,7 @@ Rectangle {
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.dataAvailable ? (root.cpuPercent + "%") : "--%"
+            text: root.dataAvailable ? (root.cpuPercent + "%") : ""
             font.pixelSize: 11
             font.weight: Font.Normal
             font.family: "monospace"

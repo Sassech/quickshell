@@ -40,7 +40,7 @@ Rectangle {
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.dataAvailable ? (root.diskPercent + "%") : "—%"
+            text: root.dataAvailable ? (root.diskPercent + "%") : ""
             font.pixelSize: 11
             font.weight: Font.Normal
             font.family: "monospace"
@@ -51,7 +51,7 @@ Rectangle {
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.dataAvailable ? (root.diskAvailGb + "GB libre") : "— GB"
+            text: root.dataAvailable ? (root.diskAvailGb + "GB libre") : ""
             font.pixelSize: 10
             color: Theme.muted1
             width: 62
