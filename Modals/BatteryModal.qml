@@ -33,16 +33,6 @@ PanelWindow {
 
     property bool applying: false
 
-    // Fan properties
-    property int fan1Rpm: 0
-    property int fan2Rpm: 0
-    property int fan1Percent: 0
-    property int fan2Percent: 0
-    property int cpuTemp: 0
-    property int gpuTemp: 0
-    property string fanProfile: ""
-    property bool fanAvailable: false
-
     onVisibleChanged: {
         if (visible) {
             root.batteryAvailable = false
@@ -53,9 +43,7 @@ PanelWindow {
             root.capacityWh = 0
             root.currentEpp = ""
             root.currentMode = ""
-            root.fanAvailable = false
             detectProc.running = true
-            refreshFanFiles()
         }
     }
 
@@ -69,7 +57,6 @@ PanelWindow {
             } else {
                 refreshBatteryFiles()
             }
-            refreshFanFiles()
         }
     }
 
@@ -116,13 +103,6 @@ PanelWindow {
         }
         cycles.running = true
         eppRead.running = true
-    }
-
-    function refreshFanFiles() {
-        fanRpmProc.running = true
-        fanPercentProc.running = true
-        fanTempProc.running = true
-        fanProfileProc.running = true
     }
 
     // Detect battery and energy/charge mode
@@ -231,79 +211,6 @@ PanelWindow {
         }
     }
 
-    // Fan processes
-    property string _fanRpmBuf: ""
-    Process {
-        id: fanRpmProc
-        command: ["/home/sassech/.config/quickshell/scripts/fan-control.sh", "get_rpm"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: data => root._fanRpmBuf += data }
-        onExited: {
-            var parts = root._fanRpmBuf.trim().split(",")
-            if (parts.length >= 2) {
-                root.fan1Rpm = parseInt(parts[0]) || 0
-                root.fan2Rpm = parseInt(parts[1]) || 0
-                root.fanAvailable = root.fan1Rpm > 0 || root.fan2Rpm > 0
-            }
-            root._fanRpmBuf = ""
-        }
-    }
-
-    property string _fanPercentBuf: ""
-    Process {
-        id: fanPercentProc
-        command: ["/home/sassech/.config/quickshell/scripts/fan-control.sh", "get_percent"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: data => root._fanPercentBuf += data }
-        onExited: {
-            var parts = root._fanPercentBuf.trim().split(",")
-            if (parts.length >= 2) {
-                root.fan1Percent = parseInt(parts[0]) || 0
-                root.fan2Percent = parseInt(parts[1]) || 0
-            }
-            root._fanPercentBuf = ""
-        }
-    }
-
-    property string _fanTempBuf: ""
-    Process {
-        id: fanTempProc
-        command: ["/home/sassech/.config/quickshell/scripts/fan-control.sh", "get_temp"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: data => root._fanTempBuf += data }
-        onExited: {
-            var parts = root._fanTempBuf.trim().split(",")
-            if (parts.length >= 2) {
-                root.cpuTemp = parseInt(parts[0]) || 0
-                root.gpuTemp = parseInt(parts[1]) || 0
-            }
-            root._fanTempBuf = ""
-        }
-    }
-
-    property string _fanProfileBuf: ""
-    Process {
-        id: fanProfileProc
-        command: ["/home/sassech/.config/quickshell/scripts/fan-control.sh", "get_profile"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: data => root._fanProfileBuf += data }
-        onExited: {
-            root.fanProfile = root._fanProfileBuf.trim()
-            root._fanProfileBuf = ""
-        }
-    }
-
-    Process {
-        id: fanApplyProc
-        onExited: {
-            root.applying = false
-            refreshFanFiles()
-        }
-    }
-
-    function setFanProfile(profile) {
-        if (root.applying) return
-        root.applying = true
-        fanApplyProc.command = ["sudo", "/home/sassech/.config/quickshell/scripts/fan-control.sh", "set_profile", profile]
-        fanApplyProc.running = true
-    }
-
     function _calcStats() {
         if (root.energyMode === "energy") {
             if (root._energyFull > 0 && root._energyDesign > 0) {
@@ -351,21 +258,18 @@ PanelWindow {
         anchors.right: parent.right
         anchors.topMargin: 44
         anchors.rightMargin: 8
-        width: 280
+        width: 300
         height: col.implicitHeight + 24
         radius: 12
         color: Theme.base
         border.color: Theme.surface2
         border.width: 1
 
-        // Header accent
+        // Header accent stripe
         Rectangle {
-            width: parent.width
-            height: 3
-            radius: 2
+            width: parent.width; height: 3; radius: 2
             anchors.top: parent.top
             color: Theme.accent
-            Rectangle { width: parent.width / 2; height: parent.height; anchors.right: parent.right; color: Theme.accent2 }
         }
 
         MouseArea {
@@ -380,18 +284,19 @@ PanelWindow {
             anchors.right: parent.right
             anchors.margins: 12
             anchors.topMargin: 16
-            spacing: 12
+            spacing: 10
 
             // Title row
             RowLayout {
                 spacing: 8
                 Text {
-                    text: "🔋"
-                    font.pixelSize: 18
+                    text: "󰁹"
+                    font.pixelSize: 17
+                    color: Theme.accent
                 }
                 Text {
                     text: "Batería"
-                    font.pixelSize: 14
+                    font.pixelSize: 12
                     font.weight: Font.DemiBold
                     color: Theme.text
                 }
@@ -556,221 +461,6 @@ PanelWindow {
                         }
                     }
                 }
-            }
-
-            // Divider
-            Rectangle {
-                Layout.fillWidth: true
-                height: 1
-                color: Theme.surface2
-                visible: root.fanAvailable
-            }
-
-            // Fan section
-            Text {
-                text: "🌀 Ventilador"
-                font.pixelSize: 11
-                font.weight: Font.Normal
-                color: Theme.muted1
-                leftPadding: 2
-                visible: root.fanAvailable
-            }
-
-            // Temps row
-            RowLayout {
-                spacing: 6
-                visible: root.fanAvailable
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 40
-                    radius: 8
-                    color: Theme.surface2
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 2
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: root.cpuTemp + "°C"
-                            font.pixelSize: 13
-                            font.weight: Font.DemiBold
-                            color: Theme.text
-                        }
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "CPU"
-                            font.pixelSize: 10
-                            color: Theme.muted1
-                        }
-                    }
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 40
-                    radius: 8
-                    color: Theme.surface2
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 2
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: root.gpuTemp + "°C"
-                            font.pixelSize: 13
-                            font.weight: Font.DemiBold
-                            color: Theme.text
-                        }
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "GPU"
-                            font.pixelSize: 10
-                            color: Theme.muted1
-                        }
-                    }
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 40
-                    radius: 8
-                    color: Theme.surface2
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 2
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: root.fan1Rpm
-                            font.pixelSize: 13
-                            font.weight: Font.DemiBold
-                            color: Theme.text
-                        }
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "RPM"
-                            font.pixelSize: 10
-                            color: Theme.muted1
-                        }
-                    }
-                }
-            }
-
-            // Fan percent bars (150 = max %, values above show as 100%)
-            RowLayout {
-                spacing: 4
-                visible: root.fanAvailable
-                Text {
-                    text: "CPU"
-                    font.pixelSize: 9
-                    color: Theme.muted1
-                    width: 30
-                }
-                Rectangle {
-                    width: 200
-                    height: 8
-                    radius: 4
-                    color: Theme.surface2
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        anchors.margins: 1
-                        width: Math.max(2, (parent.width - 2) * Math.min(150, root.fan1Percent) / 150)
-                        radius: 2
-                        color: Theme.accent
-                    }
-                }
-                Text {
-                    text: root.fan1Percent + "%"
-                    font.pixelSize: 9
-                    color: Theme.muted1
-                    width: 30
-                }
-            }
-
-            RowLayout {
-                spacing: 4
-                visible: root.fanAvailable
-                Text {
-                    text: "GPU"
-                    font.pixelSize: 9
-                    color: Theme.muted1
-                    width: 30
-                }
-                Rectangle {
-                    width: 200
-                    height: 8
-                    radius: 4
-                    color: Theme.surface2
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        anchors.margins: 1
-                        width: Math.max(2, (parent.width - 2) * Math.min(150, root.fan2Percent) / 150)
-                        radius: 2
-                        color: Theme.accent2
-                    }
-                }
-                Text {
-                    text: root.fan2Percent + "%"
-                    font.pixelSize: 9
-                    color: Theme.muted1
-                    width: 30
-                }
-            }
-
-            // Thermal profile buttons
-            Text {
-                text: "Perfil Térmico"
-                font.pixelSize: 10
-                font.weight: Font.Normal
-                color: Theme.muted1
-                leftPadding: 2
-                visible: root.fanAvailable
-            }
-
-            RowLayout {
-                spacing: 4
-                visible: root.fanAvailable
-
-                Repeater {
-                    model: ["cool", "quiet", "balanced", "performance"]
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        height: 36
-                        radius: 6
-                        color: root.fanProfile === modelData ? Qt.darker(Theme.accent, 3.5) : Theme.surface2
-                        border.color: root.fanProfile === modelData ? Theme.accent : "transparent"
-                        border.width: 1.5
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: {
-                                if (modelData === "cool") return "❄️"
-                                if (modelData === "quiet") return "🤫"
-                                if (modelData === "balanced") return "⚖️"
-                                if (modelData === "performance") return "🔥"
-                                return modelData
-                            }
-                            font.pixelSize: 12
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            enabled: !root.applying && root.fanProfile !== modelData
-                            onClicked: root.setFanProfile(modelData)
-                        }
-                    }
-                }
-            }
-
-            Text {
-                visible: !root.fanAvailable
-                text: "Ventilador no disponible"
-                font.pixelSize: 10
-                color: Theme.muted2
             }
 
             Item { height: 0 } // bottom padding

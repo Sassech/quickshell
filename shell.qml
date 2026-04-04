@@ -45,6 +45,7 @@ ShellRoot {
     signal broadcastPowerMenu(var screen)
     signal broadcastWeather(var screen)
     signal broadcastBattery(var screen)
+    signal broadcastFan(var screen)
     signal broadcastCpu(var screen)
     signal broadcastRam(var screen)
     signal broadcastDisk(var screen)
@@ -76,6 +77,7 @@ ShellRoot {
             onPowerButtonClicked: screen => root.broadcastPowerMenu(screen)
             onWeatherClicked: screen => root.broadcastWeather(screen)
             onBatteryClicked: screen => root.broadcastBattery(screen)
+            onFanClicked: screen => root.broadcastFan(screen)
             onCpuClicked: screen => root.broadcastCpu(screen)
             onRamClicked: screen => root.broadcastRam(screen)
             onDiskClicked: screen => root.broadcastDisk(screen)
@@ -192,6 +194,30 @@ ShellRoot {
                     var was = batteryModalInst.visible
                     root.broadcastCloseAll(screen)
                     batteryModalInst.visible = !was
+                }
+            }
+        }
+    }
+
+    // ============================================
+    // FAN MODAL — una instancia por pantalla
+    // ============================================
+    Variants {
+        model: Quickshell.screens
+        FanModal {
+            id: fanModalInst
+            property var modelData
+            screen: modelData
+            Connections {
+                target: root
+                function onBroadcastCloseAll(screen) {
+                    if (fanModalInst.modelData === screen) fanModalInst.visible = false
+                }
+                function onBroadcastFan(screen) {
+                    if (fanModalInst.modelData !== screen) return
+                    var was = fanModalInst.visible
+                    root.broadcastCloseAll(screen)
+                    fanModalInst.visible = !was
                 }
             }
         }
@@ -802,4 +828,3 @@ ShellRoot {
         defaultPowerMode.running = false
     }
 }
-

@@ -5,7 +5,8 @@ MediaPlayer 1.0 MediaPlayer.qml
 CavaVisualizer 1.0 CavaVisualizer.qml
 Weather 1.0 Weather.qml
 IdleInhibitor 1.0 IdleInhibitor.qml
-Battery 1.0 Battery.qml
+BatteryWidget 1.0 BatteryWidget.qml
+FanWidget 1.0 FanWidget.qml
 CpuWidget 1.0 CpuWidget.qml
 DiskWidget 1.0 DiskWidget.qml
 GpuWidget 1.0 GpuWidget.qml

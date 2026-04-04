@@ -11,6 +11,7 @@ PanelWindow {
     signal powerButtonClicked(var screen)
     signal weatherClicked(var screen)
     signal batteryClicked(var screen)
+    signal fanClicked(var screen)
     signal cpuClicked(var screen)
     signal ramClicked(var screen)
     signal diskClicked(var screen)
@@ -150,7 +151,7 @@ PanelWindow {
             }
         }
         
-        // LADO DERECHO - Sysmon + Battery + Power button
+        // LADO DERECHO - Fan + Battery + Sysmon + Power button
         Row {
             id: rightSection
             anchors {
@@ -172,11 +173,16 @@ PanelWindow {
             DiskWidget {
                 onClicked: root.diskClicked(root.screen)
             }
-            Battery {
+            BatteryWidget {
+                id: batteryWidget
                 onClicked: root.batteryClicked(root.screen)
             }
+            FanWidget {
+                id: fanWidget
+                onClicked: root.fanClicked(root.screen)
+            }
             PowerButton {
-                onClicked: root.powerButtonClicked(root.screen)
+            onClicked: root.powerButtonClicked(root.screen)
             }
         }
     }
