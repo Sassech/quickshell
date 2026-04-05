@@ -11,13 +11,30 @@ ShellRoot {
     id: root
 
     // ── Notification policy config ─────────────────────────────────────────
-    property bool _showMediaPopups: false
+    property var _categoryModes: ({
+        media: "silent",
+        system: "popup",
+        critical: "popup",
+        volume: "osd",
+        brightness: "osd",
+        network: "popup",
+        messages: "popup"
+    })
     property var _mediaApps: [
         "spotify", "rmpc", "mpd", "music player daemon", "mpv", "vlc",
         "lollypop", "rhythmbox", "clementine", "audacious", "cmus", "amberol"
     ]
     property var _mediaPhrases: [
         "now playing", "reproduciendo", "track changed", "song changed"
+    ]
+    property var _messageApps: [
+        "telegram", "discord", "slack", "signal", "whatsapp", "thunderbird"
+    ]
+    property var _networkApps: [
+        "networkmanager", "nm-applet", "nm-tray", "blueman"
+    ]
+    property var _networkPhrases: [
+        "wifi", "network", "ethernet", "vpn", "bluetooth", "conectado", "desconectado"
     ]
 
     // ── Helpers ───────────────────────────────────────────────
@@ -66,6 +83,41 @@ ShellRoot {
             || _containsAny(body, root._mediaPhrases)
     }
 
+    function classifyExternalNotification(notification, urgent) {
+        if (urgent) return "critical"
+
+        const appName = (notification.appName ?? "").toLowerCase()
+        const summary = (notification.summary ?? "").toLowerCase()
+        const body = (notification.body ?? "").toLowerCase()
+
+        if (isMediaNotification(notification)) return "media"
+        if (_containsAny(appName, root._messageApps)) return "messages"
+
+        if (_containsAny(appName, root._networkApps)
+                || _containsAny(summary, root._networkPhrases)
+                || _containsAny(body, root._networkPhrases)) {
+            return "network"
+        }
+
+        return "system"
+    }
+
+    function _sanitizePolicyMode(value, fallback) {
+        const mode = (value ?? "").toLowerCase().trim()
+        if (mode === "popup" || mode === "osd" || mode === "silent") return mode
+        return fallback
+    }
+
+    function getCategoryMode(category, fallbackMode) {
+        const fallback = _sanitizePolicyMode(fallbackMode, "popup")
+        const configured = root._categoryModes[category]
+        return _sanitizePolicyMode(configured, fallback)
+    }
+
+    function shouldEmitInternal(category, expectedMode, fallbackMode) {
+        return getCategoryMode(category, fallbackMode) === expectedMode
+    }
+
     function _normalizeStringArray(values) {
         if (!Array.isArray(values)) return []
         var out = []
@@ -78,10 +130,37 @@ ShellRoot {
         return out
     }
 
+    function _mergeCategoryModes(modeMap) {
+        const next = {
+            media: root.getCategoryMode("media", "silent"),
+            system: root.getCategoryMode("system", "popup"),
+            critical: root.getCategoryMode("critical", "popup"),
+            volume: root.getCategoryMode("volume", "osd"),
+            brightness: root.getCategoryMode("brightness", "osd"),
+            network: root.getCategoryMode("network", "popup"),
+            messages: root.getCategoryMode("messages", "popup")
+        }
+
+        if (!modeMap || typeof modeMap !== "object") {
+            root._categoryModes = next
+            return
+        }
+
+        const keys = ["media", "system", "critical", "volume", "brightness", "network", "messages"]
+        for (var i = 0; i < keys.length; i++) {
+            const key = keys[i]
+            if (Object.prototype.hasOwnProperty.call(modeMap, key)) {
+                next[key] = root._sanitizePolicyMode(modeMap[key], next[key])
+            }
+        }
+
+        root._categoryModes = next
+    }
+
     function loadNotificationConfig() {
         notifConfigProc.command = [
             "bash", "-c",
-            "cat /home/sassech/.config/quickshell/config/notifications.json 2>/dev/null || echo '{\"showMediaPopups\":false,\"mediaApps\":[],\"mediaPhrases\":[]}'"
+            "cat /home/sassech/.config/quickshell/config/notifications.json 2>/dev/null || echo '{\"categoryModes\":{},\"showMediaPopups\":false,\"mediaApps\":[],\"mediaPhrases\":[]}'"
         ]
         notifConfigProc.running = true
     }
@@ -97,8 +176,13 @@ ShellRoot {
 
                 try {
                     const cfg = JSON.parse(payload)
+                    root._mergeCategoryModes(cfg.categoryModes)
 
-                    root._showMediaPopups = cfg.showMediaPopups === true
+                    // Compat legacy: showMediaPopups -> categoryModes.media
+                    if (cfg.showMediaPopups === true
+                            && (!cfg.categoryModes || cfg.categoryModes.media === undefined)) {
+                        root._categoryModes.media = "popup"
+                    }
 
                     const mediaApps = root._normalizeStringArray(cfg.mediaApps)
                     if (mediaApps.length > 0) root._mediaApps = mediaApps
@@ -611,9 +695,11 @@ ShellRoot {
             const urgent = notification.urgency === NotificationUrgency.Critical
 
             // Deduplicar: si el watcher MPRIS ya mostró esta canci\u00f3n, ignorar
-            if (root.isMediaNotification(notification) && !urgent && !root._showMediaPopups) return
+            const category = root.classifyExternalNotification(notification, urgent)
+            const mode = root.getCategoryMode(category, urgent ? "popup" : "popup")
+            if (mode !== "popup") return
 
-            root.broadcastNotify(notification.summary, notification.body, icon, urgent, false)
+            root.broadcastNotify(notification.summary, notification.body, icon, urgent, category === "media")
 
             // Mantener flujo normal para notificaciones no-media
         }
@@ -772,7 +858,9 @@ ShellRoot {
                 var parts = line.trim().split(":")
                 var pct   = parseInt(parts[0]) || 0
                 var muted = (parts[1] === "1")
-                root.broadcastVolume(pct, muted)
+                if (root.shouldEmitInternal("volume", "osd", "osd")) {
+                    root.broadcastVolume(pct, muted)
+                }
             }
         }
     }
@@ -801,7 +889,11 @@ ShellRoot {
         command: ["bash", "/home/sassech/.config/quickshell/scripts/qs-brightness-fifo.sh"]
         stdout: SplitParser {
             splitMarker: "\n"
-            onRead: pct => root.broadcastBrightness(parseInt(pct.trim()))
+            onRead: pct => {
+                if (root.shouldEmitInternal("brightness", "osd", "osd")) {
+                    root.broadcastBrightness(parseInt(pct.trim()))
+                }
+            }
         }
     }
 
