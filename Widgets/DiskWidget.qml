@@ -18,6 +18,7 @@ Rectangle {
     property int diskPercent: 0
     property bool dataAvailable: false
     property int _failCount: 0
+    property bool _hasSuccessfulRead: false
 
     property color accentColor: {
         if (!dataAvailable) return Theme.muted2
@@ -105,14 +106,17 @@ Rectangle {
                     root.diskPercent = p
                 }
                 root.dataAvailable = true
+                root._hasSuccessfulRead = true
                 root._failCount = 0
             } else {
                 root._failCount++
-                if (root._failCount >= 3) {
+                if (!root._hasSuccessfulRead && root._failCount >= 3) {
                     pollTimer.stop()
                     backoffTimer.restart()
                 }
-                root.dataAvailable = false
+                if (!root._hasSuccessfulRead) {
+                    root.dataAvailable = false
+                }
             }
             root._buf = ""
         }
