@@ -19,6 +19,8 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
+    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
+
     // ── Data ─────────────────────────────────────────────
     property string cpuModel: "—"
     property int nCores: 0
@@ -54,7 +56,7 @@ PanelWindow {
     property string _buf: ""
     Process {
         id: cpuProc
-        command: ["bash", "/home/sassech/.config/quickshell/scripts/cpu-detail.sh"]
+        command: ["bash", root._scriptsPath + "/cpu-detail.sh"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => root._buf += data + "\n"

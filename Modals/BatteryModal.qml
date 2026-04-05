@@ -19,6 +19,8 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
+    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
+
     // ── Data read when opened ────────────────────────────────────────────
     property bool batteryAvailable: false
     property string batteryPath: ""
@@ -242,7 +244,7 @@ PanelWindow {
         if (root.applying) return
         root.applying = true
         applyProc._pendingMode = mode
-        applyProc.command = ["sudo", "/home/sassech/.config/quickshell/scripts/set-power-mode.sh", mode]
+        applyProc.command = ["sudo", root._scriptsPath + "/set-power-mode.sh", mode]
         applyProc.running = true
     }
 

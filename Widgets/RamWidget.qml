@@ -21,6 +21,7 @@ Rectangle {
     property bool dataAvailable: false
     property int _failCount: 0
     property bool _hasSuccessfulRead: false
+    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
 
     property color accentColor: {
         if (!dataAvailable) return Theme.muted2
@@ -84,7 +85,7 @@ Rectangle {
     property string _buf: ""
     Process {
         id: ramProc
-        command: ["bash", "/home/sassech/.config/quickshell/scripts/ram-stats.sh"]
+        command: ["bash", root._scriptsPath + "/ram-stats.sh"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => root._buf += data + "\n"

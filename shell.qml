@@ -10,6 +10,9 @@ import "Modals"
 ShellRoot {
     id: root
 
+    property string _scriptsPath: Qt.resolvedUrl("scripts").toString().replace("file://", "")
+    property string _configPath: Qt.resolvedUrl("config").toString().replace("file://", "")
+
     // ── Notification policy config ─────────────────────────────────────────
     property var _categoryModes: ({
         media: "silent",
@@ -160,7 +163,7 @@ ShellRoot {
     function loadNotificationConfig() {
         notifConfigProc.command = [
             "bash", "-c",
-            "cat /home/sassech/.config/quickshell/config/notifications.json 2>/dev/null || echo '{\"categoryModes\":{},\"showMediaPopups\":false,\"mediaApps\":[],\"mediaPhrases\":[]}'"
+            "cat \"" + root._configPath + "/notifications.json\" 2>/dev/null || echo '{\"categoryModes\":{},\"showMediaPopups\":false,\"mediaApps\":[],\"mediaPhrases\":[]}'"
         ]
         notifConfigProc.running = true
     }
@@ -851,7 +854,7 @@ ShellRoot {
     Process {
         id: volumeFifo
         running: true
-        command: ["bash", "/home/sassech/.config/quickshell/scripts/qs-volume-fifo.sh"]
+        command: ["bash", root._scriptsPath + "/qs-volume-fifo.sh"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: line => {
@@ -886,7 +889,7 @@ ShellRoot {
     Process {
         id: brightnessFifo
         running: true
-        command: ["bash", "/home/sassech/.config/quickshell/scripts/qs-brightness-fifo.sh"]
+        command: ["bash", root._scriptsPath + "/qs-brightness-fifo.sh"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: pct => {
@@ -915,7 +918,7 @@ ShellRoot {
     // Aplica modo Balanceado al arrancar
     Process {
         id: defaultPowerMode
-        command: ["sudo", "/home/sassech/.config/quickshell/scripts/set-power-mode.sh", "balanced"]
+        command: ["sudo", root._scriptsPath + "/set-power-mode.sh", "balanced"]
         onExited: function(ec) {
             if (ec === 0) {
                 console.log("Power mode: balanced")

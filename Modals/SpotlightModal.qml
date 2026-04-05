@@ -20,6 +20,8 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
+    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
+
     // ── Estado ────────────────────────────────────────────────
     property string _searchBuf: ""
     property bool   _searching: false
@@ -82,10 +84,10 @@ PanelWindow {
         property string query: ""
         command: searchProc.query === "--list-apps"
             ? ["python3",
-               "/home/sassech/.config/quickshell/scripts/spotlight-search.py",
+               root._scriptsPath + "/spotlight-search.py",
                "--list-apps"]
             : ["python3",
-               "/home/sassech/.config/quickshell/scripts/spotlight-search.py",
+               root._scriptsPath + "/spotlight-search.py",
                searchProc.query]
         stdout: SplitParser {
             splitMarker: "\n"

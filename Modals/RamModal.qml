@@ -19,6 +19,8 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
+    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
+
     // ── Data ─────────────────────────────────────────────
     property int memTotal: 0
     property int memUsed: 0
@@ -73,7 +75,7 @@ PanelWindow {
     property string _buf: ""
     Process {
         id: ramProc
-        command: ["bash", "/home/sassech/.config/quickshell/scripts/ram-detail.sh"]
+        command: ["bash", root._scriptsPath + "/ram-detail.sh"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => root._buf += data + "\n"

@@ -19,6 +19,7 @@ Rectangle {
     property string _loadBuf: ""
     property string _idleBuf: ""
     property string _mediaBuf: ""
+    property string _configPath: Qt.resolvedUrl("../config").toString().replace("file://", "")
 
     Behavior on color { ColorAnimation { duration: 120 } }
 
@@ -47,12 +48,12 @@ Rectangle {
 
     function loadState() {
         _loadBuf = "";
-        loadProc.command = ["bash", "-c", "cat /home/sassech/.config/quickshell/config/idle-state.json 2>/dev/null || echo ''"];
+        loadProc.command = ["bash", "-c", "cat \"" + root._configPath + "/idle-state.json\" 2>/dev/null || echo ''"];
         loadProc.running = true;
     }
 
     function saveState(data) {
-        saveProc.command = ["bash", "-c", "echo '" + JSON.stringify(data) + "' > /home/sassech/.config/quickshell/config/idle-state.json"];
+        saveProc.command = ["bash", "-c", "echo '" + JSON.stringify(data) + "' > \"" + root._configPath + "/idle-state.json\""];
         saveProc.running = true;
     }
 

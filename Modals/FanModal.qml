@@ -19,6 +19,8 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
+    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
+
     // Fan properties
     property int fan1Rpm: 0
     property int fan2Rpm: 0
@@ -104,7 +106,7 @@ PanelWindow {
     property string _fanRpmBuf: ""
     Process {
         id: fanRpmProc
-        command: ["/home/sassech/.config/quickshell/scripts/fan-control.sh", "get_rpm"]
+        command: [root._scriptsPath + "/fan-control.sh", "get_rpm"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => root._fanRpmBuf += data
@@ -123,7 +125,7 @@ PanelWindow {
     property string _fanPercentBuf: ""
     Process {
         id: fanPercentProc
-        command: ["/home/sassech/.config/quickshell/scripts/fan-control.sh", "get_percent"]
+        command: [root._scriptsPath + "/fan-control.sh", "get_percent"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => root._fanPercentBuf += data
@@ -141,7 +143,7 @@ PanelWindow {
     property string _fanTempBuf: ""
     Process {
         id: fanTempProc
-        command: ["/home/sassech/.config/quickshell/scripts/fan-control.sh", "get_temp"]
+        command: [root._scriptsPath + "/fan-control.sh", "get_temp"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => root._fanTempBuf += data
@@ -159,7 +161,7 @@ PanelWindow {
     property string _fanProfileBuf: ""
     Process {
         id: fanProfileProc
-        command: ["/home/sassech/.config/quickshell/scripts/fan-control.sh", "get_profile"]
+        command: [root._scriptsPath + "/fan-control.sh", "get_profile"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => root._fanProfileBuf += data
@@ -181,7 +183,7 @@ PanelWindow {
     function setFanProfile(profile) {
         if (root.applying) return
         root.applying = true
-        fanApplyProc.command = ["sudo", "/home/sassech/.config/quickshell/scripts/fan-control.sh", "set_profile", profile]
+        fanApplyProc.command = ["sudo", root._scriptsPath + "/fan-control.sh", "set_profile", profile]
         fanApplyProc.running = true
     }
 

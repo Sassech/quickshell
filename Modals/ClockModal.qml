@@ -19,6 +19,8 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
+    property string _configPath: Qt.resolvedUrl("../config").toString().replace("file://", "")
+
     property var screen: null
     property int currentMonth: new Date().getMonth()
     property int currentYear: new Date().getFullYear()
@@ -346,7 +348,7 @@ PanelWindow {
     Process {
         id: loadFormatProc
         running: false
-        command: ["bash", "-c", "cat /home/sassech/.config/quickshell/config/clock-prefs.json 2>/dev/null || echo '{\"use24h\":true}'"]
+        command: ["bash", "-c", "cat \"" + root._configPath + "/clock-prefs.json\" 2>/dev/null || echo '{\"use24h\":true}'"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => {
@@ -360,7 +362,7 @@ PanelWindow {
 
     function setFormat(is24h) {
         root.use24hFormat = is24h;
-        saveFormatProc.command = ["bash", "-c", "echo '{\"use24h\":" + is24h + "}' > /home/sassech/.config/quickshell/config/clock-prefs.json"];
+        saveFormatProc.command = ["bash", "-c", "echo '{\"use24h\":" + is24h + "}' > \"" + root._configPath + "/clock-prefs.json\""];
         saveFormatProc.running = true;
     }
 

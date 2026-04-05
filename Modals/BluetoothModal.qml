@@ -20,6 +20,8 @@ PanelWindow {
     anchors.top: true; anchors.bottom: true
     anchors.left: true; anchors.right: true
 
+    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
+
     // ── Estado ─────────────────────────────────────────────────────────────
     property var    adapter:   Bluetooth.defaultAdapter
     property bool   available: adapter !== null
@@ -101,7 +103,7 @@ PanelWindow {
         _codecBuf        = ""
         var safeMac = sanitizeMac(_currentCodecMac)
         codecProc.command = ["bash", "-c",
-            "/home/sassech/.config/quickshell/scripts/bt-codec.sh info " + safeMac]
+            "\"" + root._scriptsPath + "/bt-codec.sh\" info " + safeMac]
         codecProc.running = true
     }
 
@@ -111,7 +113,7 @@ PanelWindow {
         var safeMac = sanitizeMac(mac)
         var safeProfile = profile.replace(/[^a-zA-Z0-9_-]/g, "")
         setCodecProc.command = ["bash", "-c",
-            "/home/sassech/.config/quickshell/scripts/bt-codec.sh set " + safeMac + " " + safeProfile]
+            "\"" + root._scriptsPath + "/bt-codec.sh\" set " + safeMac + " " + safeProfile]
         setCodecProc.running = true
     }
 

@@ -17,6 +17,8 @@ PanelWindow {
     anchors.top: true; anchors.bottom: true
     anchors.left: true; anchors.right: true
 
+    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
+
     // ── State ─────────────────────────────────────────────────────────────
     property real   volume:        0.75   // 0.0 – 1.5  (1.0 = 100%, 1.5 = 150%)
     property bool   muted:         false
@@ -187,7 +189,7 @@ PanelWindow {
     property string _deviceBuf: ""
     Process {
         id: deviceListProc
-        command: ["python3", "/home/sassech/.config/quickshell/scripts/audio-devices.py"]
+        command: ["python3", root._scriptsPath + "/audio-devices.py"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._deviceBuf += d + "\n" }
         onExited: {
             var lines       = root._deviceBuf.trim().split("\n")

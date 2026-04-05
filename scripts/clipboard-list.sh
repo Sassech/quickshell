@@ -1,2 +1,6 @@
-#!/bin/bash
-python3 /home/sassech/.config/quickshell/scripts/clipboard-list.py
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+python3 "$SCRIPT_DIR/clipboard-list.py"

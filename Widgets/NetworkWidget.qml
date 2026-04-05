@@ -20,6 +20,7 @@ Rectangle {
     property real   upSpeed:       0   // bytes/s
     property real   _prevRx:       -1
     property real   _prevTx:       -1
+    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
 
     // ── Icon based on connection type ────────────────────────────────────
     property string networkIcon: {
@@ -144,7 +145,7 @@ Rectangle {
 
     Process {
         id: pollProc
-        command: ["bash", "/home/sassech/.config/quickshell/scripts/network-stats.sh"]
+        command: ["bash", root._scriptsPath + "/network-stats.sh"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: d => root._netBuf += d + "\n"

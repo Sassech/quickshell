@@ -21,6 +21,7 @@ Rectangle {
     property int gpuTemp: 0
     property string fanProfile: ""
     property bool fanAvailable: true
+    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
 
     Row {
         id: row
@@ -74,7 +75,7 @@ Rectangle {
     property string _fanRpmBuf: ""
     Process {
         id: fanRpmProc
-        command: ["/home/sassech/.config/quickshell/scripts/fan-control.sh", "get_rpm"]
+        command: [root._scriptsPath + "/fan-control.sh", "get_rpm"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => root._fanRpmBuf += data
@@ -94,7 +95,7 @@ Rectangle {
     property string _fanPercentBuf: ""
     Process {
         id: fanPercentProc
-        command: ["/home/sassech/.config/quickshell/scripts/fan-control.sh", "get_percent"]
+        command: [root._scriptsPath + "/fan-control.sh", "get_percent"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => root._fanPercentBuf += data
@@ -113,7 +114,7 @@ Rectangle {
     property string _tempBuf: ""
     Process {
         id: tempProc
-        command: ["/home/sassech/.config/quickshell/scripts/fan-control.sh", "get_temp"]
+        command: [root._scriptsPath + "/fan-control.sh", "get_temp"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => root._tempBuf += data
@@ -132,7 +133,7 @@ Rectangle {
     property string _profileBuf: ""
     Process {
         id: profileProc
-        command: ["/home/sassech/.config/quickshell/scripts/fan-control.sh", "get_profile"]
+        command: [root._scriptsPath + "/fan-control.sh", "get_profile"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => root._profileBuf += data

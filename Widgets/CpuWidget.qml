@@ -18,6 +18,7 @@ Rectangle {
     property bool dataAvailable: false
     property int _failCount: 0
     property bool _hasSuccessfulRead: false
+    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
 
     property color accentColor: {
         if (!dataAvailable) return Theme.muted2
@@ -82,7 +83,7 @@ Rectangle {
     property string _buf: ""
     Process {
         id: cpuProc
-        command: ["bash", "/home/sassech/.config/quickshell/scripts/cpu-stats.sh"]
+        command: ["bash", root._scriptsPath + "/cpu-stats.sh"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => root._buf += data + "\n"

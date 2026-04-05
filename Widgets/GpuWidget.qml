@@ -18,6 +18,7 @@ Rectangle {
     property string gpuName: ""
     property int _failCount: 0
     property bool _hasSuccessfulRead: false
+    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
 
     property bool hasData: gpuPercent >= 0
 
@@ -83,7 +84,7 @@ Rectangle {
     property string _buf: ""
     Process {
         id: gpuProc
-        command: ["bash", "/home/sassech/.config/quickshell/scripts/gpu-stats.sh"]
+        command: ["bash", root._scriptsPath + "/gpu-stats.sh"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => root._buf += data + "\n"
