@@ -17,6 +17,7 @@ Rectangle {
     property int gpuTemp: 0
     property string gpuName: ""
     property int _failCount: 0
+    property bool _hasSuccessfulRead: false
 
     property bool hasData: gpuPercent >= 0
 
@@ -104,11 +105,14 @@ Rectangle {
                 if (p !== root.gpuPercent) root.gpuPercent = p
                 if (t !== root.gpuTemp) root.gpuTemp = t
                 if (n !== root.gpuName) root.gpuName = n
+                root._hasSuccessfulRead = true
                 root._failCount = 0
             } else {
-                root.gpuPercent = -1
                 root._failCount++
-                if (root._failCount >= 3) {
+                if (!root._hasSuccessfulRead) {
+                    root.gpuPercent = -1
+                }
+                if (!root._hasSuccessfulRead && root._failCount >= 3) {
                     pollTimer.stop()
                     backoffTimer.restart()
                 }
