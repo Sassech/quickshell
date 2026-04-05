@@ -17,6 +17,7 @@ Rectangle {
     property int cpuTemp: 0
     property bool dataAvailable: false
     property int _failCount: 0
+    property bool _hasSuccessfulRead: false
 
     property color accentColor: {
         if (!dataAvailable) return Theme.muted2
@@ -101,11 +102,14 @@ Rectangle {
                 if (!root.dataAvailable || p !== root.cpuPercent) root.cpuPercent = p
                 if (t !== root.cpuTemp) root.cpuTemp = t
                 root.dataAvailable = true
+                root._hasSuccessfulRead = true
                 root._failCount = 0
             } else {
-                root.dataAvailable = false
                 root._failCount++
-                if (root._failCount >= 3) {
+                if (!root._hasSuccessfulRead) {
+                    root.dataAvailable = false
+                }
+                if (!root._hasSuccessfulRead && root._failCount >= 3) {
                     pollTimer.stop()
                     backoffTimer.restart()
                 }
