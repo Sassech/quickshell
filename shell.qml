@@ -4,12 +4,21 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Notifications
-import Quickshell.Services.Mpris
 import "Components"
 import "Modals"
 
 ShellRoot {
     id: root
+
+    // ── Notification policy config ─────────────────────────────────────────
+    property bool _showMediaPopups: false
+    property var _mediaApps: [
+        "spotify", "rmpc", "mpd", "music player daemon", "mpv", "vlc",
+        "lollypop", "rhythmbox", "clementine", "audacious", "cmus", "amberol"
+    ]
+    property var _mediaPhrases: [
+        "now playing", "reproduciendo", "track changed", "song changed"
+    ]
 
     // ── Helpers ───────────────────────────────────────────────
     function getFocusedScreen() {
@@ -37,6 +46,70 @@ ShellRoot {
             "hyprctl monitors -j | python3 -c \"import json,sys; ms=json.load(sys.stdin); print(next((m['name'] for m in ms if m.get('focused')), ms[0]['name']))\"; " +
             "done"
         ]
+    }
+
+    function _containsAny(text, needles) {
+        const value = (text ?? "").toLowerCase()
+        for (var i = 0; i < needles.length; i++) {
+            if (value.indexOf(needles[i]) !== -1) return true
+        }
+        return false
+    }
+
+    function isMediaNotification(notification) {
+        const appName = (notification.appName ?? "").toLowerCase()
+        const summary = (notification.summary ?? "").toLowerCase()
+        const body = (notification.body ?? "").toLowerCase()
+
+        return _containsAny(appName, root._mediaApps)
+            || _containsAny(summary, root._mediaPhrases)
+            || _containsAny(body, root._mediaPhrases)
+    }
+
+    function _normalizeStringArray(values) {
+        if (!Array.isArray(values)) return []
+        var out = []
+        for (var i = 0; i < values.length; i++) {
+            const raw = values[i]
+            if (raw === null || raw === undefined) continue
+            const value = String(raw).toLowerCase().trim()
+            if (value.length > 0) out.push(value)
+        }
+        return out
+    }
+
+    function loadNotificationConfig() {
+        notifConfigProc.command = [
+            "bash", "-c",
+            "cat /home/sassech/.config/quickshell/config/notifications.json 2>/dev/null || echo '{\"showMediaPopups\":false,\"mediaApps\":[],\"mediaPhrases\":[]}'"
+        ]
+        notifConfigProc.running = true
+    }
+
+    Process {
+        id: notifConfigProc
+        running: false
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => {
+                const payload = data.trim()
+                if (payload.length === 0) return
+
+                try {
+                    const cfg = JSON.parse(payload)
+
+                    root._showMediaPopups = cfg.showMediaPopups === true
+
+                    const mediaApps = root._normalizeStringArray(cfg.mediaApps)
+                    if (mediaApps.length > 0) root._mediaApps = mediaApps
+
+                    const mediaPhrases = root._normalizeStringArray(cfg.mediaPhrases)
+                    if (mediaPhrases.length > 0) root._mediaPhrases = mediaPhrases
+                } catch (e) {
+                    console.log("[Notifications] Config inválida, usando defaults")
+                }
+            }
+        }
     }
 
     // ── Signals ───────────────────────────────────────────────
@@ -524,8 +597,7 @@ ShellRoot {
         }
     }
 
-    // Último contenido de notificación de media mostrado — para dedup entre MPRIS y rmpc
-    property string _mediaLastShown: ""
+    // Política de notificaciones de música: pendientes (sin popup)
 
     // ============================================
     // NOTIFICATION SERVER — intercepta notify-send del sistema
@@ -539,16 +611,11 @@ ShellRoot {
             const urgent = notification.urgency === NotificationUrgency.Critical
 
             // Deduplicar: si el watcher MPRIS ya mostró esta canci\u00f3n, ignorar
-            const key = notification.summary + "|" + notification.body
-            if (key === root._mediaLastShown) return
+            if (root.isMediaNotification(notification) && !urgent && !root._showMediaPopups) return
 
             root.broadcastNotify(notification.summary, notification.body, icon, urgent, false)
 
-            // Si viene de rmpc, guardar clave para que el watcher MPRIS no duplique
-            if ((notification.appName ?? "").toLowerCase().includes("rmpc")) {
-                root._mediaLastShown = key
-                dedupClearTimer.restart()
-            }
+            // Mantener flujo normal para notificaciones no-media
         }
     }
 
@@ -570,52 +637,6 @@ ShellRoot {
                 }
             }
         }
-    }
-
-    // ============================================
-    // MPRIS TRACK-CHANGE NOTIFICATIONS — todos los reproductores
-    // Spotify, Brave, rmpc (vía mpDris2), Lollypop, etc.
-    // ============================================
-    Instantiator {
-        model: Mpris.players
-
-        delegate: Item {
-            required property MprisPlayer modelData
-
-            // Evita notificaciones duplicadas por el mismo título
-            property string _lastTitle: ""
-
-            Connections {
-                target: modelData
-
-                function onTrackTitleChanged() {
-                    const title  = modelData.trackTitle  ?? ""
-                    if (modelData.playbackState !== MprisPlaybackState.Playing) return
-                    if (title === "" || title === _lastTitle) return
-
-                    const artist = modelData.trackArtist ?? ""
-                    const art    = modelData.trackArtUrl ?? ""
-                    const body   = artist ? artist + "  -  " + title : title
-
-                    // Dedup: rmpc pudo haber disparado notify-send antes que nosotros
-                    // Comprobar si el título ya fue notificado recientemente
-                    if (root._mediaLastShown !== "" && root._mediaLastShown.includes(title)) return
-
-                    _lastTitle = title
-                    // Guardar clave para bloquear el notify-send de rmpc si viene después
-                    root._mediaLastShown = "Now Playing|" + body
-                    dedupClearTimer.restart()
-                    root.broadcastNotify("Now Playing", body, art, false, true)
-                }
-            }
-        }
-    }
-
-    // Limpia la clave de dedup tras 3s para que notificaciones futuras de otras apps no queden bloqueadas
-    Timer {
-        id: dedupClearTimer
-        interval: 3000
-        onTriggered: root._mediaLastShown = ""
     }
 
     // ============================================
@@ -813,6 +834,7 @@ ShellRoot {
     }
 
     Component.onCompleted: {
+        loadNotificationConfig()
         console.log("Quickshell loaded")
         console.log("✅ Workspaces | Power Menu | Weather | Notifications")
         defaultPowerMode.running = true
