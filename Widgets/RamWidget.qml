@@ -20,6 +20,7 @@ Rectangle {
     property int swapPercent: 0
     property bool dataAvailable: false
     property int _failCount: 0
+    property bool _hasSuccessfulRead: false
 
     property color accentColor: {
         if (!dataAvailable) return Theme.muted2
@@ -113,11 +114,14 @@ Rectangle {
                 if (a !== root.ramAvailGb) root.ramAvailGb = a
                 if (s !== root.swapPercent) root.swapPercent = s
                 root.dataAvailable = true
+                root._hasSuccessfulRead = true
                 root._failCount = 0
             } else {
-                root.dataAvailable = false
                 root._failCount++
-                if (root._failCount >= 3) {
+                if (!root._hasSuccessfulRead) {
+                    root.dataAvailable = false
+                }
+                if (!root._hasSuccessfulRead && root._failCount >= 3) {
                     pollTimer.stop()
                     backoffTimer.restart()
                 }
