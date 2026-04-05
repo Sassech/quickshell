@@ -1,0 +1,32 @@
+{
+  "categoryModes": {
+    "media": "silent",
+    "system": "popup",
+    "critical": "popup",
+    "volume": "osd",
+    "brightness": "osd",
+    "network": "popup",
+    "messages": "popup"
+  },
+  "showMediaPopups": false,
+  "mediaApps": [
+    "spotify",
+    "rmpc",
+    "mpd",
+    "music player daemon",
+    "mpv",
+    "vlc",
+    "lollypop",
+    "rhythmbox",
+    "clementine",
+    "audacious",
+    "cmus",
+    "amberol"
+  ],
+  "mediaPhrases": [
+    "now playing",
+    "reproduciendo",
+    "track changed",
+    "song changed"
+  ]
+}
