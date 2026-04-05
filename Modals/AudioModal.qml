@@ -27,6 +27,8 @@ PanelWindow {
     property bool   working:       false
     property string statusMsg:     ""
     property bool   showSources:   true
+    property bool   _hasDeviceSuccessfulRead: false
+    property int    _emptyDeviceReads: 0
 
     // Debounce volume slider writes
     property real _pendingVol: -1
@@ -192,20 +194,25 @@ PanelWindow {
             root._deviceBuf = ""
             var newSinks    = []
             var newSources  = []
+            var parsedCount = 0
             for (var i = 0; i < lines.length; i++) {
                 var l = lines[i].trim()
                 if (!l) continue
                 // format: SINK:active:stable_name:Human Description
                 var p0      = l.indexOf(":")
+                if (p0 <= 0) continue
                 var section = l.slice(0, p0)
                 var rest    = l.slice(p0 + 1)
                 var p1      = rest.indexOf(":")
+                if (p1 < 0) continue
                 var active  = rest.slice(0, p1) === "1"
                 var rest2   = rest.slice(p1 + 1)
                 var p2      = rest2.indexOf(":")
+                if (p2 < 0) continue
                 var id      = rest2.slice(0, p2).trim()    // stable pactl name
                 var display = rest2.slice(p2 + 1).trim()   // human-readable description
                 if (!id) continue
+                parsedCount++
                 var entry = {
                     id:          id,
                     name:        id,
@@ -216,6 +223,17 @@ PanelWindow {
                 if (section === "SINK")        newSinks.push(entry)
                 else if (section === "SOURCE") newSources.push(entry)
             }
+
+            if (parsedCount === 0) {
+                root._emptyDeviceReads++
+                if (root._hasDeviceSuccessfulRead && root._emptyDeviceReads < 3) {
+                    return
+                }
+            } else {
+                root._hasDeviceSuccessfulRead = true
+                root._emptyDeviceReads = 0
+            }
+
             var toKey = function(arr) { return arr.map(function(x) { return x.id + (x.active ? '1' : '0') }).join(',') }
             if (toKey(newSinks)   !== toKey(root.sinks))   root.sinks   = newSinks
             if (toKey(newSources) !== toKey(root.sources)) root.sources = newSources
