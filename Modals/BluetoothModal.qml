@@ -33,7 +33,7 @@ PanelWindow {
     property int devicesRevision: 0
     property var devices: {
         devicesRevision
-        return Bluetooth.devices.values
+        return root.adapter ? root.adapter.devices.values : []
     }
 
     property int pairedCount: {
@@ -167,10 +167,12 @@ PanelWindow {
         if (!root.powered) return
         if (root.scanning) {
             root.scanning = false
-            stopScanProc.running = true
+            if (root.adapter) root.adapter.discovering = false
+            scanTimer.stop()
         } else {
             root.scanning = true
-            scanProc.running = true
+            if (root.adapter) root.adapter.discovering = true
+            scanTimer.restart()
         }
     }
 
@@ -236,7 +238,8 @@ PanelWindow {
         id: scanTimer
         interval: 13000
         onTriggered: {
-            stopScanProc.running = true
+            if (root.adapter) root.adapter.discovering = false
+            root.scanning = false
         }
     }
 
@@ -276,7 +279,7 @@ PanelWindow {
         onTriggered: {
             if (codecProc.running || setCodecProc.running) return
             var q = []
-            var list = Bluetooth.devices.values
+            var list = root.adapter ? root.adapter.devices.values : []
             for (var i = 0; i < list.length; i++) {
                 if (list[i].connected) q.push(list[i].address)
             }
@@ -291,15 +294,25 @@ PanelWindow {
     onVisibleChanged: {
         if (visible) {
             statusMsg = ""
-            if (powered) autoConnectTrusted()
+            if (powered) {
+                if (root.adapter) {
+                    root.adapter.discoverable = true
+                    root.adapter.pairable = true
+                }
+                autoConnectTrusted()
+            }
         } else {
-            stopScanProc.running = true
+            if (root.adapter) {
+                root.adapter.discovering = false
+                root.adapter.discoverable = false
+                root.adapter.pairable = false
+            }
+            root.scanning = false
             scanTimer.stop()
             actionTimeout.stop()
             autoConnectTimer.stop()
             codecRefreshTimer.stop()
             devicesRefreshTimer.stop()
-            root.scanning = false
         }
     }
 
@@ -311,8 +324,6 @@ PanelWindow {
         devicesRefreshTimer.stop()
         codecProc.running = false
         setCodecProc.running = false
-        scanProc.running = false
-        stopScanProc.running = false
     }
 
     onPoweredChanged: {
@@ -392,23 +403,6 @@ PanelWindow {
                 autoConnectTimer.stop()
                 autoConnectNext()
             }
-        }
-    }
-
-    // ── Bluetooth scan process ──────────────────────────────────────────
-    Process {
-        id: scanProc
-        command: ["bash", "-c", "LANG=C bluetoothctl scan on 2>/dev/null &"]
-        onExited: {
-            scanTimer.restart()
-        }
-    }
-
-    Process {
-        id: stopScanProc
-        command: ["bash", "-c", "LANG=C bluetoothctl scan off 2>/dev/null &"]
-        onExited: {
-            scanTimer.stop()
         }
     }
 
@@ -798,18 +792,18 @@ PanelWindow {
                     font.pixelSize: 12; color: Theme.muted1; topPadding: 8
                 }
 
-                // ── Nearby (discovered during scan) ───────────────────────
+                // ── Nearby (discovered) ──────────────────────────────────
                 Item { width: parent.width; height: 12
-                    visible: root.scanning && root.nearbyList.length > 0 }
+                    visible: root.nearbyList.length > 0 }
 
                 Text {
-                    visible: root.scanning && root.nearbyList.length > 0
+                    visible: root.nearbyList.length > 0
                     text: "Dispositivos cercanos"
                     font.pixelSize: 11; font.weight: Font.Normal; color: Theme.muted1; bottomPadding: 4
                 }
 
                 Repeater {
-                    model: root.scanning ? root.nearbyList : []
+                    model: root.nearbyList
 
                     Rectangle {
                         required property var modelData

@@ -21,7 +21,7 @@ Rectangle {
     property int devicesRevision: 0
     property var connectedDevices: {
         devicesRevision
-        var all = Bluetooth.devices.values
+        var all = root.adapter ? root.adapter.devices.values : []
         var out = []
         for (var i = 0; i < all.length; i++) {
             if (all[i].connected) out.push(all[i])
