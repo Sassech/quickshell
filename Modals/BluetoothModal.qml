@@ -82,6 +82,7 @@ PanelWindow {
 
     property var    actionDevice: null
     property string actionType: ""
+    property bool   _sawConnecting: false
     property bool   autoConnectRunning: false
     property var    autoConnectQueue: []
     property var    autoConnectDevice: null
@@ -121,6 +122,7 @@ PanelWindow {
         root.working = false
         root.actionDevice = null
         root.actionType = ""
+        root._sawConnecting = false
         if (msg !== undefined) root.statusMsg = msg
         actionTimeout.stop()
     }
@@ -131,7 +133,7 @@ PanelWindow {
         var q = []
         for (var i = 0; i < devices.length; i++) {
             var d = devices[i]
-            if (d.paired && d.trusted && !d.connecting && !d.connected) q.push(d)
+            if (d.paired && d.trusted && d.state !== BluetoothDeviceState.Connecting && !d.connected) q.push(d)
         }
         if (q.length === 0) return
         root.autoConnectQueue = q
@@ -182,7 +184,7 @@ PanelWindow {
             root.statusMsg = "✗ Enciende el Bluetooth primero"
             return
         }
-        if (device.connecting || device.connected) {
+        if (device.state === BluetoothDeviceState.Connecting || device.connected) {
             return
         }
         root.actionDevice = device
@@ -365,6 +367,7 @@ PanelWindow {
             function onTrustedChanged() { root.devicesRevision++ }
             function onNameChanged() { root.devicesRevision++ }
             function onDeviceNameChanged() { root.devicesRevision++ }
+            function onStateChanged() { root.devicesRevision++ }
         }
     }
 
@@ -376,6 +379,18 @@ PanelWindow {
                 resetAction("✓ Conectado")
             } else if (root.actionType === "disconnect" && !root.actionDevice.connected) {
                 resetAction("✓ Desconectado")
+            }
+        }
+        function onStateChanged() {
+            if (!root.actionDevice) return
+            var s = root.actionDevice.state
+            if (root.actionType === "connect") {
+                if (s === BluetoothDeviceState.Connecting) {
+                    root._sawConnecting = true
+                } else if (root._sawConnecting && s === BluetoothDeviceState.Disconnected) {
+                    root._sawConnecting = false
+                    resetAction("✗ No se pudo conectar")
+                }
             }
         }
         function onPairedChanged() {
@@ -400,6 +415,14 @@ PanelWindow {
         target: root.autoConnectDevice
         function onConnectedChanged() {
             if (root.autoConnectDevice && root.autoConnectDevice.connected) {
+                autoConnectTimer.stop()
+                autoConnectNext()
+            }
+        }
+        function onStateChanged() {
+            if (root.autoConnectDevice
+                && root.autoConnectDevice.state === BluetoothDeviceState.Disconnected) {
+                // Connection attempt failed, move to next device
                 autoConnectTimer.stop()
                 autoConnectNext()
             }
