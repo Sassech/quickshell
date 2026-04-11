@@ -1,9 +1,8 @@
 import QtQuick
 import Quickshell
-import Quickshell.Hyprland
 import QtQuick.Layouts
+import Quickshell.Hyprland
 import "../Widgets"
-import "."
 
 PanelWindow {
     id: root
@@ -11,7 +10,6 @@ PanelWindow {
     signal powerButtonClicked(var screen)
     signal weatherClicked(var screen)
     signal batteryClicked(var screen)
-    signal fanClicked(var screen)
     signal cpuClicked(var screen)
     signal ramClicked(var screen)
     signal diskClicked(var screen)
@@ -77,7 +75,7 @@ PanelWindow {
     // #55 → 33%
     // #44 → 27%
     // #33 → 20%   
-    implicitHeight: 35    // #ff → 100% (sólido)
+    implicitHeight: 30    // #ff → 100% (sólido)
     color: Theme.cardBg2
     
     Item {
@@ -151,7 +149,7 @@ PanelWindow {
             }
         }
         
-        // LADO DERECHO - Fan + Battery + Sysmon + Power button
+        // LADO DERECHO  Battery + Sysmon + Power button
         Row {
             id: rightSection
             anchors {
@@ -176,10 +174,6 @@ PanelWindow {
             BatteryWidget {
                 id: batteryWidget
                 onClicked: root.batteryClicked(root.screen)
-            }
-            FanWidget {
-                id: fanWidget
-                onClicked: root.fanClicked(root.screen)
             }
             PowerButton {
             onClicked: root.powerButtonClicked(root.screen)

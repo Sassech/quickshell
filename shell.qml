@@ -237,7 +237,6 @@ ShellRoot {
             onPowerButtonClicked: screen => root.broadcastPowerMenu(screen)
             onWeatherClicked: screen => root.broadcastWeather(screen)
             onBatteryClicked: screen => root.broadcastBattery(screen)
-            onFanClicked: screen => root.broadcastFan(screen)
             onCpuClicked: screen => root.broadcastCpu(screen)
             onRamClicked: screen => root.broadcastRam(screen)
             onDiskClicked: screen => root.broadcastDisk(screen)
@@ -260,6 +259,7 @@ ShellRoot {
             onWifiClicked:       screen => root.broadcastWifi(screen)
             onBluetoothClicked:  screen => root.broadcastBluetooth(screen)
             onAudioClicked:      screen => root.broadcastAudio(screen)
+            onFanClicked: screen => root.broadcastFan(screen)
         }
     }
 

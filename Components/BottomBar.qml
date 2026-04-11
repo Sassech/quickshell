@@ -1,6 +1,6 @@
 import QtQuick
-import QtQuick.Layouts
 import Quickshell
+import QtQuick.Layouts
 import Quickshell.Wayland
 import "../Widgets"
 
@@ -11,6 +11,7 @@ PanelWindow {
     signal wifiClicked(var screen)
     signal bluetoothClicked(var screen)
     signal audioClicked(var screen)
+    signal fanClicked(var screen)
 
     anchors {
         bottom: true
@@ -18,7 +19,7 @@ PanelWindow {
         right:  true
     }
 
-    implicitHeight: 35
+    implicitHeight: 30
     color:          Theme.cardBg2
 
     WlrLayershell.layer: WlrLayer.Bottom
@@ -72,6 +73,10 @@ PanelWindow {
             LanguageWidget {
                 anchors.verticalCenter: parent.verticalCenter
                 onClicked: root.languageClicked(root.screen)
+            }
+            FanWidget {
+                id: fanWidget
+                onClicked: root.fanClicked(root.screen)
             }
         }
     }
