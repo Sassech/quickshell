@@ -12,11 +12,16 @@ ok()   { echo "✅ $*"; }
 warn() { echo "⚠️  $*"; }
 info() { echo "   $*"; }
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. Reglas sudoers para scripts de quickshell
+# 0. Install packages
+# ─────────────────────────────────────────────────────────────────────────────
+$XDG_CONFIG_HOME/quickshell/packages.sh
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. sudoers rules for quickshell scripts
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
-echo "▶ Configurando reglas sudoers para scripts..."
 
 # set-power-mode.sh
 echo "$CURRENT_USER ALL=(ALL) NOPASSWD: $SCRIPT_DIR/scripts/set-power-mode.sh" \
@@ -31,32 +36,13 @@ sudo chmod 440 /etc/sudoers.d/quickshell-power /etc/sudoers.d/quickshell-fan
 if sudo visudo -c &>/dev/null; then
     ok "Reglas sudoers instaladas."
 else
-    echo "❌ Error en la sintaxis de sudoers. Revisa manualmente."
+    echo "sudoers sintaxys error."
     exit 1
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 2. mpDris2  —  puente MPD → MPRIS2 (necesario para rmpc y otros clientes MPD)
 # ─────────────────────────────────────────────────────────────────────────────
-echo ""
-echo "▶ Instalando mpDris2..."
-
-if command -v mpDris2 &>/dev/null; then
-    ok "mpDris2 ya está instalado."
-else
-    if command -v dnf &>/dev/null; then
-        sudo dnf install -y mpdris2
-        ok "mpdris2 instalado via dnf."
-    elif command -v pacman &>/dev/null; then
-        sudo pacman -S --noconfirm mpdris2
-        ok "mpdris2 instalado via pacman."
-    elif command -v apt &>/dev/null; then
-        sudo apt install -y mpdris2
-        ok "mpdris2 instalado via apt."
-    else
-        warn "Gestor de paquetes no reconocido. Instala mpdris2 manualmente."
-    fi
-fi
 
 # Configuración de mpDris2
 MPDRIS2_CONF_DIR="$HOME/.config/mpDris2"
