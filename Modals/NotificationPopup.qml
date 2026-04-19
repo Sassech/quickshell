@@ -138,8 +138,16 @@ PanelWindow {
                     source: {
                         const ic = root.notifIcon
                         if (!ic || ic.length === 0) return ""
+                        // Ruta absoluta directa
                         if (ic.startsWith("/") || ic.startsWith("file://")
                                 || ic.startsWith("http://") || ic.startsWith("https://")) return ic
+                        // Icono themed con custom path (ej: "image://icon/spotify-linux-32?path=/usr/share/spotify/icons")
+                        if (ic.includes("?path=")) {
+                            const parts = ic.split("?path=")
+                            const name = parts[0].replace(/^image:\/\/icon\//, "")
+                            return "file://" + parts[1] + "/" + name + ".png"
+                        }
+                        // Icono themed estándar
                         if (ic.length > 4) return "image://theme/" + ic
                         return ""
                     }
