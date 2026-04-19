@@ -22,7 +22,8 @@ ShellRoot {
         volume: "osd",
         brightness: "osd",
         network: "popup",
-        messages: "popup"
+        messages: "popup",
+        battery: "popup"
     })
     property var _mediaApps: [
         "spotify", "rmpc", "mpd", "music player daemon", "mpv", "vlc",
@@ -149,7 +150,8 @@ ShellRoot {
             volume: root.getCategoryMode("volume", "osd"),
             brightness: root.getCategoryMode("brightness", "osd"),
             network: root.getCategoryMode("network", "popup"),
-            messages: root.getCategoryMode("messages", "popup")
+            messages: root.getCategoryMode("messages", "popup"),
+            battery: root.getCategoryMode("battery", "popup")
         }
 
         if (!modeMap || typeof modeMap !== "object") {
@@ -157,7 +159,7 @@ ShellRoot {
             return
         }
 
-        const keys = ["media", "system", "critical", "volume", "brightness", "network", "messages"]
+        const keys = ["media", "system", "critical", "volume", "brightness", "network", "messages", "battery"]
         for (var i = 0; i < keys.length; i++) {
             const key = keys[i]
             if (Object.prototype.hasOwnProperty.call(modeMap, key)) {
@@ -924,6 +926,64 @@ ShellRoot {
         }
     }
 
+    // ============================================
+    // BATTERY NOTIFICATIONS — FIFO con eventos de batería
+    // ============================================
+    Process {
+        id: batteryFifo
+        running: true
+        command: ["bash", root._scriptsPath + "/qs-battery-fifo.sh"]
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: line => {
+                if (!root.shouldEmitInternal("battery", "popup", "popup")) return
+
+                const parts = line.trim().split(":")
+                const event = parts[0]
+
+                if (event === "low") {
+                    const pct = parts[1] || "?"
+                    root.broadcastNotify(
+                        "󰂃 Batería baja",
+                        "Queda " + pct + "% de batería",
+                        "battery-low",
+                        true,
+                        false
+                    )
+                } else if (event === "state") {
+                    const status = parts[1] || ""
+                    const pct = parts[2] || "?"
+                    if (status === "Charging") {
+                        root.broadcastNotify(
+                            "󰂄 Cargando",
+                            "Cargador conectado — " + pct + "%",
+                            "battery-good",
+                            false,
+                            false
+                        )
+                    } else if (status === "Discharging") {
+                        root.broadcastNotify(
+                            "󰂃 Desconectado",
+                            "Cargador desconectado — " + pct + "%",
+                            "battery",
+                            false,
+                            false
+                        )
+                    }
+                } else if (event === "full") {
+                    const pct = parts[1] || "100"
+                    root.broadcastNotify(
+                        "󰁹 Carga completa",
+                        "Batería al " + pct + "%",
+                        "battery-full",
+                        false,
+                        false
+                    )
+                }
+            }
+        }
+    }
+
     // Aplica modo Balanceado al arrancar
     Process {
         id: defaultPowerMode
@@ -951,6 +1011,7 @@ ShellRoot {
         spotlightFifo.running = false
         volumeFifo.running = false
         brightnessFifo.running = false
+        batteryFifo.running = false
         defaultPowerMode.running = false
     }
 }
