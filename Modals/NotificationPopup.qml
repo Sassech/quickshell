@@ -198,9 +198,20 @@ PanelWindow {
             }
         }
 
+        // Click en body — feedback visual con opacidad
         MouseArea {
             anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
             onClicked: hideAnim.start()
+
+            // Overlay de hover sutil
+            Rectangle {
+                anchors.fill: parent
+                radius: parent.parent.radius
+                color: Theme.hover
+                visible: parent.containsMouse
+            }
         }
     }
 }
