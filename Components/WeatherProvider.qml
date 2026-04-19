@@ -65,7 +65,7 @@ Item {
             onRead: data => { root._geoRaw += data }
         }
         
-        onExited: {
+        onExited: function(exitCode) {
             loading = false
             statusChanged()
             
@@ -101,7 +101,7 @@ Item {
             onRead: data => { root._weatherRaw += data }
         }
         
-        onExited: {
+        onExited: function(exitCode) {
             loading = false
             statusChanged()
             
