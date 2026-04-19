@@ -9,6 +9,7 @@ packages=(
   mpDris2            # MPD → MPRIS2 bridge
   cava               # Audio visualizer for terminal
   bluez              # Bluetooth
+  grimblast          # Screenshot grim wrapper
   grim               # Screenshot
   slurp              # Screen region selector
   wl-clipboard       # Clipboard (Wayland)
@@ -53,7 +54,7 @@ install_packages packages || failed=$?
 total=${#packages[@]}
 echo ""
 echo "════════════════════════════════════════"
-echo "  Paquetes: $total total, $failed fallos"
+echo "  Packages: $total total, $failed failed"
 echo "════════════════════════════════════════"
 
 exit "$failed"
