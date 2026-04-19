@@ -167,18 +167,35 @@ Row {
 
     // ── Botón play/pause ─────────────────────────────────────────────────
     MouseArea {
-        width: 20
-        height: 20
+        width: 24
+        height: 24
         cursorShape: Qt.PointingHandCursor
         enabled: root.hasPlayer
         opacity: enabled ? 1.0 : 0.35
         onClicked: root._cachedPlayer?.togglePlaying()
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: 24
+            height: 24
+            radius: width / 2
+            color: Theme.accent
+            opacity: root.isPlaying ? 0.18 : 0.0
+
+            Behavior on opacity {
+                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+            }
+        }
 
         Text {
             anchors.centerIn: parent
             color: root.isPlaying ? Theme.accent : Theme.text
             font.pixelSize: 14
             text: root.isPlaying ? "⏸" : "▶"
+
+            Behavior on color {
+                ColorAnimation { duration: 150 }
+            }
         }
     }
 
