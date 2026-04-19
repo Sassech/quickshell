@@ -208,7 +208,7 @@ PanelWindow {
             // Overlay de hover sutil
             Rectangle {
                 anchors.fill: parent
-                radius: parent.parent.radius
+                radius: card.radius
                 color: Theme.hover
                 visible: parent.containsMouse
             }
