@@ -52,7 +52,7 @@ PanelWindow {
         if (visible) {
             statusMsg = ""
             loadAudio()
-            Qt.callLater(function() { root.forceActiveFocus() })
+            Qt.callLater(function() { audioCard.forceActiveFocus() })
         } else {
             hotplugPoll.stop()
             volDebounce.stop()

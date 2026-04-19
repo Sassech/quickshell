@@ -28,7 +28,7 @@ PanelWindow {
     onVisibleChanged: {
         if (visible) {
             updateCalendar();
-            Qt.callLater(function() { root.forceActiveFocus() })
+            Qt.callLater(function() { card.forceActiveFocus() })
         }
     }
 

@@ -72,7 +72,7 @@ PanelWindow {
             passwordByIndex = ({})
             statusMsg    = ""
             loadNetworks()
-            Qt.callLater(function() { root.forceActiveFocus() })
+            Qt.callLater(function() { wifiCard.forceActiveFocus() })
         } else {
             scanning = false
             root.menuOpenIdx  = -1

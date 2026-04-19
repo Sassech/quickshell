@@ -68,7 +68,7 @@ PanelWindow {
     onVisibleChanged: {
         if (visible) {
             loadImages()
-            Qt.callLater(function() { root.forceActiveFocus() })
+            Qt.callLater(function() { card.forceActiveFocus() })
         }
     }
 
