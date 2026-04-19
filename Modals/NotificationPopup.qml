@@ -36,6 +36,10 @@ PanelWindow {
     property bool   notifIsMedia: false
 
     function show(title, body, icon, active, isMedia) {
+        // Cancelar cualquier cierre en progreso
+        hideAnim.stop()
+        dismissTimer.stop()
+
         notifTitle   = title
         notifBody    = body
         notifIcon    = icon
