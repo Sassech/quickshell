@@ -1,5 +1,5 @@
 //@ pragma UseQApplication
-//@ pragma ComponentBehavior:Bound
+// @ pragma ComponentBehavior:Bound  // TODO: activar cuando Quickshell lo soporte
 
 import QtQuick
 import Quickshell
