@@ -71,7 +71,14 @@ ShellRoot {
     function _containsAny(text, needles) {
         const value = (text ?? "").toLowerCase()
         for (var i = 0; i < needles.length; i++) {
-            if (value.indexOf(needles[i]) !== -1) return true
+            // Buscar como substring delimitado (word-boundary)
+            const needle = needles[i]
+            const idx = value.indexOf(needle)
+            if (idx === -1) continue
+            // Verificar que esté delimitado por no-alfanumérico o en los bordes
+            const beforeOk = idx === 0 || !(/[a-z0-9]/.test(value.charAt(idx - 1)))
+            const afterOk  = idx + needle.length >= value.length || !(/[a-z0-9]/.test(value.charAt(idx + needle.length)))
+            if (beforeOk && afterOk) return true
         }
         return false
     }
@@ -699,7 +706,8 @@ ShellRoot {
 
             // Deduplicar: si el watcher MPRIS ya mostró esta canci\u00f3n, ignorar
             const category = root.classifyExternalNotification(notification, urgent)
-            const mode = root.getCategoryMode(category, urgent ? "popup" : "popup")
+            // Urgent siempre se muestra, sin importar la política
+            const mode = urgent ? "popup" : root.getCategoryMode(category, "popup")
             if (mode !== "popup") return
 
             root.broadcastNotify(notification.summary, notification.body, icon, urgent, category === "media")
