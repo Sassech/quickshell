@@ -494,7 +494,7 @@ PanelWindow {
                         delegate: Rectangle {
                             required property string label
                             required property string code
-                            width: parent.width
+                            width: ListView.view.width
                             height: 34
                             radius: 8
                             color: layoutAllMA.containsMouse
@@ -670,7 +670,7 @@ PanelWindow {
                         delegate: Rectangle {
                             required property string label
                             required property string value
-                            width: parent.width
+                            width: ListView.view.width
                             height: 34
                             radius: 8
                             color: localeAllMA.containsMouse
