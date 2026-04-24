@@ -12,6 +12,7 @@ Rectangle {
 
     signal clicked()
 
+    // ── Color thresholds ─────────────────────────────────────
     property color accentColor: {
         if (!SysData.cpuAvailable) return Theme.muted2
         if (SysData.cpuTemp >= 85) return Theme.error

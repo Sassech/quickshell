@@ -29,27 +29,27 @@ PanelWindow {
         anchors.margins: 6
         spacing:         8
 
-        // ── LADO IZQUIERDO ────────────────────────────────────────────────
+        // ── Left section ─────────────────────────────────────────────────
         Row {
             Layout.alignment: Qt.AlignLeft | Qt.AlignVCenter
             spacing: 4
 
-            // Widgets izquierda aquí
+            // Widgets here
         }
 
         Item { Layout.fillWidth: true }
 
-        // ── CENTRO ────────────────────────────────────────────────────────
+        // ── Center section ───────────────────────────────────────────────
         Row {
             Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
             spacing: 8
 
-            // Widgets centro aquí
+            // Widgets here
         }
 
         Item { Layout.fillWidth: true }
 
-        // ── LADO DERECHO ──────────────────────────────────────────────────
+        // ── Right section ────────────────────────────────────────────────
         Row {
             Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
             Layout.rightMargin: 4

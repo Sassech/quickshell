@@ -107,7 +107,7 @@ PanelWindow {
         eppRead.running = true
     }
 
-    // Detect battery and energy/charge mode
+    // ── Detect battery and energy/charge mode ─────────────────
     property string _detectBuf: ""
     Process {
         id: detectProc
@@ -276,7 +276,8 @@ PanelWindow {
 
         MouseArea {
             anchors.fill: parent
-            onClicked: {} // absorbe clicks, impide propagación
+             // ── Absorb clicks to prevent propagation ──────
+             onClicked: {}
         }
 
         ColumnLayout {

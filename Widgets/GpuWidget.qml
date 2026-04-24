@@ -12,8 +12,10 @@ Rectangle {
 
     signal clicked()
 
+    // ── Properties ───────────────────────────────────────────
     property bool hasData: SysData.gpuAvailable
 
+    // ── Color thresholds ─────────────────────────────────────
     property color accentColor: {
         if (!hasData) return Theme.muted3
         if (SysData.gpuTemp >= 85) return Theme.error

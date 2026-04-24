@@ -16,7 +16,7 @@ ShellRoot {
     property string _configPath:  Qt.resolvedUrl("config").toString().replace("file://", "")
 
     // ════════════════════════════════════════════════════════════════════════
-    // PYTHON BACKEND — single process feeding all system data
+    // ── Python Backend — single process feeding all system data ──────────
     // ════════════════════════════════════════════════════════════════════════
     Process {
         id: backendProcess
@@ -277,9 +277,7 @@ ShellRoot {
     signal broadcastVolume()
     signal broadcastClock(var screen)
 
-    // ============================================
-    // BARRA SUPERIOR
-    // ============================================
+    // ── Top Bar ──────────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
 
@@ -299,9 +297,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // BARRA INFERIOR
-    // ============================================
+    // ── Bottom Bar ───────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
         BottomBar {

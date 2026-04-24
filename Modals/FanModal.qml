@@ -103,7 +103,8 @@ PanelWindow {
 
         MouseArea {
             anchors.fill: parent
-            onClicked: {} // absorbe clicks, impide propagación
+            // ── Absorb clicks to prevent propagation ──────────
+            onClicked: {}
         }
 
         ColumnLayout {

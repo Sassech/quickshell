@@ -34,7 +34,7 @@ PanelWindow {
         anchors.fill: parent
         anchors.margins: 6
         
-        // LADO IZQUIERDO - Workspaces
+        // ── Left section — Workspaces ────────────────────────────────────
         Row {
             id: leftSection
             anchors {
@@ -53,7 +53,7 @@ PanelWindow {
             }
         }
         
-        // CENTRO - Clock y Media Player (absolutamente centrado)
+        // ── Center section — Tray, Clock, Media ───────────────────────────
         Row {
             id: centerSection
             anchors.centerIn: parent
@@ -101,7 +101,7 @@ PanelWindow {
             }
         }
         
-        // LADO DERECHO  Battery + Sysmon + Power button
+        // ── Right section — System monitors + Power ───────────────────────
         Row {
             id: rightSection
             anchors {

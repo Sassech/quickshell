@@ -12,7 +12,7 @@ Rectangle {
 
     signal clicked()
 
-    // Battery properties
+    // ── Properties ───────────────────────────────────────────
     property int batteryLevel: 0
     property string batteryStatus: "Unknown"
     property bool isCharging: false
@@ -63,7 +63,7 @@ Rectangle {
         Item { width: 0; height: 1 }
     }
 
-    // Polling timer (every 30s)
+    // ── Polling timer (every 30s) ─────────────────────────────
     Timer {
         interval: 30000
         running: true
@@ -79,7 +79,7 @@ Rectangle {
         }
     }
 
-    // Detect battery path
+    // ── Detect battery path ──────────────────────────────────
     property string _detectBuf: ""
     Process {
         id: detectProc
@@ -104,7 +104,7 @@ Rectangle {
         }
     }
 
-    // Read capacity
+    // ── Read capacity ────────────────────────────────────────
     property string _capBuf: ""
     Process {
         id: capacityProc
@@ -120,7 +120,7 @@ Rectangle {
         }
     }
 
-    // Read status
+    // ── Read status ──────────────────────────────────────────
     property string _statusBuf: ""
     Process {
         id: statusProc

@@ -12,6 +12,7 @@ Rectangle {
 
     signal clicked()
 
+    // ── Color thresholds ─────────────────────────────────────
     property color accentColor: {
         if (!SysData.diskAvailable) return Theme.muted2
         if (SysData.diskPercent >= 90) return Theme.error
