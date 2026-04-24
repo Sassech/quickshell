@@ -195,9 +195,11 @@ Rectangle {
         }
     }
 
-    // ── Click handler ──────────────────────────────────────────────────────
+    // ── Click + Hover handler ────────────────────────────────────────────
     MouseArea {
+        id: mouseArea
         anchors.fill: parent
+        hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: root.clicked()
     }
@@ -265,13 +267,6 @@ Rectangle {
                 font.pixelSize: 8
             }
         }
-    }
-
-    MouseArea {
-        id: mouseArea
-        anchors.fill: parent
-        hoverEnabled: true
-        onClicked: root.clicked()
     }
 
     function getWeekOfYear() {
