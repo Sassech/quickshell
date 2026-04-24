@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # qs-volume-fifo — ran by Quickshell at startup
-# Reads commands from FIFO and outputs current volume as "pct:muted"
+# Reads commands from FIFO, executes volume changes.
+# Volume/mute state updates arrive via PipeWire native bindings.
 
 FIFO=/tmp/qs-volume
 
@@ -23,8 +24,6 @@ while IFS= read -r cmd <&3; do
             ;;
     esac
 
-    vol=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null)
-    pct=$(echo "$vol" | awk '{printf "%d", $2 * 100}')
-    muted=$(echo "$vol" | grep -c MUTED || true)
-    echo "${pct}:${muted}"
+    # Trigger OSD in shell.qml (values are ignored there now)
+    echo "0:0"
 done

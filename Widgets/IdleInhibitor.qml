@@ -19,12 +19,33 @@ Rectangle {
     property string _loadBuf: ""
     property string _idleBuf: ""
     property string _mediaBuf: ""
+    property string _sessionId: ""
     property string _configPath: Qt.resolvedUrl("../config").toString().replace("file://", "")
 
     Behavior on color { ColorAnimation { duration: 120 } }
 
     Component.onCompleted: {
         loadState();
+        detectSession();
+    }
+
+    // ── Detect session ID once (avoid re-running loginctl list-sessions) ──
+    Process {
+        id: sessionDetectProc
+        running: false
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => {
+                var v = data.trim()
+                if (v) root._sessionId = v
+            }
+        }
+    }
+
+    function detectSession() {
+        sessionDetectProc.command = ["bash", "-c",
+            "loginctl --no-legend list-sessions 2>/dev/null | grep seat0 | awk '{print $1}' | head -1"]
+        sessionDetectProc.running = true
     }
 
     Process {
@@ -78,12 +99,17 @@ Rectangle {
 
     Timer {
         id: idleTimer
-        interval: 2000
+        interval: 5000
         running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: {
-            idleProc.command = ["bash", "-c", "loginctl --no-legend list-sessions 2>/dev/null | grep -oP '\\d+(?=.*seat0)' | head -1 | xargs -I{} loginctl show-session {} -p IdleSince --value 2>/dev/null | cut -d. -f1 || echo 0"];
+            if (root._sessionId) {
+                idleProc.command = ["bash", "-c",
+                    "loginctl show-session " + root._sessionId + " -p IdleSince --value 2>/dev/null | cut -d. -f1 || echo 0"]
+            } else {
+                idleProc.command = ["bash", "-c", "echo 0"]
+            }
             idleProc.running = true;
         }
     }
@@ -118,7 +144,7 @@ Rectangle {
 
     Timer {
         id: mediaTimer
-        interval: 3000
+        interval: 5000
         running: true
         repeat: true
         triggeredOnStart: false

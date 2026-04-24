@@ -83,6 +83,7 @@ PanelWindow {
     property var    actionDevice: null
     property string actionType: ""
     property bool   _sawConnecting: false
+    property int    _connectRetries: 0
     property bool   autoConnectRunning: false
     property var    autoConnectQueue: []
     property var    autoConnectDevice: null
@@ -123,8 +124,10 @@ PanelWindow {
         root.actionDevice = null
         root.actionType = ""
         root._sawConnecting = false
+        root._connectRetries = 0
         if (msg !== undefined) root.statusMsg = msg
         actionTimeout.stop()
+        connectRetryTimer.stop()
     }
 
     function autoConnectTrusted() {
@@ -261,21 +264,24 @@ PanelWindow {
         onTriggered: autoConnectNext()
     }
 
-    // ── Refresh devices list when scanning ───────────────────────────────
+    // ── Retry connect after failure ──────────────────────────────────────
     Timer {
-        id: devicesRefreshTimer
-        interval: 3000
-        repeat: true
-        running: root.visible && root.scanning
+        id: connectRetryTimer
+        interval: 1500
         onTriggered: {
-            root.devicesRevision++
+            if (!root.actionDevice || root.actionType !== "connect") return
+            root._connectRetries++
+            root.statusMsg = "Reintentando (" + root._connectRetries + "/2)..."
+            root._sawConnecting = false
+            root.actionDevice.connect()
+            actionTimeout.restart()
         }
     }
 
-    // ── Refresh codec info every 8 s mientras el modal está abierto ───
+    // ── Refresh codec info every 12 s mientras el modal está abierto ──
     Timer {
         id: codecRefreshTimer
-        interval: 8000
+        interval: 12000
         repeat: true
         running: root.visible
         onTriggered: {
@@ -313,8 +319,8 @@ PanelWindow {
             scanTimer.stop()
             actionTimeout.stop()
             autoConnectTimer.stop()
+            connectRetryTimer.stop()
             codecRefreshTimer.stop()
-            devicesRefreshTimer.stop()
         }
     }
 
@@ -322,8 +328,8 @@ PanelWindow {
         scanTimer.stop()
         actionTimeout.stop()
         autoConnectTimer.stop()
+        connectRetryTimer.stop()
         codecRefreshTimer.stop()
-        devicesRefreshTimer.stop()
         codecProc.running = false
         setCodecProc.running = false
     }
@@ -376,6 +382,7 @@ PanelWindow {
         function onConnectedChanged() {
             if (!root.actionDevice) return
             if (root.actionType === "connect" && root.actionDevice.connected) {
+                root._connectRetries = 0
                 resetAction("✓ Conectado")
             } else if (root.actionType === "disconnect" && !root.actionDevice.connected) {
                 resetAction("✓ Desconectado")
@@ -383,12 +390,16 @@ PanelWindow {
         }
         function onStateChanged() {
             if (!root.actionDevice) return
+            if (root.actionType !== "connect") return
             var s = root.actionDevice.state
-            if (root.actionType === "connect") {
-                if (s === BluetoothDeviceState.Connecting) {
-                    root._sawConnecting = true
-                } else if (root._sawConnecting && s === BluetoothDeviceState.Disconnected) {
-                    root._sawConnecting = false
+            if (s === BluetoothDeviceState.Connecting) {
+                root._sawConnecting = true
+            } else if (s === BluetoothDeviceState.Disconnected && root._sawConnecting) {
+                root._sawConnecting = false
+                if (root._connectRetries < 2) {
+                    connectRetryTimer.start()
+                } else {
+                    root._connectRetries = 0
                     resetAction("✗ No se pudo conectar")
                 }
             }
@@ -397,10 +408,7 @@ PanelWindow {
             if (!root.actionDevice) return
             if (root.actionType === "pair" && root.actionDevice.paired) {
                 root.actionDevice.trusted = true
-                root.actionType = "connect"
-                root.statusMsg = "Conectando..."
-                root.actionDevice.connect()
-                actionTimeout.restart()
+                resetAction("✓ Emparejado")
             }
         }
         function onPairingChanged() {
@@ -576,10 +584,6 @@ PanelWindow {
                 text: root.statusMsg; font.pixelSize: 11
                 color: root.statusMsg.startsWith("✓") ? Theme.success : Theme.error
             }
-            Text {
-                visible: root.working; topPadding: 8; bottomPadding: 2
-                text: "Procesando..."; font.pixelSize: 11; color: Theme.muted1
-            }
 
             // No adapter
             Item {
@@ -661,7 +665,7 @@ PanelWindow {
                                 }
 
                                 Rectangle {
-                                    width: 84; height: 26; radius: 6
+                                    Layout.preferredWidth: 84; Layout.preferredHeight: 26; radius: 6
                                     color: deviceItem.modelData.connected ? Theme.error : Theme.accent
                                     Behavior on color { ColorAnimation { duration: 150 } }
                                     Text { anchors.centerIn: parent
@@ -682,11 +686,11 @@ PanelWindow {
                                 // ── Forget button ────────────────────────────────
                                 Rectangle {
                                     id: forgetBtn
-                                    width:  deviceItem.pendingForget
+                                    Layout.preferredWidth:  deviceItem.pendingForget
                                             ? forgetConfirmLabel.implicitWidth + 16
                                             : 26
-                                    height: 26; radius: 6
-                                    Behavior on width  { NumberAnimation  { duration: 120 } }
+                                    Layout.preferredHeight: 26; radius: 6
+                                    Behavior on Layout.preferredWidth  { NumberAnimation  { duration: 120 } }
                                     Behavior on color  { ColorAnimation   { duration: 120 } }
                                     color: deviceItem.pendingForget
                                         ? Qt.rgba(Theme.error.r, Theme.error.g, Theme.error.b, 0.18)
@@ -846,7 +850,7 @@ PanelWindow {
                             }
 
                             Rectangle {
-                                width: 60; height: 26; radius: 6; color: Theme.surface3
+                                Layout.preferredWidth: 60; Layout.preferredHeight: 26; radius: 6; color: Theme.surface3
                                 Text { anchors.centerIn: parent; text: "Emparejar"
                                     font.pixelSize: 10; color: Theme.text }
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor

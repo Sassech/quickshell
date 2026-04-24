@@ -18,45 +18,9 @@ PanelWindow {
     signal clockClicked(var screen)
     signal mediaClicked(var screen)
     
-    // ── Provider instances ─────────────────────────────────────────────────
-    WeatherProvider {
-        id: weatherProvider
-    }
-    
-    WeatherHelpers {
-        id: weatherHelpers
-    }
-    
-    // ── Aliases al WeatherProvider ───────────────────────────────────────
-    property alias weatherTemp:        weatherHelper.temp
-    property alias weatherFeelsLike:   weatherHelper.feelsLike
-    property alias weatherWindSpeed:   weatherHelper.windSpeed
-    property alias weatherHumidity:    weatherHelper.humidity
-    property alias weatherCity:        weatherHelper.city
-    property alias weatherIcon:        weatherHelper.icon
-    property alias weatherDescription: weatherHelper.description
-    property alias weatherIsDay:       weatherHelper.isDay
-    
-    // Helper object para bindings
-    QtObject {
-        id: weatherHelper
-        property string temp: weatherProvider.hasData
-            ? Math.round(weatherProvider.temperature) + "°"
-            : "--"
-        property string feelsLike: weatherProvider.hasData
-            ? Math.round(weatherProvider.feelsLike) + "°"
-            : "--"
-        property string windSpeed: weatherProvider.hasData
-            ? Math.round(weatherProvider.windSpeed) + " km/h"
-            : "--"
-        property string humidity: weatherProvider.hasData
-            ? weatherProvider.humidity + "%"
-            : "--"
-        property string city: weatherProvider.cityName
-        property string icon: weatherHelpers.wmoIcon(weatherProvider.weatherCode, weatherProvider.isDay)
-        property string description: weatherHelpers.wmoDescription(weatherProvider.weatherCode)
-        property bool isDay: weatherProvider.isDay
-    }
+    // ── Aliases al WeatherProvider (instance lives in Weather widget) ───
+    // Weather widget already has its own WeatherProvider; no duplicate here.
+    // TopBar only needs to relay clicks to the modal.
     
     anchors {
         top: true

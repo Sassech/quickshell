@@ -9,6 +9,8 @@ Rectangle {
     height: 20
     color: "transparent"
     radius: 4
+    layer.enabled: true
+    layer.smooth: true
 
     property bool isPlaying: false
     property string cavaSource: ""
@@ -56,7 +58,7 @@ Rectangle {
             "cfg=\"${XDG_RUNTIME_DIR:-/tmp}/quickshell-cava-${UID:-1000}.conf\" && " +
             "mkdir -p \"${XDG_RUNTIME_DIR:-/tmp}\" && " +
             "cat > \"$cfg\" <<'CAVAEOF'\n" +
-            "[general]\nbars = 8\nframerate = 60\n\n" +
+            "[general]\nbars = 8\nframerate = 15\n\n" +
             "[input]\nmethod = pulse\nsource = " + root.cavaSource + "\n\n" +
             "[output]\nmethod = raw\nraw_target = /dev/stdout\n" +
             "data_format = ascii\nascii_max_range = 16\nbar_delimiter = 32\nCAVAEOF\n" +
@@ -116,7 +118,7 @@ Rectangle {
 
                     Behavior on height {
                         NumberAnimation {
-                            duration: 100
+                            duration: 66
                             easing.type: Easing.OutCubic
                         }
                     }

@@ -11,8 +11,40 @@ import "Modals"
 ShellRoot {
     id: root
 
+    // ── Shared paths (resolved once, used by backend + FIFOs) ────────────
     property string _scriptsPath: Qt.resolvedUrl("scripts").toString().replace("file://", "")
-    property string _configPath: Qt.resolvedUrl("config").toString().replace("file://", "")
+    property string _configPath:  Qt.resolvedUrl("config").toString().replace("file://", "")
+
+    // ════════════════════════════════════════════════════════════════════════
+    // PYTHON BACKEND — single process feeding all system data
+    // ════════════════════════════════════════════════════════════════════════
+    Process {
+        id: backendProcess
+        command: ["python3", root._scriptsPath + "/quickshell_backend.py"]
+        running: true
+
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => {
+                var line = data.trim()
+                if (!line) return
+                try {
+                    SysData.dispatch(JSON.parse(line))
+                } catch(e) {}
+            }
+        }
+
+        onExited: function(code) {
+            console.log("[Backend] exited with code " + code + " — restarting in 3s")
+            restartTimer.start()
+        }
+    }
+
+    Timer {
+        id: restartTimer
+        interval: 3000
+        onTriggered: backendProcess.running = true
+    }
 
     // ── Notification policy config ─────────────────────────────────────────
     property var _categoryModes: ({
@@ -59,25 +91,36 @@ ShellRoot {
         return Quickshell.screens[0]
     }
 
-    function mkFifoCmd(fifoPath, callbackName) {
+    // Shared FIFO command builder — simplified hyprctl focused monitor
+    function mkFifoCmd(fifoPath) {
         return [
             "bash", "-c",
             "rm -f " + fifoPath + "; mkfifo " + fifoPath + "; " +
             "exec 3<>" + fifoPath + "; " +
             "while IFS= read -r _ <&3; do " +
-            "hyprctl monitors -j | python3 -c \"import json,sys; ms=json.load(sys.stdin); print(next((m['name'] for m in ms if m.get('focused')), ms[0]['name']))\"; " +
+            "hyprctl -j monitors 2>/dev/null | python3 -c \"import json,sys; ms=json.load(sys.stdin); print(next((m['name'] for m in ms if m.get('focused')), ms[0]['name']))\"; " +
             "done"
         ]
+    }
+
+    // Shared FIFO reader — resolves screen name and calls callback
+    function fifoScreenReader(monName, broadcastFn) {
+        var name = monName.trim()
+        for (var i = 0; i < Quickshell.screens.length; i++) {
+            if (Quickshell.screens[i].name === name) {
+                broadcastFn(Quickshell.screens[i])
+                return
+            }
+        }
+        broadcastFn(Quickshell.screens[0])
     }
 
     function _containsAny(text, needles) {
         const value = (text ?? "").toLowerCase()
         for (var i = 0; i < needles.length; i++) {
-            // Buscar como substring delimitado (word-boundary)
             const needle = needles[i]
             const idx = value.indexOf(needle)
             if (idx === -1) continue
-            // Verificar que esté delimitado por no-alfanumérico o en los bordes
             const beforeOk = idx === 0 || !(/[a-z0-9]/.test(value.charAt(idx - 1)))
             const afterOk  = idx + needle.length >= value.length || !(/[a-z0-9]/.test(value.charAt(idx + needle.length)))
             if (beforeOk && afterOk) return true
@@ -191,7 +234,6 @@ ShellRoot {
                     const cfg = JSON.parse(payload)
                     root._mergeCategoryModes(cfg.categoryModes)
 
-                    // Compat legacy: showMediaPopups -> categoryModes.media
                     if (cfg.showMediaPopups === true
                             && (!cfg.categoryModes || cfg.categoryModes.media === undefined)) {
                         root._categoryModes.media = "popup"
@@ -232,7 +274,7 @@ ShellRoot {
     signal broadcastAudio(var screen)
     signal broadcastMedia(var screen)
     signal broadcastBrightness(int pct)
-    signal broadcastVolume(int pct, bool muted)
+    signal broadcastVolume()
     signal broadcastClock(var screen)
 
     // ============================================
@@ -273,9 +315,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // POWER MENU MODAL — una instancia por pantalla
-    // ============================================
+    // ── POWER MENU ────────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
         PowerMenu {
@@ -297,9 +337,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // CLOCK MODAL — una instancia por pantalla
-    // ============================================
+    // ── CLOCK MODAL ───────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
         ClockModal {
@@ -321,9 +359,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // WEATHER MODAL — una instancia por pantalla
-    // ============================================
+    // ── WEATHER MODAL ─────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
         WeatherModal {
@@ -345,9 +381,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // BATTERY MODAL — una instancia por pantalla
-    // ============================================
+    // ── BATTERY MODAL ─────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
         BatteryModal {
@@ -369,9 +403,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // FAN MODAL — una instancia por pantalla
-    // ============================================
+    // ── FAN MODAL ─────────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
         FanModal {
@@ -393,9 +425,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // CPU MODAL — una instancia por pantalla
-    // ============================================
+    // ── CPU MODAL ─────────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
         CpuModal {
@@ -417,9 +447,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // RAM MODAL — una instancia por pantalla
-    // ============================================
+    // ── RAM MODAL ─────────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
         RamModal {
@@ -441,9 +469,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // DISK MODAL — una instancia por pantalla
-    // ============================================
+    // ── DISK MODAL ────────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
         DiskModal {
@@ -465,9 +491,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // GPU MODAL — una instancia por pantalla
-    // ============================================
+    // ── GPU MODAL ─────────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
         GpuModal {
@@ -489,9 +513,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // CLIPBOARD MODAL — una instancia por pantalla
-    // ============================================
+    // ── CLIPBOARD MODAL ───────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
         ClipboardModal {
@@ -513,59 +535,25 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // CLIPBOARD — FIFO global (SUPER+V)
-    // ============================================
+    // ── CLIPBOARD FIFO (SUPER+V) ──────────────────────────────────────────
     Process {
         id: clipboardFifo
         running: true
-        command: ["bash", "-c",
-            "rm -f /tmp/qs-clipboard; mkfifo /tmp/qs-clipboard; " +
-            "exec 3<>/tmp/qs-clipboard; " +
-            "while IFS= read -r _ <&3; do " +
-            "hyprctl monitors -j | python3 -c \"import json,sys; ms=json.load(sys.stdin); print(next((m['name'] for m in ms if m.get('focused')), ms[0]['name']))\"; " +
-            "done"
-        ]
+        command: root.mkFifoCmd("/tmp/qs-clipboard")
         stdout: SplitParser {
             splitMarker: "\n"
-            onRead: monName => {
-                var name = monName.trim()
-                for (var i = 0; i < Quickshell.screens.length; i++) {
-                    if (Quickshell.screens[i].name === name) {
-                        root.broadcastClipboard(Quickshell.screens[i])
-                        return
-                    }
-                }
-                root.broadcastClipboard(Quickshell.screens[0])
-            }
+            onRead: monName => root.fifoScreenReader(monName, root.broadcastClipboard)
         }
     }
 
-    // ============================================
-    // WALLPAPER PICKER — FIFO global (SUPER+Y)
-    // ============================================
+    // ── WALLPAPER PICKER FIFO (SUPER+Y) ───────────────────────────────────
     Process {
         id: wallpaperFifo
         running: true
-        command: ["bash", "-c",
-            "rm -f /tmp/qs-wallpaper; mkfifo /tmp/qs-wallpaper; " +
-            "exec 3<>/tmp/qs-wallpaper; " +
-            "while IFS= read -r _ <&3; do " +
-            "hyprctl monitors -j | python3 -c \"import json,sys; ms=json.load(sys.stdin); print(next((m['name'] for m in ms if m.get('focused')), ms[0]['name']))\"; " +
-            "done"
-        ]
+        command: root.mkFifoCmd("/tmp/qs-wallpaper")
         stdout: SplitParser {
             splitMarker: "\n"
-            onRead: monName => {
-                var name = monName.trim()
-                for (var i = 0; i < Quickshell.screens.length; i++) {
-                    if (Quickshell.screens[i].name === name) {
-                        root.broadcastWallpaperPicker(Quickshell.screens[i])
-                        return
-                    }
-                }
-                root.broadcastWallpaperPicker(Quickshell.screens[0])
-            }
+            onRead: monName => root.fifoScreenReader(monName, root.broadcastWallpaperPicker)
         }
     }
 
@@ -595,9 +583,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // FOLDER BROWSER — una instancia por pantalla
-    // ============================================
+    // ── FOLDER BROWSER ────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
         FolderBrowserModal {
@@ -615,59 +601,25 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // OVERVIEW — FIFO global + una instancia por pantalla
-    // ============================================
+    // ── OVERVIEW FIFO ─────────────────────────────────────────────────────
     Process {
         id: overviewFifo
         running: true
-        command: ["bash", "-c",
-            "rm -f /tmp/qs-overview; mkfifo /tmp/qs-overview; " +
-            "exec 3<>/tmp/qs-overview; " +
-            "while IFS= read -r _ <&3; do " +
-            "hyprctl monitors -j | python3 -c \"import json,sys; ms=json.load(sys.stdin); print(next((m['name'] for m in ms if m.get('focused')), ms[0]['name']))\"; " +
-            "done"
-        ]
+        command: root.mkFifoCmd("/tmp/qs-overview")
         stdout: SplitParser {
             splitMarker: "\n"
-            onRead: monName => {
-                var name = monName.trim()
-                for (var i = 0; i < Quickshell.screens.length; i++) {
-                    if (Quickshell.screens[i].name === name) {
-                        root.broadcastOverview(Quickshell.screens[i])
-                        return
-                    }
-                }
-                root.broadcastOverview(Quickshell.screens[0])
-            }
+            onRead: monName => root.fifoScreenReader(monName, root.broadcastOverview)
         }
     }
 
-    // ============================================
-    // SPOTLIGHT — FIFO global + una instancia por pantalla
-    // ============================================
+    // ── SPOTLIGHT FIFO ────────────────────────────────────────────────────
     Process {
         id: spotlightFifo
         running: true
-        command: ["bash", "-c",
-            "rm -f /tmp/qs-spotlight; mkfifo /tmp/qs-spotlight; " +
-            "exec 3<>/tmp/qs-spotlight; " +
-            "while IFS= read -r _ <&3; do " +
-            "hyprctl monitors -j | python3 -c \"import json,sys; ms=json.load(sys.stdin); print(next((m['name'] for m in ms if m.get('focused')), ms[0]['name']))\"; " +
-            "done"
-        ]
+        command: root.mkFifoCmd("/tmp/qs-spotlight")
         stdout: SplitParser {
             splitMarker: "\n"
-            onRead: monName => {
-                var name = monName.trim()
-                for (var i = 0; i < Quickshell.screens.length; i++) {
-                    if (Quickshell.screens[i].name === name) {
-                        root.broadcastSpotlight(Quickshell.screens[i])
-                        return
-                    }
-                }
-                root.broadcastSpotlight(Quickshell.screens[0])
-            }
+            onRead: monName => root.fifoScreenReader(monName, root.broadcastSpotlight)
         }
     }
 
@@ -694,11 +646,7 @@ ShellRoot {
         }
     }
 
-    // Política de notificaciones de música: pendientes (sin popup)
-
-    // ============================================
-    // NOTIFICATION SERVER — intercepta notify-send del sistema
-    // ============================================
+    // ── NOTIFICATION SERVER ───────────────────────────────────────────────
     NotificationServer {
         id: notifServer
         keepOnReload: true
@@ -707,29 +655,21 @@ ShellRoot {
             const icon   = notification.image !== "" ? notification.image : notification.appIcon
             const urgent = notification.urgency === NotificationUrgency.Critical
 
-            // Deduplicar: si el watcher MPRIS ya mostró esta canci\u00f3n, ignorar
             const category = root.classifyExternalNotification(notification, urgent)
-            // Urgent siempre se muestra, sin importar la política
             const mode = urgent ? "popup" : root.getCategoryMode(category, "popup")
             if (mode !== "popup") return
 
             root.broadcastNotify(notification.summary, notification.body, icon, urgent, category === "media")
-
-            // Mantener flujo normal para notificaciones no-media
         }
     }
 
-    // ============================================
-    // NOTIFICATION POPUP — una instancia por pantalla
-    // ============================================
+    // ── NOTIFICATION POPUP ────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
-
         NotificationPopup {
             id: notifPopup
             property var modelData
             screen: modelData
-
             Connections {
                 target: root
                 function onBroadcastNotify(title, body, icon, active, isMedia) {
@@ -739,9 +679,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // LANGUAGE MODAL — una instancia por pantalla
-    // ============================================
+    // ── LANGUAGE MODAL ────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
         LanguageModal {
@@ -763,9 +701,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // WIFI MODAL — una instancia por pantalla
-    // ============================================
+    // ── WIFI MODAL ────────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
         WifiModal {
@@ -787,9 +723,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // BLUETOOTH MODAL — una instancia por pantalla
-    // ============================================
+    // ── BLUETOOTH MODAL ───────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
         BluetoothModal {
@@ -811,9 +745,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // MEDIA MODAL — una instancia por pantalla
-    // ============================================
+    // ── MEDIA MODAL ───────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
         MediaModal {
@@ -835,9 +767,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // AUDIO MODAL — una instancia por pantalla
-    // ============================================
+    // ── AUDIO MODAL ───────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
         AudioModal {
@@ -859,9 +789,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // VOLUME OSD — FIFO global, OSD en todas las pantallas
-    // ============================================
+    // ── VOLUME OSD ────────────────────────────────────────────────────────
     Process {
         id: volumeFifo
         running: true
@@ -873,7 +801,7 @@ ShellRoot {
                 var pct   = parseInt(parts[0]) || 0
                 var muted = (parts[1] === "1")
                 if (root.shouldEmitInternal("volume", "osd", "osd")) {
-                    root.broadcastVolume(pct, muted)
+                    root.broadcastVolume()
                 }
             }
         }
@@ -887,16 +815,14 @@ ShellRoot {
             screen: modelData
             Connections {
                 target: root
-                function onBroadcastVolume(pct, muted) {
-                    volumeOsdInst.show(pct, muted)
+                function onBroadcastVolume() {
+                    volumeOsdInst.show()
                 }
             }
         }
     }
 
-    // ============================================
-    // BRIGHTNESS OSD — FIFO global, OSD en todas las pantallas
-    // ============================================
+    // ── BRIGHTNESS OSD ────────────────────────────────────────────────────
     Process {
         id: brightnessFifo
         running: true
@@ -926,9 +852,7 @@ ShellRoot {
         }
     }
 
-    // ============================================
-    // BATTERY NOTIFICATIONS — FIFO con eventos de batería
-    // ============================================
+    // ── BATTERY NOTIFICATIONS FIFO ────────────────────────────────────────
     Process {
         id: batteryFifo
         running: true
@@ -984,7 +908,7 @@ ShellRoot {
         }
     }
 
-    // Aplica modo Balanceado al arrancar
+    // ── Default power mode on startup ─────────────────────────────────────
     Process {
         id: defaultPowerMode
         command: ["sudo", root._scriptsPath + "/set-power-mode.sh", "balanced"]
@@ -1000,11 +924,12 @@ ShellRoot {
     Component.onCompleted: {
         loadNotificationConfig()
         console.log("Quickshell loaded")
-        console.log("✅ Workspaces | Power Menu | Weather | Notifications")
+        console.log("✅ Backend | Workspaces | Power Menu | Weather | Notifications")
         defaultPowerMode.running = true
     }
 
     Component.onDestruction: {
+        backendProcess.running = false
         clipboardFifo.running = false
         wallpaperFifo.running = false
         overviewFifo.running = false

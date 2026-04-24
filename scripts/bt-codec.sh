@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bt-codec.sh — Bluetooth codec query / set via PipeWire (pactl + pw-dump)
+# bt-codec.sh — Bluetooth codec query / set via PipeWire (pactl only)
 #
 # Usage:
 #   bt-codec.sh info <MAC>             → JSON { codec, active, rate, bitrate, profiles:[{id,label,bitrate}] }
@@ -17,123 +17,96 @@ import json, sys, subprocess, re
 mac  = sys.argv[1].upper()
 card = sys.argv[2]
 
-# --- pw-dump: codec from node + quality param (for LDAC bitrate mode) ---
-pw_codec   = ""
-ldac_quality = None   # -1=auto/adaptive, 0=HQ 990k, 1=SQ 660k, 2=MQ 330k
-audio_rate = ""
+# --- Single source of truth: profile → (label, bitrate, sort_order) ---
+PROFILES = {
+    "a2dp-sink-sbc":          ("SBC",    "328 kbps",  328),
+    "a2dp-sink-sbc_xq":       ("SBC-XQ", "492 kbps",  492),
+    "a2dp-sink-aac":          ("AAC",    "256 kbps",  256),
+    "a2dp-sink":              ("LDAC",   "990 kbps",  990),
+    "headset-head-unit":      ("mSBC",   "64 kbps",    64),
+    "headset-head-unit-cvsd": ("CVSD",   "64 kbps",    64),
+}
+
+# --- pactl: active profile + available profiles + sample rate ---
+active    = ""
+profiles  = []
+pw_codec  = ""
+rate      = ""
+
 try:
-    dump = json.loads(subprocess.check_output(["pw-dump"], stderr=subprocess.DEVNULL))
-    for obj in dump:
-        props  = obj.get("info", {}).get("props", {})
-        params = obj.get("info", {}).get("params", {})
-        if props.get("api.bluez5.address", "").upper() != mac:
-            continue
-        c = props.get("api.bluez5.codec", "")
-        if c:
-            pw_codec = c.lower()
-        # Read quality from Props param list (list of dicts)
-        for p in params.get("Props", []):
-            if isinstance(p, dict):
-                if "quality" in p:
-                    ldac_quality = p["quality"]
-                r = p.get("audio.rate") or p.get("rate")
-                if r:
-                    audio_rate = str(r)
-        # Format params when streaming
-        for fmt in params.get("Format", []):
-            if isinstance(fmt, dict):
-                r = fmt.get("rate")
-                if r:
-                    audio_rate = str(r)
+    raw = subprocess.check_output(
+        ["env", "LANG=C", "pactl", "--format=json", "list", "cards"],
+        stderr=subprocess.DEVNULL,
+    ).decode(errors="replace")
+
+    # Try JSON parsing first (pactl >= 15)
+    try:
+        cards = json.loads(raw)
+        for c in cards if isinstance(cards, list) else []:
+            props = c.get("properties", {})
+            if props.get("device.name", "").lower() == card.lower():
+                active = c.get("active_profile", "")
+                for p in c.get("profiles", []):
+                    pid = p.get("name", "")
+                    if pid in PROFILES:
+                        profiles.append({"id": pid, "label": PROFILES[pid][0]})
+                # Sample rate from state
+                for s in c.get("state", {}).get("rates", []):
+                    if s:
+                        rate = str(s)
+                        break
+                pw_codec = props.get("device.api.bluez5.codec", "").upper()
+                break
+    except (json.JSONDecodeError, KeyError):
+        # Fallback: text parsing (pactl < 15 or non-JSON output)
+        section = ""
+        in_card = False
+        for line in raw.splitlines():
+            if card.lower() in line.lower():
+                in_card = True
+            if in_card:
+                section += line + "\n"
+                if line.strip() == "" and section.strip():
+                    break
+
+        for line in section.splitlines():
+            if "Active Profile" in line:
+                active = line.split(":", 1)[-1].strip()
+            if "api.bluez5.codec" in line:
+                pw_codec = line.split("=", 1)[-1].strip().strip('"').upper()
+
+        for line in section.splitlines():
+            m = re.match(r'\s+([\w-]+):\s.*\bcodec\s+([\w\-\+]+)\)', line)
+            if m and m.group(1) in PROFILES:
+                profiles.append({"id": m.group(1), "label": PROFILES[m.group(1)][0]})
+
 except Exception:
     pass
 
-# --- pactl: active profile + available profiles ---
-active   = ""
-profiles = []
-try:
-    raw = subprocess.check_output(["pactl", "list", "cards"],
-                                  stderr=subprocess.DEVNULL).decode(errors="replace")
-    section = ""
-    in_card = False
-    for line in raw.splitlines():
-        if card in line:
-            in_card = True
-        if in_card:
-            section += line + "\n"
+# --- Resolve final codec label ---
+if active in PROFILES:
+    final_codec = PROFILES[active][0]
+elif pw_codec:
+    final_codec = pw_codec
+elif active:
+    final_codec = active.upper()
+else:
+    final_codec = ""
 
-    for line in section.splitlines():
-        if "Perfil Activo" in line or "Active Profile" in line:
-            active = line.split(":", 1)[-1].strip()
+# --- Bitrate ---
+bitrate = PROFILES.get(active, (None, ""))[1] if active in PROFILES else ""
+if final_codec == "LDAC" and not bitrate:
+    bitrate = "990 kbps"
 
-    for line in section.splitlines():
-        m = re.match(r'\s+([\w-]+):\s.*\bcodec\s+([\w\-\+]+)\)', line)
-        if m:
-            profiles.append({"id": m.group(1), "label": m.group(2)})
-except Exception:
-    pass
-
-# --- Codec label map (from profile id) ---
-profile_to_label = {p["id"]: p["label"] for p in profiles}
-profile_to_label.update({
-    "a2dp-sink-sbc":          "SBC",
-    "a2dp-sink-sbc_xq":       "SBC-XQ",
-    "a2dp-sink-aac":          "AAC",
-    "a2dp-sink":              "LDAC",
-    "headset-head-unit":      "mSBC",
-    "headset-head-unit-cvsd": "CVSD",
-})
-final_codec = profile_to_label.get(active, "") or pw_codec.upper() or active.upper()
-
-# --- Bitrate per codec (max/typical kbps) ---
-CODEC_BITRATE = {
-    "SBC":   "328 kbps",
-    "SBC-XQ":"492 kbps",
-    "AAC":   "256 kbps",
-    "LDAC":  "",           # determined by quality level below
-    "mSBC":  "64 kbps",
-    "CVSD":  "64 kbps",
-}
-
-bitrate = CODEC_BITRATE.get(final_codec, "")
-
-if final_codec == "LDAC":
-    if ldac_quality is None or ldac_quality == -1:
-        bitrate = "≤990 kbps (auto)"
-    elif ldac_quality == 0:
-        bitrate = "990 kbps (HQ)"
-    elif ldac_quality == 1:
-        bitrate = "660 kbps (SQ)"
-    elif ldac_quality == 2:
-        bitrate = "330 kbps (MQ)"
-    else:
-        bitrate = "990 kbps"
-
-# Annotate each profile with its known max bitrate and sort low→high
-PROFILE_BITRATE = {
-    "a2dp-sink-sbc":          "328 kbps",
-    "a2dp-sink-sbc_xq":       "492 kbps",
-    "a2dp-sink-aac":          "256 kbps",
-    "a2dp-sink":              "990 kbps",
-    "headset-head-unit":      "64 kbps",
-    "headset-head-unit-cvsd": "64 kbps",
-}
-PROFILE_BITRATE_ORDER = {
-    "a2dp-sink-sbc":          328,
-    "a2dp-sink-sbc_xq":       492,
-    "a2dp-sink-aac":          256,
-    "a2dp-sink":              990,
-    "headset-head-unit":       64,
-    "headset-head-unit-cvsd":  64,
-}
+# --- Annotate profiles with bitrate, sort low→high ---
 for p in profiles:
-    p["bitrate"] = PROFILE_BITRATE.get(p["id"], "")
-profiles.sort(key=lambda p: PROFILE_BITRATE_ORDER.get(p["id"], 0))
+    p["bitrate"] = PROFILES[p["id"]][1] if p["id"] in PROFILES else ""
+profiles.sort(key=lambda p: PROFILES.get(p["id"], ("", "", 0))[2])
 
 print(json.dumps({
     "codec":    final_codec,
     "active":   active,
-    "rate":     audio_rate,
+    "rate":     rate,
     "bitrate":  bitrate,
     "profiles": profiles,
 }))

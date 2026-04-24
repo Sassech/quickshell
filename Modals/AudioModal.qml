@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
+import Quickshell.Services.Pipewire
 import "../Components"
 
 PanelWindow {
@@ -17,22 +18,47 @@ PanelWindow {
     anchors.top: true; anchors.bottom: true
     anchors.left: true; anchors.right: true
 
-    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
-
     // ── State ─────────────────────────────────────────────────────────────
-    property real   volume:        0.75   // 0.0 – 1.5  (1.0 = 100%, 1.5 = 150%)
+    property var    defaultSink:   Pipewire.defaultAudioSink
+    property var    defaultSource: Pipewire.defaultAudioSource
+    readonly property string defaultSinkName:   defaultSink?.name ?? ""
+    readonly property string defaultSourceName: defaultSource?.name ?? ""
+    property real   volume:        0.05
     property bool   muted:         false
-    property string defaultSink:   ""
-    property string defaultSource: ""
-    property var    sinks:         []     // [{id, name, displayName, icon, active}]
-    property var    sources:       []     // [{id, name, displayName, icon, active}]
-    property bool   working:       false
     property string statusMsg:     ""
     property bool   showSources:   true
-    property bool   _hasDeviceSuccessfulRead: false
-    property int    _emptyDeviceReads: 0
+    property var    _sinkAvailable: ({})
+    property var    _sourceAvailable: ({})
+    property var    sinkVolumes: ({})
+    property string _pendingSinkName: ""
 
-    // Debounce volume slider writes
+    // ── Bind nodes — REQUIRED for .audio.volume/.muted to be valid ────────
+    PwObjectTracker {
+        objects: [root.defaultSink, root.defaultSource]
+    }
+
+    // ── Sync volume/mute from PipeWire (event-driven, NaN-safe) ───────────
+    Connections {
+        target: root.defaultSink?.audio ?? null
+        function onVolumesChanged() {
+            var v = root.defaultSink?.audio?.volume
+            if (v !== undefined && v !== null && !isNaN(v)) {
+                root.volume = v
+                if (root.defaultSinkName !== "") {
+                    var map = ({})
+                    Object.assign(map, root.sinkVolumes)
+                    map[root.defaultSinkName] = v
+                    root.sinkVolumes = map
+                }
+            }
+        }
+        function onMutedChanged() {
+            var m = root.defaultSink?.audio?.muted
+            if (m !== undefined && m !== null) root.muted = m
+        }
+    }
+
+    // ── Debounce volume slider writes via wpctl ───────────────────────────
     property real _pendingVol: -1
     Timer {
         id: volDebounce
@@ -41,48 +67,50 @@ PanelWindow {
             if (root._pendingVol >= 0) {
                 var v = root._pendingVol.toFixed(2)
                 root._pendingVol = -1
+                var sinkName = root.defaultSinkName
+                var safeSink = sinkName.replace(/'/g, "'\\''")
                 setVolProc.command = ["bash", "-c",
-                    "wpctl set-volume @DEFAULT_AUDIO_SINK@ " + v + " 2>/dev/null"]
+                    (sinkName
+                        ? "wpctl set-volume '" + safeSink + "' " + v + " 2>/dev/null"
+                        : "wpctl set-volume @DEFAULT_AUDIO_SINK@ " + v + " 2>/dev/null")]
                 setVolProc.running = true
             }
         }
     }
+    Process { id: setVolProc; command: ["bash", "-c", ""] }
 
-    onVisibleChanged: {
-        if (visible) {
-            statusMsg = ""
-            loadAudio()
-            Qt.callLater(function() { audioCard.forceActiveFocus() })
-        } else {
-            hotplugPoll.stop()
-            volDebounce.stop()
-            statusClear.stop()
-            reloadDelay.stop()
+    Process { id: setSinkVolProc; command: ["bash", "-c", ""] }
+
+    Process {
+        id: setSinkProc
+        command: ["bash", "-c", ""]
+        onExited: {
+            root._nodesRevision++
         }
     }
 
-    Component.onDestruction: {
-        hotplugPoll.stop()
-        volDebounce.stop()
-        statusClear.stop()
-        reloadDelay.stop()
-        volProc.running = false
-        deviceListProc.running = false
-        setVolProc.running = false
-        muteProc.running = false
-        setSinkProc.running = false
-        setSourceProc.running = false
+    Process {
+        id: setSourceProc
+        command: ["bash", "-c", ""]
+        onExited: {
+            root._nodesRevision++
+        }
     }
 
-    // Delay timer so PipeWire has time to update after set-default
     Timer {
-        id: reloadDelay
-        interval: 450
+        id: applySinkVolumeTimer
+        interval: 220
         onTriggered: {
-            root._deviceBuf = ""
-            root.working = true
-            volProc.running        = true
-            deviceListProc.running = true
+            var name = root._pendingSinkName || root.defaultSinkName
+            if (!name) return
+            var target = root.sinkVolumes[name]
+            if (target === undefined || target === null || isNaN(target)) target = 0.10
+            var safeName = name.replace(/'/g, "'\\''")
+            setSinkVolProc.command = ["bash", "-c",
+                "wpctl set-volume '" + safeName + "' " + target.toFixed(2) + " 2>/dev/null"]
+            setSinkVolProc.running = true
+            root.volume = target
+            root._pendingSinkName = ""
         }
     }
 
@@ -94,29 +122,44 @@ PanelWindow {
     }
     onStatusMsgChanged: if (statusMsg !== "") statusClear.restart()
 
-    // Poll for device hotplug while modal is open
+    onVisibleChanged: {
+        if (visible) {
+            statusMsg = ""
+            root._nodesRevision++
+            sinkAvailBuf = ""
+            sourceAvailBuf = ""
+            sinkAvailProc.running = true
+            sourceAvailProc.running = true
+            var v = root.defaultSink?.audio?.volume
+            var m = root.defaultSink?.audio?.muted
+            if (v !== undefined && v !== null && !isNaN(v)) root.volume = v
+            if (m !== undefined && m !== null) root.muted = m
+            Qt.callLater(function() { audioCard.forceActiveFocus() })
+        } else {
+            volDebounce.stop()
+            statusClear.stop()
+            availPoll.stop()
+        }
+    }
+
     Timer {
-        id: hotplugPoll
-        interval: 1500
+        id: availPoll
+        interval: 3000
         repeat: true
         running: root.visible
         onTriggered: {
-            if (!root.working && !deviceListProc.running) {
-                root._deviceBuf = ""
-                deviceListProc.running = true
+            if (!sinkAvailProc.running) {
+                sinkAvailBuf = ""
+                sinkAvailProc.running = true
+            }
+            if (!sourceAvailProc.running) {
+                sourceAvailBuf = ""
+                sourceAvailProc.running = true
             }
         }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
-    function loadAudio() {
-        root._deviceBuf = ""
-        root._volBuf = ""
-        working = true
-        volProc.running        = true
-        deviceListProc.running = true
-    }
-
     function volIcon(v, m) {
         if (m || v === 0) return "󰝟"
         if (v < 0.33) return "󰕿"
@@ -141,8 +184,9 @@ PanelWindow {
         return "󰍹"
     }
 
-    function formatName(name) {
-        var n = name
+    function formatDesc(desc, name) {
+        if (desc && desc !== "" && desc !== "(null)") return desc
+        var n = name || ""
         n = n.replace(/^alsa_(output|input)\./, "")
         n = n.replace(/^bluez_(output|input)\.[0-9A-Fa-f:_]+$/, "Bluetooth")
         n = n.replace(/^bluez_(output|input)\./, "Bluetooth: ")
@@ -152,149 +196,227 @@ PanelWindow {
         return n.replace(/\b\w/g, function(c) { return c.toUpperCase() })
     }
 
-    // ── Processes ─────────────────────────────────────────────────────────
-    property string _volBuf: ""
-    Process {
-        id: volProc
-        command: ["bash", "-c", "wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._volBuf += d }
-        onExited: {
-            var s = root._volBuf.trim()
-            root._volBuf = ""
-            var m = s.match(/Volume:\s*([\d.]+)(\s*\[MUTED\])?/)
-            if (m) {
-                root.volume = parseFloat(m[1])
-                root.muted  = !!m[2]
-            }
-            root.working = false
-        }
+    function toggleMute() {
+        muteProc.running = true
     }
-
-    Process { id: setVolProc; command: ["bash", "-c", ""] }
 
     Process {
         id: muteProc
         command: ["bash", "-c", "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle 2>/dev/null"]
-        onExited: volProc.running = true
     }
 
-    function toggleMute() { muteProc.running = true }
+    // ── Port availability (hide unavailable DP/HDMI entries) ─────────────
+    property string sinkAvailBuf: ""
+    Process {
+        id: sinkAvailProc
+        command: ["bash", "-c", "pactl --format=json list sinks 2>/dev/null"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => root.sinkAvailBuf += d + "\n" }
+        onExited: {
+            try {
+                var data = JSON.parse(root.sinkAvailBuf)
+                var map = ({})
+                for (var i = 0; i < data.length; i++) {
+                    var s = data[i]
+                    var name = s.name || ""
+                    if (!name) continue
+                    var ports = s.ports || []
+                    if (ports.length === 0) {
+                        map[name] = true
+                        continue
+                    }
+                    var ok = false
+                    for (var p = 0; p < ports.length; p++) {
+                        var av = (ports[p].availability || "").toString().toLowerCase()
+                        if (av !== "no disponible" && av !== "not available") {
+                            ok = true
+                            break
+                        }
+                    }
+                    map[name] = ok
+                }
+                root._sinkAvailable = map
+                root._nodesRevision++
+            } catch(e) {}
+            root.sinkAvailBuf = ""
+        }
+    }
+
+    property string sourceAvailBuf: ""
+    Process {
+        id: sourceAvailProc
+        command: ["bash", "-c", "pactl --format=json list sources 2>/dev/null"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => root.sourceAvailBuf += d + "\n" }
+        onExited: {
+            try {
+                var data = JSON.parse(root.sourceAvailBuf)
+                var map = ({})
+                for (var i = 0; i < data.length; i++) {
+                    var s = data[i]
+                    var name = s.name || ""
+                    if (!name || name.endsWith(".monitor")) continue
+                    var ports = s.ports || []
+                    if (ports.length === 0) {
+                        map[name] = true
+                        continue
+                    }
+                    var ok = false
+                    for (var p = 0; p < ports.length; p++) {
+                        var av = (ports[p].availability || "").toString().toLowerCase()
+                        if (av !== "no disponible" && av !== "not available") {
+                            ok = true
+                            break
+                        }
+                    }
+                    map[name] = ok
+                }
+                root._sourceAvailable = map
+                root._nodesRevision++
+            } catch(e) {}
+            root.sourceAvailBuf = ""
+        }
+    }
 
     function setVolume(v) {
-        root.volume     = Math.max(0, Math.min(1.5, v))
-        root._pendingVol = root.volume
+        var clamped = Math.max(0, Math.min(1.5, v))
+        root.volume = clamped
+        root._pendingVol = clamped
+        if (root.defaultSinkName !== "") {
+            var map = ({})
+            Object.assign(map, root.sinkVolumes)
+            map[root.defaultSinkName] = clamped
+            root.sinkVolumes = map
+        }
         volDebounce.restart()
     }
 
-    property string _deviceBuf: ""
+    // ── Build filtered lists from Pipewire.nodes ──────────────────────────
+    property int _nodesRevision: 0
+
+    property string _wpctlBuf: ""
     Process {
-        id: deviceListProc
-        command: ["python3", root._scriptsPath + "/audio-devices.py"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._deviceBuf += d + "\n" }
+        id: wpctlRefreshProc
+        command: ["bash", "-c", "wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._wpctlBuf += d }
         onExited: {
-            var lines       = root._deviceBuf.trim().split("\n")
-            root._deviceBuf = ""
-            var newSinks    = []
-            var newSources  = []
-            var parsedCount = 0
-            for (var i = 0; i < lines.length; i++) {
-                var l = lines[i].trim()
-                if (!l) continue
-                // format: SINK:active:stable_name:Human Description
-                var p0      = l.indexOf(":")
-                if (p0 <= 0) continue
-                var section = l.slice(0, p0)
-                var rest    = l.slice(p0 + 1)
-                var p1      = rest.indexOf(":")
-                if (p1 < 0) continue
-                var active  = rest.slice(0, p1) === "1"
-                var rest2   = rest.slice(p1 + 1)
-                var p2      = rest2.indexOf(":")
-                if (p2 < 0) continue
-                var id      = rest2.slice(0, p2).trim()    // stable pactl name
-                var display = rest2.slice(p2 + 1).trim()   // human-readable description
-                if (!id) continue
-                parsedCount++
-                var entry = {
-                    id:          id,
-                    name:        id,
-                    displayName: display || root.formatName(id),
-                    icon:        section === "SINK" ? root.sinkIcon(id) : root.sourceIcon(id),
-                    active:      active
-                }
-                if (section === "SINK")        newSinks.push(entry)
-                else if (section === "SOURCE") newSources.push(entry)
-            }
-
-            if (parsedCount === 0) {
-                root._emptyDeviceReads++
-                if (root._hasDeviceSuccessfulRead && root._emptyDeviceReads < 3) {
-                    return
-                }
-            } else {
-                root._hasDeviceSuccessfulRead = true
-                root._emptyDeviceReads = 0
-            }
-
-            var toKey = function(arr) { return arr.map(function(x) { return x.id + (x.active ? '1' : '0') }).join(',') }
-            if (toKey(newSinks)   !== toKey(root.sinks))   root.sinks   = newSinks
-            if (toKey(newSources) !== toKey(root.sources)) root.sources = newSources
-        }
-    }
-
-    Process {
-        id: setSinkProc
-        command: ["bash", "-c", ""]
-        onExited: (ec) => {
-            if (ec === 0) {
-                reloadDelay.restart()
-            } else {
-                root.statusMsg = "Error al cambiar salida"
+            var m = root._wpctlBuf.trim().match(/Volume:\s*([\d.]+)(\s*\[MUTED\])?/)
+            root._wpctlBuf = ""
+            if (m) {
+                var v = parseFloat(m[1])
+                if (!isNaN(v)) root.volume = v
+                root.muted = !!m[2]
             }
         }
     }
-    function sanitizeName(name) {
-        return name.replace(/[^a-zA-Z0-9._-]/g, "")
+
+    Connections {
+        target: Pipewire
+        function onDefaultAudioSinkChanged() {
+            root._nodesRevision++
+            // New sink may not be bound yet — wpctl is the reliable fallback
+            if (!wpctlRefreshProc.running) {
+                root._wpctlBuf = ""
+                wpctlRefreshProc.running = true
+            }
+        }
+        function onDefaultAudioSourceChanged() { root._nodesRevision++ }
+        function onReadyChanged()              { root._nodesRevision++ }
+    }
+
+    Connections {
+        target: Pipewire.nodes
+        function onObjectInsertedPost(object, index) { root._nodesRevision++ }
+        function onObjectRemovedPost(object, index)  { root._nodesRevision++ }
+    }
+
+    // Track node changes for revision bumps
+    Instantiator {
+        model: Pipewire.nodes
+        delegate: Connections {
+            required property var modelData
+            target: modelData.audio
+            function onVolumesChanged() { root._nodesRevision++ }
+            function onMutedChanged()   { root._nodesRevision++ }
+        }
+    }
+
+    property var sinks: {
+        _nodesRevision
+        var all = Pipewire.nodes.values
+        var out = []
+        var activeName = root.defaultSink?.name || ""
+        for (var i = 0; i < all.length; i++) {
+            var node = all[i]
+            if (!node || !node.isSink || node.isStream) continue
+            var name = node.name || ""
+            if (name === "" || name.endsWith(".monitor")) continue
+            // Only include real pactl sinks; excludes Dummy/Freewheel/MIDI bridge nodes
+            if (root._sinkAvailable[name] !== true) continue
+            out.push({
+                id:          name,
+                displayName: formatDesc(node.description, name),
+                icon:        sinkIcon(name),
+                active:      name === activeName,
+                node:        node
+            })
+        }
+        return out
+    }
+
+    property var sources: {
+        _nodesRevision
+        var all = Pipewire.nodes.values
+        var out = []
+        var activeName = root.defaultSource?.name || ""
+        for (var i = 0; i < all.length; i++) {
+            var node = all[i]
+            if (!node || node.isSink || node.isStream) continue
+            var name = node.name || ""
+            if (name === "" || name.endsWith(".monitor")) continue
+            // Only include real pactl sources; excludes bridge/virtual nodes
+            if (root._sourceAvailable[name] !== true) continue
+            out.push({
+                id:          name,
+                displayName: formatDesc(node.description, name),
+                icon:        sourceIcon(name),
+                active:      name === activeName,
+                node:        node
+            })
+        }
+        return out
     }
 
     function setDefaultSink(name) {
-        // Optimistically mark new sink as active for instant feedback
-        var updated = []
-        for (var i = 0; i < root.sinks.length; i++) {
-            var s = root.sinks[i]
-            updated.push({ id: s.id, name: s.name, displayName: s.displayName,
-                           icon: s.icon, active: s.id === name })
+        if (root.defaultSinkName !== "" && !isNaN(root.volume)) {
+            var current = ({})
+            Object.assign(current, root.sinkVolumes)
+            current[root.defaultSinkName] = root.volume
+            root.sinkVolumes = current
         }
-        root.sinks = updated
-        var safeName = sanitizeName(name)
-        setSinkProc.command = ["bash", "-c", "pactl set-default-sink " + safeName + " 2>/dev/null"]
-        setSinkProc.running = true
-    }
-
-    Process {
-        id: setSourceProc
-        command: ["bash", "-c", ""]
-        onExited: (ec) => {
-            if (ec === 0) {
-                root.statusMsg = "✓ Entrada cambiada"
-                reloadDelay.restart()
-            } else {
-                root.statusMsg = "✗ Error al cambiar entrada"
+        root._pendingSinkName = name
+        for (var i = 0; i < sinks.length; i++) {
+            if (sinks[i].id === name && sinks[i].node) {
+                var safe = name.replace(/'/g, "'\\''")
+                setSinkProc.command = ["bash", "-c",
+                    "pactl set-default-sink '" + safe + "' 2>/dev/null; "
+                    + "pactl list short sink-inputs | awk '{print $1}' | xargs -r -I{} pactl move-sink-input {} '" + safe + "' 2>/dev/null"]
+                setSinkProc.running = true
+                applySinkVolumeTimer.restart()
+                break
             }
         }
     }
+
     function setDefaultSource(name) {
-        // Optimistically mark new source as active for instant feedback
-        var updated = []
-        for (var i = 0; i < root.sources.length; i++) {
-            var s = root.sources[i]
-            updated.push({ id: s.id, name: s.name, displayName: s.displayName,
-                           icon: s.icon, active: s.id === name })
+        for (var i = 0; i < sources.length; i++) {
+            if (sources[i].id === name && sources[i].node) {
+                var safe = name.replace(/'/g, "'\\''")
+                setSourceProc.command = ["bash", "-c",
+                    "pactl set-default-source '" + safe + "' 2>/dev/null; "
+                    + "pactl list short source-outputs | awk '{print $1}' | xargs -r -I{} pactl move-source-output {} '" + safe + "' 2>/dev/null"]
+                setSourceProc.running = true
+                break
+            }
         }
-        root.sources = updated
-        var safeName = sanitizeName(name)
-        setSourceProc.command = ["bash", "-c", "pactl set-default-source " + safeName + " 2>/dev/null"]
-        setSourceProc.running = true
     }
 
     // ── Backdrop ──────────────────────────────────────────────────────────
@@ -351,11 +473,7 @@ PanelWindow {
                             font.pixelSize: 14; font.weight: Font.DemiBold; color: Theme.text
                         }
                         Text {
-                            text: {
-                                for (var i = 0; i < root.sinks.length; i++)
-                                    if (root.sinks[i].active) return root.sinks[i].displayName
-                                return root.working ? "Cargando..." : "Sin dispositivo"
-                            }
+                            text: root.defaultSink?.description ?? "Sin dispositivo"
                             font.pixelSize: 11; color: Theme.muted1
                             elide: Text.ElideRight
                             width: 220
@@ -363,27 +481,9 @@ PanelWindow {
                     }
                 }
 
-                // Right controls
                 Row {
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                     spacing: 8
-
-                    // Refresh
-                    Rectangle {
-                        width: 28; height: 28; radius: 8
-                        color: refreshMA.containsMouse ? Theme.surface3 : Theme.surface2
-                        Behavior on color { ColorAnimation { duration: 100 } }
-                        Text {
-                            anchors.centerIn: parent; text: "󰑓"; font.pixelSize: 14
-                            color: root.working ? Theme.accent : Theme.muted1
-                            RotationAnimation on rotation {
-                                running: root.working; loops: Animation.Infinite
-                                from: 0; to: 360; duration: 1200
-                            }
-                        }
-                        MouseArea { id: refreshMA; anchors.fill: parent; hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor; onClicked: root.loadAudio() }
-                    }
 
                     // Close
                     Rectangle {
@@ -540,6 +640,7 @@ PanelWindow {
                             model: root.sinks
 
                             Rectangle {
+                                id: sinkDelegate
                                 required property var modelData
                                 property bool hovered: false
 
@@ -567,8 +668,8 @@ PanelWindow {
                                 MouseArea {
                                     anchors.fill: parent; hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onEntered: parent.hovered = true
-                                    onExited:  parent.hovered = false
+                                    onEntered: sinkDelegate.hovered = true
+                                    onExited:  sinkDelegate.hovered = false
                                     onClicked: { if (!modelData.active) root.setDefaultSink(modelData.id) }
                                 }
                             }
@@ -641,6 +742,7 @@ PanelWindow {
                             model: root.sources
 
                             Rectangle {
+                                id: sourceDelegate
                                 required property var modelData
                                 property bool hovered: false
 
@@ -668,8 +770,8 @@ PanelWindow {
                                 MouseArea {
                                     anchors.fill: parent; hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onEntered: parent.hovered = true
-                                    onExited:  parent.hovered = false
+                                    onEntered: sourceDelegate.hovered = true
+                                    onExited:  sourceDelegate.hovered = false
                                     onClicked: { if (!modelData.active) root.setDefaultSource(modelData.id) }
                                 }
                             }

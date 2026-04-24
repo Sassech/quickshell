@@ -869,7 +869,6 @@ PanelWindow {
                                                     if (needsPw && pw === "") {
                                                         if (netRow.isSaved) {
                                                             root.working = true
-                                                            root.statusMsg = "Obteniendo contraseña guardada..."
                                                             savedPwProc.ssid = modelData.ssid
                                                             savedPwProc.index = index
                                                             savedPwProc.command = ["bash", "-c",

@@ -1,6 +1,5 @@
 import QtQuick
 import QtQml
-import Quickshell
 import Quickshell.Bluetooth
 import "../Components"
 

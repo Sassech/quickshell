@@ -25,11 +25,9 @@ Rectangle {
         checkNtp();
     }
 
-    Timer {
-        interval: 2000
-        running: true
-        repeat: true
-        onTriggered: loadPrefs()
+    // ── Reload prefs only when explicitly requested (no timer) ────────────
+    function requestPrefsReload() {
+        loadPrefs()
     }
 
     Process {

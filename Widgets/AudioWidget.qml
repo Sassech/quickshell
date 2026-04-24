@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell.Io
+import Quickshell.Services.Pipewire
 import "../Components"
 
 Item {
@@ -9,35 +10,63 @@ Item {
     implicitWidth:  pill.width
     implicitHeight: 26
 
-    property real   volume: 0.75
-    property bool   muted:  false
-    property string _buf:   ""
+    readonly property var sink: Pipewire.defaultAudioSink
+    property real volume: 0.75
+    property bool muted: false
+
+    // ── Bind the sink node — REQUIRED for .audio.volume/.muted to be valid ──
+    PwObjectTracker {
+        objects: [root.sink]
+    }
+
+    // ── Sync from PipeWire (instant, event-driven) ──────────────────────
+    Connections {
+        target: root.sink?.audio ?? null
+        function onVolumesChanged() {
+            var v = root.sink?.audio?.volume
+            if (v !== undefined && v !== null && !isNaN(v)) root.volume = v
+        }
+        function onMutedChanged() {
+            var m = root.sink?.audio?.muted
+            if (m !== undefined && m !== null) root.muted = m
+        }
+    }
+
+    // ── Refresh on default sink change ──────────────────────────────────
+    // PipeWire may briefly return null during sink switch, so we use wpctl
+    // as a reliable fallback to get the real volume of the new default sink.
+    Connections {
+        target: Pipewire
+        function onDefaultAudioSinkChanged() {
+            if (!wpctlRefresh.running) {
+                root._buf = ""
+                wpctlRefresh.running = true
+            }
+        }
+    }
+
+    // ── wpctl fallback: read at startup + on sink change ────────────────
+    property string _buf: ""
+    Process {
+        id: wpctlRefresh
+        command: ["bash", "-c", "wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._buf += d }
+        onExited: {
+            var m = root._buf.trim().match(/Volume:\s*([\d.]+)(\s*\[MUTED\])?/)
+            root._buf = ""
+            if (m) {
+                var v = parseFloat(m[1])
+                if (!isNaN(v)) root.volume = v
+                root.muted = !!m[2]
+            }
+        }
+    }
 
     function volIcon() {
         if (muted || volume === 0) return "󰝟"
         if (volume < 0.33) return "󰕿"
         if (volume < 0.67) return "󰖀"
         return "󰕾"
-    }
-
-    Timer {
-        interval: 3000; running: true; repeat: true; triggeredOnStart: true
-        onTriggered: pollProc.running = true
-    }
-
-    Process {
-        id: pollProc
-        command: ["bash", "-c", "wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._buf += d }
-        onExited: {
-            var s = root._buf.trim()
-            root._buf = ""
-            var m = s.match(/Volume:\s*([\d.]+)(\s*\[MUTED\])?/)
-            if (m) {
-                root.volume = parseFloat(m[1])
-                root.muted  = !!m[2]
-            }
-        }
     }
 
     Rectangle {

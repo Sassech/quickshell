@@ -21,32 +21,20 @@ PanelWindow {
 
     property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
 
-    // Fan properties
-    property int fan1Rpm: 0
-    property int fan2Rpm: 0
-    property int fan1Percent: 0
-    property int fan2Percent: 0
-    property int cpuTemp: 0
-    property int gpuTemp: 0
-    property string fanProfile: ""
-    property bool fanAvailable: false
+    // ── Read fan data from SysData (backend) ────────────────────────────
+    property int fan1Rpm: SysData.fan1Rpm
+    property int fan2Rpm: SysData.fan2Rpm
+    property int fan1Percent: SysData.fan1Percent
+    property int fan2Percent: SysData.fan2Percent
+    property int cpuTemp: SysData.fanCpuTemp
+    property int gpuTemp: SysData.fanGpuTemp
+    property string fanProfile: SysData.fanProfile
+    property bool fanAvailable: SysData.fanAvailable
 
     property bool applying: false
 
     onVisibleChanged: {
-        if (visible) {
-            root.fanAvailable = false
-            detectProc.running = true
-        }
-    }
-
-    Timer {
-        interval: 2000
-        running: root.visible
-        repeat: true
-        onTriggered: {
-            refreshFanFiles()
-        }
+        // Data comes from SysData (backend), no need to spawn processes
     }
 
     // Fan functions
@@ -72,111 +60,11 @@ PanelWindow {
         return Theme.accent
     }
 
-    function refreshFanFiles() {
-        fanRpmProc.running = true
-        fanPercentProc.running = true
-        fanTempProc.running = true
-        fanProfileProc.running = true
-    }
-
-    // Detect fan availability
-    property string _detectBuf: ""
-    Process {
-        id: detectProc
-        command: ["sh", "-c",
-            "if [ -r /sys/class/hwmon/hwmon5/fan1_input ]; then " +
-            "echo \"available\"; else echo \"none\"; fi"]
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => root._detectBuf += data
-        }
-        onExited: {
-            var v = root._detectBuf.trim()
-            root._detectBuf = ""
-            if (v === "available") {
-                root.fanAvailable = true
-                refreshFanFiles()
-            } else {
-                root.fanAvailable = false
-            }
-        }
-    }
-
-    // Fan processes
-    property string _fanRpmBuf: ""
-    Process {
-        id: fanRpmProc
-        command: [root._scriptsPath + "/fan-control.sh", "get_rpm"]
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => root._fanRpmBuf += data
-        }
-        onExited: {
-            var parts = root._fanRpmBuf.trim().split(",")
-            if (parts.length >= 2) {
-                root.fan1Rpm = parseInt(parts[0]) || 0
-                root.fan2Rpm = parseInt(parts[1]) || 0
-                root.fanAvailable = root.fan1Rpm > 0 || root.fan2Rpm > 0
-            }
-            root._fanRpmBuf = ""
-        }
-    }
-
-    property string _fanPercentBuf: ""
-    Process {
-        id: fanPercentProc
-        command: [root._scriptsPath + "/fan-control.sh", "get_percent"]
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => root._fanPercentBuf += data
-        }
-        onExited: {
-            var parts = root._fanPercentBuf.trim().split(",")
-            if (parts.length >= 2) {
-                root.fan1Percent = parseInt(parts[0]) || 0
-                root.fan2Percent = parseInt(parts[1]) || 0
-            }
-            root._fanPercentBuf = ""
-        }
-    }
-
-    property string _fanTempBuf: ""
-    Process {
-        id: fanTempProc
-        command: [root._scriptsPath + "/fan-control.sh", "get_temp"]
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => root._fanTempBuf += data
-        }
-        onExited: {
-            var parts = root._fanTempBuf.trim().split(",")
-            if (parts.length >= 2) {
-                root.cpuTemp = parseInt(parts[0]) || 0
-                root.gpuTemp = parseInt(parts[1]) || 0
-            }
-            root._fanTempBuf = ""
-        }
-    }
-
-    property string _fanProfileBuf: ""
-    Process {
-        id: fanProfileProc
-        command: [root._scriptsPath + "/fan-control.sh", "get_profile"]
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => root._fanProfileBuf += data
-        }
-        onExited: {
-            root.fanProfile = root._fanProfileBuf.trim()
-            root._fanProfileBuf = ""
-        }
-    }
-
+    // ── SET operations still use fan-control.sh ──────────────────────
     Process {
         id: fanApplyProc
         onExited: {
             root.applying = false
-            refreshFanFiles()
         }
     }
 

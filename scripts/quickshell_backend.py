@@ -1,247 +1,428 @@
 #!/usr/bin/env python3
 """
-Quickshell Backend Service
+Quickshell System Data Backend
+===============================
+Single process that polls all system metrics and outputs JSON lines to stdout.
+Each line is a JSON object with a "t" (type) field.
 
-This service centralizes data fetching for various widgets (CPU, RAM, etc.)
-to improve performance and reduce redundant system calls.
-It writes updated data to dedicated FIFOs for QML components to consume.
+Types emitted:
+  cpu    — CPU usage %, temperature
+  ram    — RAM usage %, GB used/total/avail, swap %
+  gpu    — GPU usage %, temperature, name
+  disk   — Disk used/avail GB, usage %
+  net    — Network radio, connection, SSID, signal, down/up speeds
+  fan    — Fan RPMs, percents, temps, thermal profile
+
+Usage: python3 quickshell_backend.py
 """
 
 import json
 import os
-import sys
 import subprocess
-import time
+import sys
 import threading
-import signal
+import time
+import signal as signal_mod
 from datetime import datetime
 
-# --- Configuration ---
-LOG_FILE = "/tmp/qs-backend.log"
-CPU_FIFO = "/tmp/qs-cpu-fifo"
-RAM_FIFO = "/tmp/qs-ram-fifo"
-CPU_CURSOR_FILE = "/tmp/qs-cpu-cursor" # For dgop cursor management
+# ── Configuration ────────────────────────────────────────────────────────────
+POLL_CPU     = 4    # seconds
+POLL_RAM     = 4
+POLL_GPU     = 4
+POLL_DISK    = 30
+POLL_NET     = 3
+POLL_FAN     = 5
 
-POLL_INTERVAL_CPU = 2 # seconds
-POLL_INTERVAL_RAM = 3 # seconds
+# ── Fan sysfs paths (Alienware) ──────────────────────────────────────────────
+HWMON_SMM  = "/sys/class/hwmon/hwmon5"
+HWMON_AWCC = "/sys/class/hwmon/hwmon4"
+PLATFORM_PROFILE = "/sys/class/platform-profile/platform-profile-0"
 
-# --- Global State ---
 _running = True
 _cpu_cursor = ""
 
-# --- Helper Functions ---
+
 def _log(msg: str) -> None:
-    """Writes a log message to the LOG_FILE."""
-    try:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        with open(LOG_FILE, "a") as f:
-            f.write(f"[{timestamp}] [backend] {msg}\n")
-    except Exception as e:
-        # Fallback to stderr if logging to file fails
-        print(f"[{timestamp}] [backend] ERROR: Could not write to log file: {e} - {msg}", file=sys.stderr)
+    """Log to stderr (Quickshell picks it up)."""
+    ts = datetime.now().strftime("%H:%M:%S")
+    print(f"[{ts}] [backend] {msg}", file=sys.stderr, flush=True)
 
-def _run_cmd(cmd: list[str], timeout: int = 5) -> tuple[int, str, str]:
-    """Runs a subprocess command and returns (returncode, stdout, stderr)."""
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout
-        )
-        return result.returncode, result.stdout.strip(), result.stderr.strip()
-    except subprocess.TimeoutExpired:
-        _log(f"Command timed out: {' '.join(cmd)}")
-        return 1, "", "TimeoutExpired"
-    except FileNotFoundError:
-        _log(f"Command not found: {' '.join(cmd)}")
-        return 1, "", "FileNotFoundError"
-    except Exception as e:
-        _log(f"Error running command {' '.join(cmd)}: {e}")
-        return 1, "", str(e)
 
-def _write_to_fifo(fifo_path: str, content: str) -> None:
-    """Writes content to a named pipe (FIFO). Creates the FIFO if it doesn't exist."""
+def _emit(data: dict) -> None:
+    """Write a single JSON line to stdout (flushed)."""
     try:
-        if not os.path.exists(fifo_path):
-            os.mkfifo(fifo_path)
-        with open(fifo_path, "w") as f:
-            f.write(content + "\n")
-    except Exception as e:
-        _log(f"Error writing to FIFO {fifo_path}: {e}")
+        print(json.dumps(data, separators=(",", ":")), flush=True)
+    except BrokenPipeError:
+        global _running
+        _running = False
+    except Exception:
+        pass
 
-# --- Data Fetching Functions ---
-def _get_cpu_stats() -> dict:
-    """Fetches CPU usage and temperature using dgop."""
+
+def _read_sys(path: str) -> str:
+    """Read a sysfs file, return stripped content or empty string."""
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except Exception:
+        return ""
+
+
+def _run_cmd(cmd: list[str], timeout: int = 5) -> tuple[int, str]:
+    """Run a subprocess, return (rc, stdout)."""
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return r.returncode, r.stdout.strip()
+    except Exception:
+        return 1, ""
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DATA FETCHERS
+# ══════════════════════════════════════════════════════════════════════════════
+
+def fetch_cpu() -> dict:
     global _cpu_cursor
     cmd = ["dgop", "meta", "--modules", "cpu", "--json"]
     if _cpu_cursor:
         cmd.extend(["--cpu-cursor", _cpu_cursor])
 
-    returncode, stdout, stderr = _run_cmd(cmd, timeout=3)
-
-    if returncode != 0:
-        _log(f"dgop cpu command failed: {stderr}")
+    rc, out = _run_cmd(cmd, timeout=3)
+    if rc != 0 or not out:
         return {}
 
     try:
-        data = json.loads(stdout)
-        cpu_data = data.get('cpu', {})
-        usage = round(cpu_data.get('usage', 0))
-        temp = round(cpu_data.get('temperature', 0))
-        new_cursor = cpu_data.get('cursor', '')
-        if new_cursor:
-            _cpu_cursor = new_cursor
-            # Persist cursor to file in case of restart
-            with open(CPU_CURSOR_FILE, "w") as f:
-                f.write(new_cursor)
-        return {"usage": usage, "temperature": temp}
-    except json.JSONDecodeError as e:
-        _log(f"Error parsing dgop CPU JSON: {e} -> {stdout}")
-        return {}
-    except Exception as e:
-        _log(f"Unexpected error in _get_cpu_stats: {e}")
-        return {}
-
-def _get_ram_stats() -> dict:
-    """Fetches RAM statistics from /proc/meminfo."""
-    try:
-        with open("/proc/meminfo", "r") as f:
-            meminfo = f.read()
-
-        mem_total = 0
-        mem_avail = 0
-        mem_free = 0
-        swap_total = 0
-        swap_free = 0
-
-        for line in meminfo.splitlines():
-            if line.startswith("MemTotal:"):
-                mem_total = int(line.split()[1]) # kB
-            elif line.startswith("MemAvailable:"):
-                mem_avail = int(line.split()[1]) # kB
-            elif line.startswith("MemFree:"):
-                mem_free = int(line.split()[1]) # kB
-            elif line.startswith("SwapTotal:"):
-                swap_total = int(line.split()[1]) # kB
-            elif line.startswith("SwapFree:"):
-                swap_free = int(line.split()[1]) # kB
-
-        if mem_total <= 0:
+        d = json.loads(out)
+        c = d.get("cpu", {})
+        if "usage" not in c:
             return {}
+        usage = round(c.get("usage", 0))
+        temp  = round(c.get("temperature", 0))
+        cur   = c.get("cursor", "")
+        if cur:
+            _cpu_cursor = cur
+        return {"t": "cpu", "u": usage, "tmp": temp}
+    except Exception:
+        return {}
 
-        mem_used = mem_total - mem_avail
-        mem_percent = round((mem_used * 100) / mem_total) if mem_total > 0 else 0
-        mem_used_gb = mem_used / (1024 * 1024)
-        mem_total_gb = mem_total / (1024 * 1024)
-        mem_avail_gb = mem_avail / (1024 * 1024)
 
-        swap_used = swap_total - swap_free
-        swap_percent = round((swap_used * 100) / swap_total) if swap_total > 0 else 0
-
-        return {
-            "percent": mem_percent,
-            "used_gb": round(mem_used_gb, 1),
-            "total_gb": round(mem_total_gb, 1),
-            "avail_gb": round(mem_avail_gb, 1),
-            "swap_percent": swap_percent
-        }
+def fetch_ram() -> dict:
+    try:
+        with open("/proc/meminfo") as f:
+            lines = f.read()
     except FileNotFoundError:
-        _log("/proc/meminfo not found. Cannot get RAM stats.")
-        return {}
-    except Exception as e:
-        _log(f"Error getting RAM stats: {e}")
         return {}
 
-# --- Periodic Tasks ---
-def _cpu_task() -> None:
-    """Fetches and writes CPU stats to FIFO."""
-    while _running:
-        stats = _get_cpu_stats()
-        if stats:
-            content = f"{stats['usage']}\n{stats['temperature']}"
-            _write_to_fifo(CPU_FIFO, content)
-        time.sleep(POLL_INTERVAL_CPU)
+    mem_total = mem_avail = swap_total = swap_free = 0
+    for line in lines.splitlines():
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        key, val = parts[0], int(parts[1])
+        if key == "MemTotal:":
+            mem_total = val
+        elif key == "MemAvailable:":
+            mem_avail = val
+        elif key == "SwapTotal:":
+            swap_total = val
+        elif key == "SwapFree:":
+            swap_free = val
 
-def _ram_task() -> None:
-    """Fetches and writes RAM stats to FIFO."""
-    while _running:
-        stats = _get_ram_stats()
-        if stats:
-            content = (
-                f"{stats['percent']}\n"
-                f"{stats['used_gb']}\n"
-                f"{stats['total_gb']}\n"
-                f"{stats['avail_gb']}\n"
-                f"{stats['swap_percent']}"
-            )
-            _write_to_fifo(RAM_FIFO, content)
-        time.sleep(POLL_INTERVAL_RAM)
+    if mem_total <= 0 or mem_avail <= 0:
+        return {}
 
-# --- Main Service Logic ---
-def _cleanup() -> None:
-    """Cleans up FIFOs on exit."""
-    _log("Performing cleanup...")
-    for f in [CPU_FIFO, RAM_FIFO, CPU_CURSOR_FILE]:
-        if os.path.exists(f):
+    used = mem_total - mem_avail
+    return {
+        "t": "ram",
+        "p": round(used * 100 / mem_total),
+        "ug": round(used / 1048576, 1),
+        "tg": round(mem_total / 1048576, 1),
+        "ag": round(mem_avail / 1048576, 1),
+        "sp": round((swap_total - swap_free) * 100 / swap_total) if swap_total > 0 else 0,
+    }
+
+
+def fetch_gpu() -> dict:
+    # Try NVIDIA first
+    rc, out = _run_cmd(
+        ["nvidia-smi", "--query-gpu=utilization.gpu,temperature.gpu,name",
+         "--format=csv,noheader,nounits"],
+        timeout=3,
+    )
+    if rc == 0 and out and "failed" not in out.lower():
+        parts = out.split(", ")
+        if len(parts) >= 2:
+            pct = int(parts[0].strip() or "-1")
+            tmp = int(parts[1].strip() or "0")
+            name = parts[2].strip() if len(parts) > 2 else "NVIDIA"
+            name = name.replace("NVIDIA GeForce ", "").replace("GeForce ", "")
+            return {"t": "gpu", "u": pct, "tmp": tmp, "n": name}
+
+    # Fallback: sysfs (AMD/Intel)
+    pct, tmp, name = -1, 0, "GPU"
+    for card in sorted(os.listdir("/sys/class/drm")):
+        if not card.startswith("card"):
+            continue
+        cpath = f"/sys/class/drm/{card}"
+        vendor = _read_sys(f"{cpath}/device/vendor")
+        if "10de" in vendor:
+            name = "NVIDIA"
+        elif "8086" in vendor:
+            name = "Intel"
+        elif "1002" in vendor:
+            name = "AMD"
+
+        busy = _read_sys(f"{cpath}/device/gpu_busy_percent")
+        if busy:
             try:
-                os.remove(f)
-                _log(f"Removed {f}")
-            except OSError as e:
-                _log(f"Error removing {f}: {e}")
+                pct = int("".join(filter(str.isdigit, busy)))
+                break
+            except ValueError:
+                pass
+
+        freq = _read_sys(f"{cpath}/gt_act_freq_mhz") or _read_sys(f"{cpath}/gt_cur_freq_mhz")
+        maxf = _read_sys(f"{cpath}/gt_max_freq_mhz") or _read_sys(f"{cpath}/gt_RP0_freq_mhz")
+        if freq and maxf:
+            try:
+                pct = int(int(freq) * 100 / int(maxf))
+                break
+            except (ValueError, ZeroDivisionError):
+                pass
+
+    return {"t": "gpu", "u": pct, "tmp": tmp, "n": name}
+
+
+def fetch_disk() -> dict:
+    rc, out = _run_cmd(["dgop", "disk", "--json"], timeout=5)
+    if rc != 0 or not out:
+        return {}
+
+    try:
+        d = json.loads(out)
+    except Exception:
+        return {}
+
+    for m in d.get("mounts", []):
+        if m.get("mount") != "/":
+            continue
+        raw = m.get("used", "0G").strip()
+        num = float("".join(c for c in raw if c.isdigit() or c == ".") or "0")
+        if raw.upper().endswith("T"):
+            num *= 1024
+        elif raw.upper().endswith("M"):
+            num /= 1024
+        used_gb = round(num)
+
+        raw_a = m.get("avail", "0G").strip()
+        num_a = float("".join(c for c in raw_a if c.isdigit() or c == ".") or "0")
+        if raw_a.upper().endswith("T"):
+            num_a *= 1024
+        elif raw_a.upper().endswith("M"):
+            num_a /= 1024
+        avail_gb = round(num_a)
+
+        pct_str = m.get("percent", "0%").rstrip("%")
+        return {"t": "disk", "ug": used_gb, "ag": avail_gb, "p": int(pct_str)}
+
+    return {}
+
+
+def fetch_network(prev_rx: float, prev_tx: float) -> tuple[dict, float, float]:
+    """Returns (data_dict, new_rx, new_tx)."""
+    # Radio state
+    radio = "disabled"
+    rc, out = _run_cmd(["nmcli", "radio", "wifi"], timeout=3)
+    if rc == 0 and out:
+        radio = out.strip().lower()
+
+    # Connection info — single nmcli call
+    conn_type, ssid, signal_ = "none", "", 0
+    rc, out = _run_cmd(
+        ["env", "LANG=C", "nmcli", "-t", "-f", "TYPE,STATE,DEVICE,CONNECTION", "dev", "status"],
+        timeout=4,
+    )
+    if rc == 0 and out:
+        eth_iface = wifi_iface = ""
+        for line in out.splitlines():
+            parts = line.split(":")
+            if len(parts) < 4:
+                continue
+            dtype, state, device = parts[0], parts[1], parts[2]
+            if dtype == "ethernet" and state == "connected":
+                eth_iface = device
+            elif dtype == "wifi" and state == "connected":
+                wifi_iface = device
+
+        if eth_iface:
+            conn_type = "ethernet"
+        elif wifi_iface:
+            conn_type = "wifi"
+            # Get SSID + signal in one call (LANG=C ensures "yes" not "sí")
+            rc2, out2 = _run_cmd(
+                ["env", "LANG=C", "nmcli", "-t", "-f", "active,ssid,signal", "dev", "wifi", "list"],
+                timeout=4,
+            )
+            if rc2 == 0 and out2:
+                for wl in out2.splitlines():
+                    if wl.startswith("yes:"):
+                        wparts = wl.split(":")
+                        if len(wparts) >= 3:
+                            ssid = wparts[1]
+                            try:
+                                signal_ = int(wparts[2])
+                            except ValueError:
+                                pass
+                        break
+
+    # Speeds from /proc/net/dev
+    rx, tx = prev_rx, prev_tx
+    down_speed, up_speed = 0.0, 0.0
+    try:
+        # Find default interface
+        iface = ""
+        with open("/proc/net/route") as f:
+            for rl in f:
+                rparts = rl.split()
+                if len(rparts) > 4 and rparts[1] != "00000000" and rparts[3] == "0003":
+                    continue
+                if len(rparts) > 1 and rparts[1] == "00000000":
+                    iface = rparts[0]
+                    break
+        if not iface:
+            with open("/proc/net/dev") as f:
+                for dl in f.readlines()[2:]:
+                    if ":" in dl and not dl.strip().startswith("lo"):
+                        iface = dl.split(":")[0].strip()
+                        break
+
+        if iface:
+            with open("/proc/net/dev") as f:
+                for dl in f:
+                    if dl.startswith(f"{iface}:"):
+                        dparts = dl.split()
+                        if len(dparts) >= 10:
+                            rx = float(dparts[1])
+                            tx = float(dparts[9])
+                        break
+
+        if prev_rx >= 0:
+            down_speed = max(0, rx - prev_rx)
+            up_speed = max(0, tx - prev_tx)
+    except Exception:
+        pass
+
+    data = {
+        "t": "net",
+        "r": radio == "enabled",
+        "ct": conn_type,
+        "s": ssid,
+        "sg": signal_,
+        "ds": round(down_speed, 1),
+        "us": round(up_speed, 1),
+        "c": conn_type != "none",
+    }
+    return data, rx, tx
+
+
+def fetch_fan() -> dict:
+    rpm1 = _read_sys(f"{HWMON_SMM}/fan1_input")
+    rpm2 = _read_sys(f"{HWMON_SMM}/fan2_input")
+    max1 = _read_sys(f"{HWMON_SMM}/fan1_max") or "3700"
+    max2 = _read_sys(f"{HWMON_SMM}/fan2_max") or "4000"
+
+    r1 = int(rpm1) if rpm1 else 0
+    r2 = int(rpm2) if rpm2 else 0
+    m1 = int(max1) if max1 else 3700
+    m2 = int(max2) if max2 else 4000
+
+    p1 = round(r1 * 100 / m1) if m1 > 0 and r1 > 0 else 0
+    p2 = round(r2 * 100 / m2) if m2 > 0 and r2 > 0 else 0
+
+    # Temps
+    t1_raw = _read_sys(f"{HWMON_AWCC}/temp1_input")
+    t2_raw = _read_sys(f"{HWMON_AWCC}/temp2_input")
+    t1 = int(t1_raw) // 1000 if t1_raw else 0
+    t2 = int(t2_raw) // 1000 if t2_raw else 0
+
+    # Profile
+    profile = _read_sys(f"{PLATFORM_PROFILE}/profile")
+
+    avail = r1 > 0 or r2 > 0
+
+    return {
+        "t": "fan",
+        "r1": r1, "r2": r2,
+        "p1": p1, "p2": p2,
+        "t1": t1, "t2": t2,
+        "pr": profile,
+        "a": avail,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# WORKER THREADS
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _poll(fn, interval: int) -> None:
+    """Generic poller: call fn(), emit result, sleep interval."""
+    while _running:
+        data = fn()
+        if data:
+            _emit(data)
+        time.sleep(interval)
+
+
+def _poll_network() -> None:
+    """Network poller with state tracking for speed calculation."""
+    rx, tx = -1.0, -1.0
+    while _running:
+        data, rx, tx = fetch_network(rx, tx)
+        _emit(data)
+        time.sleep(POLL_NET)
+
 
 def _signal_handler(signum, frame) -> None:
-    """Handles termination signals."""
     global _running
-    _log(f"Received signal {signum}. Shutting down.")
     _running = False
 
+
 def main() -> None:
-    """Main function to start the backend service."""
-    global _cpu_cursor
+    global _cpu_cursor, _running
 
-    _log("Starting Quickshell Backend Service...")
+    _log("Starting system data backend...")
 
-    # Set up signal handlers for graceful shutdown
-    signal.signal(signal.SIGINT, _signal_handler)
-    signal.signal(signal.SIGTERM, _signal_handler)
+    signal_mod.signal(signal_mod.SIGINT, _signal_handler)
+    signal_mod.signal(signal_mod.SIGTERM, _signal_handler)
 
-    # Initialize CPU cursor from file if it exists
-    if os.path.exists(CPU_CURSOR_FILE):
+    # Restore CPU cursor
+    cursor_file = "/tmp/qs-cpu-cursor"
+    if os.path.exists(cursor_file):
         try:
-            with open(CPU_CURSOR_FILE, "r") as f:
+            with open(cursor_file) as f:
                 _cpu_cursor = f.read().strip()
-            _log(f"Initialized CPU cursor from file: {_cpu_cursor}")
-        except Exception as e:
-            _log(f"Error reading CPU cursor file: {e}")
+        except Exception:
+            pass
 
-    # Ensure FIFOs are created before starting threads
-    for fifo_path in [CPU_FIFO, RAM_FIFO]:
-        if os.path.exists(fifo_path):
-            os.remove(fifo_path) # Clean up old FIFOs
-        os.mkfifo(fifo_path)
-        _log(f"Created FIFO: {fifo_path}")
+    threads = [
+        threading.Thread(target=_poll, args=(fetch_cpu, POLL_CPU), daemon=True),
+        threading.Thread(target=_poll, args=(fetch_ram, POLL_RAM), daemon=True),
+        threading.Thread(target=_poll, args=(fetch_gpu, POLL_GPU), daemon=True),
+        threading.Thread(target=_poll, args=(fetch_disk, POLL_DISK), daemon=True),
+        threading.Thread(target=_poll_network, daemon=True),
+        threading.Thread(target=_poll, args=(fetch_fan, POLL_FAN), daemon=True),
+    ]
 
-    # Start periodic tasks in separate threads
-    cpu_thread = threading.Thread(target=_cpu_task, daemon=True)
-    ram_thread = threading.Thread(target=_ram_task, daemon=True)
+    for t in threads:
+        t.start()
 
-    cpu_thread.start()
-    ram_thread.start()
+    _log(f"Running {len(threads)} poller threads")
 
-    _log("Backend service running. Waiting for termination signal.")
-
-    # Keep main thread alive until shutdown
+    # Keep alive
     while _running:
         time.sleep(0.5)
 
-    # Threads are daemon, so they will exit when main thread exits.
-    # We could explicitly join them if needed for more complex cleanup.
-    # cpu_thread.join()
-    # ram_thread.join()
+    _log("Shutting down")
 
-    _cleanup()
-    _log("Quickshell Backend Service stopped.")
 
 if __name__ == "__main__":
     main()

@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Io
+import Quickshell.Services.Pipewire
 import "../Components"
 
 PanelWindow {
@@ -14,24 +16,68 @@ PanelWindow {
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     WlrLayershell.exclusionMode:  ExclusionMode.Ignore
 
-    // Anchored bottom-center, width just fits the card
     anchors.bottom: true
     implicitWidth:  296
     implicitHeight: 60
     margins.bottom: 48
 
-    // Center horizontally on the screen
-    // WlrLayershell.anchors: WlrAnchors.Top
-
     mask: Region { item: osdCard }
 
     // ── State ─────────────────────────────────────────────────────────────
-    property int  volumePct: 0     // 0–150
-    property bool muted:     false
+    readonly property var sink:   Pipewire.defaultAudioSink
+    property int  volumePct: 0
+    property bool muted: false
+    property string _buf: ""
 
-    function show(pct, isMuted) {
-        volumePct = Math.max(0, Math.min(150, pct))
-        muted     = isMuted
+    // ── Bind the sink node — REQUIRED for .audio.volume/.muted to be valid ──
+    PwObjectTracker {
+        objects: [root.sink]
+    }
+
+    Connections {
+        target: root.sink?.audio ?? null
+        function onVolumesChanged() {
+            var v = root.sink?.audio?.volume
+            if (v !== undefined && v !== null && !isNaN(v)) root.volumePct = Math.round(v * 100)
+        }
+        function onMutedChanged() {
+            var m = root.sink?.audio?.muted
+            if (m !== undefined && m !== null) root.muted = m
+        }
+    }
+
+    // ── Refresh on sink switch (node may not be bound yet) ──────────────
+    Connections {
+        target: Pipewire
+        function onDefaultAudioSinkChanged() {
+            if (!readVolProc.running) {
+                root._buf = ""
+                readVolProc.running = true
+            }
+        }
+    }
+
+    Process {
+        id: readVolProc
+        command: ["bash", "-c", "wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._buf += d }
+        onExited: {
+            var s = root._buf.trim()
+            root._buf = ""
+            var m = s.match(/Volume:\s*([\d.]+)(\s*\[MUTED\])?/)
+            if (m) {
+                var v = parseFloat(m[1])
+                if (!isNaN(v)) root.volumePct = Math.round(v * 100)
+                root.muted = !!m[2]
+            }
+        }
+    }
+
+    function show() {
+        if (!readVolProc.running) {
+            root._buf = ""
+            readVolProc.running = true
+        }
         if (!root.visible) {
             root.visible    = true
             osdCard.opacity = 1
