@@ -9,6 +9,8 @@ Rectangle {
     radius: 8
     color: ma.containsMouse ? Theme.surface3 : Theme.surface2
 
+    signal clicked()
+
     // ── Icon based on connection type ────────────────────────────────────
     property string networkIcon: {
         if (SysData.netConnectionType === "ethernet") return "󰈀"
@@ -124,6 +126,4 @@ Rectangle {
         cursorShape: Qt.PointingHandCursor
         onClicked: root.clicked()
     }
-
-    signal clicked()
 }
