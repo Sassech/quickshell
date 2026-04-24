@@ -173,7 +173,6 @@ PanelWindow {
                     text:           root.notifTitle
                     color:          Theme.text
                     font.pixelSize: 20
-                    font.family:    "JetBrains Mono"   // ← aquí
                     font.bold:      true
                     visible:        root.notifTitle.length > 0
                 }
