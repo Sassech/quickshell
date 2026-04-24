@@ -27,19 +27,7 @@ PanelWindow {
         left: true
         right: true
     }
-    // #ee → 93%
-    // #dd → 87%
-    // #cc → 80%
-    // #bb → 73%
-    // #aa → 67%
-    // #99 → 60%
-    // #88 → 53%
-    // #77 → 47%
-    // #66 → 40%
-    // #55 → 33%
-    // #44 → 27%
-    // #33 → 20%   
-    implicitHeight: 30    // #ff → 100% (sólido)
+    implicitHeight: 30
     color: Theme.cardBg2
     
     Item {
