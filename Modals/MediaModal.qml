@@ -226,7 +226,7 @@ PanelWindow {
                         text: root.hasPlayer ? (root.player.trackTitle ?? "—") : "No media"
                         color: Theme.text
                         font.pixelSize: 15
-                        font.weight: Font.SemiBold
+                        font.weight: Font.DemiBold
                         elide: Text.ElideRight
 
                         Behavior on text {
