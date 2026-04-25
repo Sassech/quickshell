@@ -31,7 +31,7 @@ Rectangle {
         stdout: SplitParser {
             splitMarker: ""
             onRead: data => {
-                var v = data.trim()
+                const v = data.trim()
                 if (v) root.layout = v.substring(0, 3).toUpperCase()
             }
         }
@@ -44,7 +44,7 @@ Rectangle {
             "localectl status 2>/dev/null | awk '/System Locale/{print $3}' | cut -d= -f2 | cut -d_ -f1"]
         stdout: SplitParser {
             splitMarker: ""
-            onRead: data => { var v = data.trim(); if (v) root.locale = v.toUpperCase() }
+            onRead: data => { const v = data.trim(); if (v) root.locale = v.toUpperCase() }
         }
         Component.onCompleted: running = true
     }

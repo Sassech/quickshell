@@ -57,7 +57,7 @@ Rectangle {
             onRead: data => root._countBuf = data
         }
         onExited: {
-            var n = parseInt(root._countBuf.trim())
+            const n = parseInt(root._countBuf.trim())
             if (!isNaN(n)) root.entryCount = n
         }
     }

@@ -124,7 +124,7 @@ PanelWindow {
             onRead: data => root._detectBuf += data
         }
         onExited: {
-            var v = root._detectBuf.trim()
+            const v = root._detectBuf.trim()
             root._detectBuf = ""
             if (v && v.indexOf("|") > 0) {
                 var parts = v.split("|")

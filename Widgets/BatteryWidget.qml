@@ -90,7 +90,7 @@ Rectangle {
             onRead: data => root._detectBuf += data
         }
         onExited: {
-            var v = root._detectBuf.trim()
+            const v = root._detectBuf.trim()
             root._detectBuf = ""
             if (v) {
                 root.batteryPath = "/sys/class/power_supply/" + v
@@ -114,7 +114,7 @@ Rectangle {
             onRead: data => root._capBuf += data
         }
         onExited: {
-            var v = parseInt(root._capBuf.trim())
+            const v = parseInt(root._capBuf.trim())
             if (!isNaN(v)) root.batteryLevel = v
             root._capBuf = ""
         }
@@ -130,7 +130,7 @@ Rectangle {
             onRead: data => root._statusBuf += data
         }
         onExited: {
-            var s = root._statusBuf.trim()
+            const s = root._statusBuf.trim()
             root.batteryStatus = s
             root.isCharging = (s === "Charging")
             root._statusBuf = ""

@@ -26,7 +26,7 @@ ShellRoot {
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => {
-                var line = data.trim()
+                const line = data.trim()
                 if (!line) return
                 try {
                     SysData.dispatch(JSON.parse(line))
@@ -82,37 +82,13 @@ ShellRoot {
     }
 
     function getScreenFromMonName(monName) {
-        var name = monName.trim()
+        const name = monName.trim()
         for (var i = 0; i < Quickshell.screens.length; i++) {
             if (Quickshell.screens[i].name === name) {
                 return Quickshell.screens[i]
             }
         }
         return Quickshell.screens[0]
-    }
-
-    // Shared FIFO command builder — simplified hyprctl focused monitor
-    function mkFifoCmd(fifoPath) {
-        return [
-            "bash", "-c",
-            "rm -f " + fifoPath + "; mkfifo " + fifoPath + "; " +
-            "exec 3<>" + fifoPath + "; " +
-            "while IFS= read -r _ <&3; do " +
-            "hyprctl -j monitors 2>/dev/null | python3 -c \"import json,sys; ms=json.load(sys.stdin); print(next((m['name'] for m in ms if m.get('focused')), ms[0]['name']))\"; " +
-            "done"
-        ]
-    }
-
-    // Shared FIFO reader — resolves screen name and calls callback
-    function fifoScreenReader(monName, broadcastFn) {
-        var name = monName.trim()
-        for (var i = 0; i < Quickshell.screens.length; i++) {
-            if (Quickshell.screens[i].name === name) {
-                broadcastFn(Quickshell.screens[i])
-                return
-            }
-        }
-        broadcastFn(Quickshell.screens[0])
     }
 
     function _containsAny(text, needles) {

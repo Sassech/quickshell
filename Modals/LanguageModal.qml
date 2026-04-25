@@ -175,7 +175,7 @@ PanelWindow {
         stdout: SplitParser {
             splitMarker: ""
             onRead: data => {
-                var v = data.trim()
+                const v = data.trim()
                 if (v) root.currentLayout = v
             }
         }
@@ -187,7 +187,7 @@ PanelWindow {
             "localectl status 2>/dev/null | awk -F'LANG=' '/System Locale/{print $2}' | awk '{print $1}'"]
         stdout: SplitParser {
             splitMarker: ""
-            onRead: data => { var v = data.trim(); if (v) root.currentLocale = v }
+            onRead: data => { const v = data.trim(); if (v) root.currentLocale = v }
         }
     }
 
@@ -197,7 +197,7 @@ PanelWindow {
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => {
-                var v = data.trim()
+                const v = data.trim()
                 if (v) root._layoutsRaw.push(v)
             }
         }
@@ -223,7 +223,7 @@ PanelWindow {
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => {
-                var v = data.trim()
+                const v = data.trim()
                 if (v) root._localesRaw.push(v)
             }
         }

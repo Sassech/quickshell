@@ -64,7 +64,7 @@ PanelWindow {
 
     // ── Helpers ───────────────────────────────────────────────────────────
     function sinkIcon(name) {
-        var n = name.toLowerCase()
+        const n = name.toLowerCase()
         if (n.includes("hdmi") || n.includes("displayport") || n.includes("iec958")) return "󰡁"
         if (n.includes("bluez") || n.includes("bluetooth")) return "󰋋"
         if (n.includes("usb"))                               return "󱊣"
@@ -73,7 +73,7 @@ PanelWindow {
     }
 
     function sourceIcon(name) {
-        var n = name.toLowerCase()
+        const n = name.toLowerCase()
         if (n.includes("bluez") || n.includes("bluetooth")) return "󰋋"
         if (n.includes("usb"))  return "󱊣"
         if (n.includes("webcam") || n.includes("camera"))   return "󰄀"
@@ -82,7 +82,7 @@ PanelWindow {
 
     function formatDesc(desc, name) {
         if (desc && desc !== "" && desc !== "(null)") return desc
-        var n = name || ""
+        const n = name || ""
         n = n.replace(/^alsa_(output|input)\./, "")
         n = n.replace(/^bluez_(output|input)\.[0-9A-Fa-f:_]+$/, "Bluetooth")
         n = n.replace(/^bluez_(output|input)\./, "Bluetooth: ")

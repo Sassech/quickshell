@@ -36,7 +36,7 @@ Rectangle {
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => {
-                var v = data.trim()
+                const v = data.trim()
                 if (v) root._sessionId = v
             }
         }

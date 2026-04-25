@@ -37,11 +37,11 @@ PanelWindow {
     Connections {
         target: root.sink?.audio ?? null
         function onVolumesChanged() {
-            var v = root.sink?.audio?.volume
+            const v = root.sink?.audio?.volume
             if (v !== undefined && v !== null && !isNaN(v)) root.volumePct = Math.round(v * 100)
         }
         function onMutedChanged() {
-            var m = root.sink?.audio?.muted
+            const m = root.sink?.audio?.muted
             if (m !== undefined && m !== null) root.muted = m
         }
     }
@@ -62,11 +62,11 @@ PanelWindow {
         command: ["bash", "-c", "wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._buf += d }
         onExited: {
-            var s = root._buf.trim()
+            const s = root._buf.trim()
             root._buf = ""
-            var m = s.match(/Volume:\s*([\d.]+)(\s*\[MUTED\])?/)
+            const m = s.match(/Volume:\s*([\d.]+)(\s*\[MUTED\])?/)
             if (m) {
-                var v = parseFloat(m[1])
+                const v = parseFloat(m[1])
                 if (!isNaN(v)) root.volumePct = Math.round(v * 100)
                 root.muted = !!m[2]
             }
