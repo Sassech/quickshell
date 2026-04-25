@@ -277,7 +277,7 @@ PanelWindow {
                                     height: parent.height; radius: parent.radius
                                     width: root.nvidiaVramTotal > 0 ? Math.max(4, parent.width * root.nvidiaVramUsed / root.nvidiaVramTotal) : 4
                                     color: Theme.accent2
-                                    Behavior on width { NumberAnimation { duration: 300 } }
+                                    Behavior on width { NumberAnimation { duration: 150 } }
                                 }
                             }
                         }

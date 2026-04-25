@@ -82,14 +82,14 @@ Row {
             target: mediaText
             property: "opacity"
             to: 0.0
-            duration: 120
+            duration: 100
             easing.type: Easing.OutCubic
         }
         NumberAnimation {
             target: mediaText
             property: "opacity"
             to: 1.0
-            duration: 350
+            duration: 150
             easing.type: Easing.InCubic
         }
     }

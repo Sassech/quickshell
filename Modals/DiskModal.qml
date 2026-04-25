@@ -179,7 +179,7 @@ PanelWindow {
                         height: parent.height; radius: parent.radius
                         width: Math.max(6, parent.width * root.pct / 100)
                         color: root.accentColor
-                        Behavior on width { NumberAnimation { duration: 400 } }
+                        Behavior on width { NumberAnimation { duration: 150 } }
                     }
                 }
             }

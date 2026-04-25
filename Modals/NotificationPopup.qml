@@ -65,8 +65,8 @@ PanelWindow {
         property: "x"
         from:     420
         to:       0
-        duration: 280
-        easing.type: Easing.OutCubic
+    duration: 200
+    easing.type: Easing.OutCubic
     }
 
     NumberAnimation {
@@ -75,8 +75,8 @@ PanelWindow {
         property: "x"
         from:     0
         to:       420
-        duration: 220
-        easing.type: Easing.InCubic
+    duration: 200
+    easing.type: Easing.InCubic
         onFinished: root.visible = false
     }
 

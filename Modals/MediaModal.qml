@@ -210,7 +210,7 @@ PanelWindow {
                         Behavior on source {
                             SequentialAnimation {
                                 NumberAnimation { target: artImage; property: "opacity"; to: 0.0; duration: 150 }
-                                NumberAnimation { target: artImage; property: "opacity"; to: 1.0; duration: 300 }
+                                NumberAnimation { target: artImage; property: "opacity"; to: 1.0; duration: 150 }
                             }
                         }
                     }
@@ -232,7 +232,7 @@ PanelWindow {
                         Behavior on text {
                             SequentialAnimation {
                                 NumberAnimation { target: titleText; property: "opacity"; to: 0.0; duration: 100 }
-                                NumberAnimation { target: titleText; property: "opacity"; to: 1.0; duration: 300 }
+                                NumberAnimation { target: titleText; property: "opacity"; to: 1.0; duration: 150 }
                             }
                         }
                     }

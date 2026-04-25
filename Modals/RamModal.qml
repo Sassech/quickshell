@@ -194,7 +194,7 @@ PanelWindow {
                         height: parent.height; radius: parent.radius
                         width: Math.max(4, parent.width * root.memPercent / 100)
                         color: root.memColor
-                        Behavior on width { NumberAnimation { duration: 400 } }
+                        Behavior on width { NumberAnimation { duration: 150 } }
                         
                         Text {
                             anchors.centerIn: parent
@@ -229,7 +229,7 @@ PanelWindow {
                         height: parent.height; radius: parent.radius
                         width: root.swapPercent > 0 ? Math.max(4, parent.width * root.swapPercent / 100) : 0
                         color: root.swapColor
-                        Behavior on width { NumberAnimation { duration: 400 } }
+                        Behavior on width { NumberAnimation { duration: 150 } }
                     }
                     
                     Text {

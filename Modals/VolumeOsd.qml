@@ -98,14 +98,14 @@ PanelWindow {
         id: slideAnim
         target: osdCard; property: "yOffset"
         from: 60; to: 0
-        duration: 240; easing.type: Easing.OutCubic
+        duration: 200; easing.type: Easing.OutCubic
     }
 
     NumberAnimation {
         id: dismissFade
         target: osdCard; property: "opacity"
         from: 1; to: 0
-        duration: 220; easing.type: Easing.InCubic
+        duration: 200; easing.type: Easing.InCubic
         onFinished: root.visible = false
     }
 

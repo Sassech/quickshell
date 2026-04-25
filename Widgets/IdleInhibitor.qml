@@ -199,7 +199,7 @@ Rectangle {
         font.pixelSize: 13
         color:          root.inhibiting ? Theme.warning : Theme.muted3
 
-        Behavior on color { ColorAnimation { duration: 200 } }
+        Behavior on color { ColorAnimation { duration: 150 } }
     }
 
     Rectangle {
