@@ -28,55 +28,12 @@ PanelWindow {
     property bool   working:   false
     property string statusMsg: ""
 
-    property int devicesRevision: 0
-    property var devices: {
-        devicesRevision
-        return root.adapter ? root.adapter.devices.values : []
-    }
-
-    property int pairedCount: {
-        devicesRevision
-        var list = devices
-        var c = 0
-        for (var i = 0; i < list.length; i++) if (list[i].paired) c++
-        return c
-    }
-
-    property int nearbyCount: {
-        devicesRevision
-        var list = devices
-        var c = 0
-        for (var i = 0; i < list.length; i++) if (!list[i].paired) c++
-        return c
-    }
-
-    property int connectedCount: {
-        devicesRevision
-        var list = devices
-        var c = 0
-        for (var i = 0; i < list.length; i++) if (list[i].connected) c++
-        return c
-    }
-
-    property var pairedList: {
-        devicesRevision
-        var list = devices
-        var out = []
-        for (var i = 0; i < list.length; i++) {
-            if (list[i].paired) out.push(list[i])
-        }
-        return out
-    }
-
-    property var nearbyList: {
-        devicesRevision
-        var list = devices
-        var out = []
-        for (var i = 0; i < list.length; i++) {
-            if (!list[i].paired) out.push(list[i])
-        }
-        return out
-    }
+    property var devices: []
+    property int pairedCount: 0
+    property int nearbyCount: 0
+    property int connectedCount: 0
+    property var pairedList: []
+    property var nearbyList: []
 
     property var    actionDevice: null
     property string actionType: ""
@@ -128,9 +85,33 @@ PanelWindow {
         connectRetryTimer.stop()
     }
 
+    function refreshDeviceLists() {
+        var source = root.adapter ? root.adapter.devices.values : []
+        var all = []
+        var paired = []
+        var nearby = []
+        var connected = 0
+
+        for (var i = 0; i < source.length; i++) {
+            var d = source[i]
+            all.push(d)
+            if (d.paired) paired.push(d)
+            else nearby.push(d)
+            if (d.connected) connected++
+        }
+
+        root.devices = all
+        root.pairedList = paired
+        root.nearbyList = nearby
+        root.pairedCount = paired.length
+        root.nearbyCount = nearby.length
+        root.connectedCount = connected
+    }
+
     function autoConnectTrusted() {
         if (!root.available || !root.powered) return
         if (root.autoConnectRunning) return
+        refreshDeviceLists()
         var q = []
         for (var i = 0; i < devices.length; i++) {
             var d = devices[i]
@@ -299,6 +280,7 @@ PanelWindow {
     // Stop scan when modal closes
     onVisibleChanged: {
         if (visible) {
+            refreshDeviceLists()
             statusMsg = ""
             if (powered) {
                 if (root.adapter) {
@@ -343,18 +325,21 @@ PanelWindow {
         } else {
             autoConnectTrusted()
         }
+        refreshDeviceLists()
     }
 
     onAdapterChanged: {
-        root.devicesRevision++
+        refreshDeviceLists()
     }
+
+    Component.onCompleted: refreshDeviceLists()
 
     // Observa cambios en dispositivos
     Connections {
         target: root.adapter ? root.adapter.devices : null
-        function onObjectInsertedPost(object, index) { root.devicesRevision++ }
+        function onObjectInsertedPost(object, index) { refreshDeviceLists() }
         function onObjectRemovedPost(object, index) {
-            root.devicesRevision++
+            refreshDeviceLists()
             if (root.actionType === "forget" && root.actionDevice === object) {
                 resetAction("✓ Dispositivo olvidado")
             }
@@ -366,12 +351,12 @@ PanelWindow {
         delegate: Connections {
             required property var modelData
             target: modelData
-            function onPairedChanged() { root.devicesRevision++ }
-            function onConnectedChanged() { root.devicesRevision++ }
-            function onTrustedChanged() { root.devicesRevision++ }
-            function onNameChanged() { root.devicesRevision++ }
-            function onDeviceNameChanged() { root.devicesRevision++ }
-            function onStateChanged() { root.devicesRevision++ }
+            function onPairedChanged() { refreshDeviceLists() }
+            function onConnectedChanged() { refreshDeviceLists() }
+            function onTrustedChanged() { refreshDeviceLists() }
+            function onNameChanged() { refreshDeviceLists() }
+            function onDeviceNameChanged() { refreshDeviceLists() }
+            function onStateChanged() { refreshDeviceLists() }
         }
     }
 
