@@ -10,19 +10,14 @@ Rectangle {
     implicitWidth: weatherRow.implicitWidth + 16
     implicitHeight: 28
 
-    // ── Datos del provider ───────────────────────────────────────────────
-    property string temperature: weatherProvider.hasData
-        ? Math.round(weatherProvider.temperature) + "°"
+    // ── Datos del provider (singleton) ────────────────────────────────────
+    property string temperature: WeatherProvider.hasData
+        ? Math.round(WeatherProvider.temperature) + "°"
         : "--"
-    property int weatherCode: weatherProvider.weatherCode
-    property bool isDay: weatherProvider.isDay
+    property int weatherCode: WeatherProvider.weatherCode
+    property bool isDay: WeatherProvider.isDay
     property string weatherIcon: weatherHelpers.wmoIcon(weatherCode, isDay)
 
-    // ── Provider instance ─────────────────────────────────────────────────
-    WeatherProvider {
-        id: weatherProvider
-    }
-    
     WeatherHelpers {
         id: weatherHelpers
     }

@@ -18,31 +18,27 @@ PanelWindow {
     anchors.left:   true
     anchors.right:  true
 
-    // ── Provider instances ─────────────────────────────────────────────────
-    WeatherProvider {
-        id: weatherProvider
-    }
-    
+    // ── Provider (singleton) ──────────────────────────────────────────────
     WeatherHelpers {
         id: weatherHelpers
     }
 
     // ── Bindings al provider ─────────────────────────────────────────────
     property var currentWeather: ({
-        temperature: weatherProvider.temperature,
-        feelsLike: weatherProvider.feelsLike,
-        windSpeed: weatherProvider.windSpeed,
-        humidity: weatherProvider.humidity,
-        weatherCode: weatherProvider.weatherCode,
-        isDay: weatherProvider.isDay
+        temperature: WeatherProvider.temperature,
+        feelsLike: WeatherProvider.feelsLike,
+        windSpeed: WeatherProvider.windSpeed,
+        humidity: WeatherProvider.humidity,
+        weatherCode: WeatherProvider.weatherCode,
+        isDay: WeatherProvider.isDay
     })
-    property var hourlyData: weatherProvider.hourlyData
-    property var dailyData: weatherProvider.dailyData
-    property string cityName: weatherProvider.cityName
-    property bool loading: weatherProvider.loading
-    property bool isDay: weatherProvider.isDay
-    property string sunrise: weatherProvider.sunrise
-    property string sunset: weatherProvider.sunset
+    property var hourlyData: WeatherProvider.hourlyData
+    property var dailyData: WeatherProvider.dailyData
+    property string cityName: WeatherProvider.cityName
+    property bool loading: WeatherProvider.loading
+    property bool isDay: WeatherProvider.isDay
+    property string sunrise: WeatherProvider.sunrise
+    property string sunset: WeatherProvider.sunset
 
     // ── Helpers ───────────────────────────────────────────────────────────
     function wmoIcon(code, day) { return weatherHelpers.wmoIcon(code, day) }
@@ -55,16 +51,16 @@ PanelWindow {
     readonly property color accent: isDay ? Theme.sky : Theme.accent2
 
     onVisibleChanged: {
-        if (visible && !weatherProvider.hasData && !loading) {
+        if (visible && !WeatherProvider.hasData && !loading) {
             // Trigger refresh if no data
         }
     }
 
     function refresh() {
-        if (weatherProvider.latitude === 0) {
-            weatherProvider.fallbackToIpGeo()
+        if (WeatherProvider.latitude === 0) {
+            WeatherProvider.fallbackToIpGeo()
         } else {
-            weatherProvider.fetchWeather()
+            WeatherProvider.fetchWeather()
         }
     }
 
@@ -228,7 +224,7 @@ PanelWindow {
                     }
 
                     Connections {
-                        target: weatherProvider
+                        target: WeatherProvider
                         function onDataReady() { sunCanvas.requestPaint() }
                     }
                     Component.onCompleted: requestPaint()

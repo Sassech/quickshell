@@ -1,6 +1,6 @@
 singleton Theme 1.0 Theme.qml
 singleton SysData 1.0 SysData.qml
 WeatherHelpers 1.0 WeatherHelpers.qml
-WeatherProvider 1.0 WeatherProvider.qml
+singleton WeatherProvider 1.0 WeatherProvider.qml
 BottomBar 1.0 BottomBar.qml
 TopBar 1.0 TopBar.qml

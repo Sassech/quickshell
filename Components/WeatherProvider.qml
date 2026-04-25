@@ -1,7 +1,8 @@
+pragma Singleton
 import QtQuick
 import Quickshell.Io
 
-Item {
+QtObject {
     id: root
     
     // ── Estado ────────────────────────────────────────────────────────────
