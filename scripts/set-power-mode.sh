@@ -1,5 +1,7 @@
 #!/bin/bash
 # set-power-mode.sh — requiere root (ejecutar con pkexec)
+set -eo pipefail
+
 MODE=$1
 
 set_gov() {

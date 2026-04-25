@@ -1,5 +1,7 @@
 #!/bin/bash
 # ram-detail.sh — Información detallada de RAM
+set -euo pipefail
+IFS=$'\n\t'
 
 awk '/MemTotal:|MemFree:|MemAvailable:|Buffers:|Cached:|SwapCached:|Active:|Inactive:|Active\(anon\):|Inactive\(anon\):|Active\(file\):|Inactive\(file\):|Dirty:|Writeback:|AnonPages:|Mapped:|Shmem:|SwapTotal:|SwapFree:|SReclaimable:|SUnreclaim:/ {
     gsub(/:/, "", $1)

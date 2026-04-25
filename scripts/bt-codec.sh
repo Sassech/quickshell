@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # bt-codec.sh — Bluetooth codec query / set via PipeWire (pactl only)
+set -eo pipefail
 #
 # Usage:
 #   bt-codec.sh info <MAC>             → JSON { codec, active, rate, bitrate, profiles:[{id,label,bitrate}] }

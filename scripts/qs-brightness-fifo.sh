@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # qs-brightness-fifo — ran by Quickshell at startup
 # Reads commands from FIFO and outputs current brightness as percentage
+set -eo pipefail
 
 FIFO=/tmp/qs-brightness
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # clipboard-copy.sh <id> — Copia entrada al portapapeles
-set -eo pipefail
+set -euo pipefail
 
 LOG_FILE="/tmp/qs-clipboard.log"
 ID="${1:-}"

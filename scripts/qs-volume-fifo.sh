@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # qs-volume-fifo — ran by Quickshell at startup
 # Reads commands from FIFO, executes volume changes.
-# Volume/mute state updates arrive via PipeWire native bindings.
+set -eo pipefail
 
 FIFO=/tmp/qs-volume
 

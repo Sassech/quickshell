@@ -1,5 +1,7 @@
 #!/bin/bash
-# disk-detail.sh — detalle de disco via dgop + sysfs para modelo/FW/temp
+# disk-detail.sh — detalle de disco via dgop + sysfs
+set -euo pipefail
+IFS=$'\n\t'
 
 # Modelo y firmware desde sysfs (dgop no los provee)
 NVME_MODEL=$(cat /sys/class/nvme/nvme0/model 2>/dev/null | sed 's/  */ /g;s/^ //;s/ $//')

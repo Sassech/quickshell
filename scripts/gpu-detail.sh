@@ -1,6 +1,8 @@
 #!/bin/bash
 # gpu-detail.sh — KEY:VALUE output
 # Shows both Intel UHD + NVIDIA (if driver active)
+set -euo pipefail
+IFS=$'\n\t'
 
 # ── Intel UHD ──────────────────────────────────────────────────
 INTEL_NAME="Intel UHD (Tiger Lake-H)"

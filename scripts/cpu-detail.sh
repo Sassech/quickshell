@@ -1,5 +1,7 @@
 #!/bin/bash
-# cpu-detail.sh — datos detallados de CPU via dgop + sysfs para campos que dgop no provee
+# cpu-detail.sh — datos detallados de CPU via dgop + sysfs
+set -euo pipefail
+IFS=$'\n\t'
 
 CURSOR_FILE="/tmp/qs-cpu-detail-cursor"
 CURSOR=$(cat "$CURSOR_FILE" 2>/dev/null)
