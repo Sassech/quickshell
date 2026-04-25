@@ -8,7 +8,7 @@ Rectangle {
     implicitWidth: 104
     implicitHeight: 24
     radius: 8
-    color: Theme.surface2
+    color: mouseArea.containsMouse ? Theme.surface3 : Theme.surface2
 
     signal clicked()
 
@@ -20,6 +20,8 @@ Rectangle {
         if (SysData.cpuTemp >= 55) return Theme.yellow
         return Theme.accent
     }
+
+    Behavior on color { ColorAnimation { duration: 100 } }
 
     Row {
         anchors.centerIn: parent
@@ -55,7 +57,9 @@ Rectangle {
     }
 
     MouseArea {
+        id: mouseArea
         anchors.fill: parent
+        hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: root.clicked()
     }

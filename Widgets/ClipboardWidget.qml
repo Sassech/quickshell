@@ -9,12 +9,14 @@ Rectangle {
     implicitWidth:  50
     implicitHeight: 24
     radius: 8
-    color: Theme.surface2
+    color: mouseArea.containsMouse ? Theme.surface3 : Theme.surface2
 
     signal clicked()
 
     property int entryCount: 0
     property color accent: Theme.accent2
+
+    Behavior on color { ColorAnimation { duration: 100 } }
 
     Row {
         anchors.centerIn: parent
@@ -61,16 +63,10 @@ Rectangle {
     }
 
     MouseArea {
+        id: mouseArea
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: root.clicked()
-
-        Rectangle {
-            anchors.fill: parent; radius: parent.parent.radius
-            color: parent.containsMouse ? "#ffffff" : "transparent"
-            opacity: parent.containsMouse ? 0.06 : 0
-            Behavior on opacity { NumberAnimation { duration: 120 } }
-        }
     }
 }
