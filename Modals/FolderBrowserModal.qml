@@ -20,7 +20,6 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
 
     // ── API pública ───────────────────────────────────────────
     signal folderSelected(string path)
@@ -58,7 +57,7 @@ PanelWindow {
         id: listProc
         property string targetPath: ""
         command: ["python3",
-            root._scriptsPath + "/folder-list.py",
+            Paths.scripts + "/folder-list.py",
             targetPath
         ]
         stdout: SplitParser {

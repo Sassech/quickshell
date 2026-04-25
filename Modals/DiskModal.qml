@@ -19,7 +19,6 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
 
     // ── Data ─────────────────────────────────────────────
     property string nvmeModel: "—"
@@ -61,7 +60,7 @@ PanelWindow {
     property string _buf: ""
     Process {
         id: diskProc
-        command: ["bash", root._scriptsPath + "/disk-detail.sh"]
+        command: ["bash", Paths.scripts + "/disk-detail.sh"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => root._buf += data + "\n"

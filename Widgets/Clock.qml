@@ -16,7 +16,6 @@ Rectangle {
     property string timezone: ""
     property string utcTime: "--:--"
     property bool ntpSynced: true
-    property string _configPath: Qt.resolvedUrl("../config").toString().replace("file://", "")
 
     // ── Load preferences ───────────────────────────────────────────────────
     Component.onCompleted: {
@@ -60,12 +59,12 @@ Rectangle {
     }
 
     function loadPrefs() {
-        loadPrefsProc.command = ["bash", "-c", "cat \"" + root._configPath + "/clock-prefs.json\" 2>/dev/null || echo '{}'"];
+        loadPrefsProc.command = ["bash", "-c", "cat \"" + Paths.config + "/clock-prefs.json\" 2>/dev/null || echo '{}'"];
         loadPrefsProc.running = true;
     }
 
     function savePrefs() {
-        savePrefsProc.command = ["bash", "-c", "echo '" + JSON.stringify({use24h: root.use24h}) + "' > \"" + root._configPath + "/clock-prefs.json\""];
+        savePrefsProc.command = ["bash", "-c", "echo '" + JSON.stringify({use24h: root.use24h}) + "' > \"" + Paths.config + "/clock-prefs.json\""];
         savePrefsProc.running = true;
     }
 

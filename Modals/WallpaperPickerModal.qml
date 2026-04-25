@@ -20,8 +20,6 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
-    property string _configPath: Qt.resolvedUrl("../config").toString().replace("file://", "")
 
     // ── Estado ─────────────────────────────────────────────────
     property string currentFolder: "~/Imágenes"
@@ -45,7 +43,7 @@ PanelWindow {
     Process {
         id: configReadProc
         command: ["bash", "-c",
-            "cat \"" + root._configPath + "/wallpaper-config.json\" 2>/dev/null; " +
+            "cat \"" + Paths.config + "/wallpaper-config.json\" 2>/dev/null; " +
             "echo '---'; " +
             "cat /tmp/qs-current-wallpaper 2>/dev/null || true"
         ]
@@ -90,7 +88,7 @@ PanelWindow {
     Process {
         id: listProc
         command: ["python3",
-            root._scriptsPath + "/wallpaper-list.py",
+            Paths.scripts + "/wallpaper-list.py",
             root.currentFolder
         ]
         stdout: SplitParser {
@@ -110,7 +108,7 @@ PanelWindow {
         id: setProc
         property string pending: ""
         command: ["bash",
-            root._scriptsPath + "/wallpaper-set.sh",
+            Paths.scripts + "/wallpaper-set.sh",
             pending
         ]
         onExited: {
@@ -121,14 +119,14 @@ PanelWindow {
     // ── Guarda config ──────────────────────────────────────────
     Process {
         id: saveConfigProc
-        command: ["python3", root._scriptsPath + "/wallpaper-save-config.py", ""]
+        command: ["python3", Paths.scripts + "/wallpaper-save-config.py", ""]
         property string pendingFolder: ""
         running: false
     }
 
     function saveFolder(f) {
         currentFolder = f
-        saveConfigProc.command = ["python3", root._scriptsPath + "/wallpaper-save-config.py", f]
+        saveConfigProc.command = ["python3", Paths.scripts + "/wallpaper-save-config.py", f]
         saveConfigProc.running = true
         loadImages()
     }

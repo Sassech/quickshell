@@ -21,7 +21,6 @@ PanelWindow {
     anchors.right: true
 
     // ── Paths ───────────────────────────────────────────────────────────
-    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
 
     // ── Data ────────────────────────────────────────────────────────────
     property var  allEntries:  []
@@ -69,7 +68,7 @@ PanelWindow {
     // ── Carga la lista ──────────────────────────────────────────────────
     Process {
         id: listProc
-        command: ["bash", root._scriptsPath + "/clipboard-list.sh"]
+        command: ["bash", Paths.scripts + "/clipboard-list.sh"]
         stdout: SplitParser {
             splitMarker: ""
             onRead: data => root._listBuf += data
@@ -109,7 +108,7 @@ PanelWindow {
         function copyEntry(id) {
             if (_isCopying) return
             _isCopying = true
-            copyProc.command = ["bash", root._scriptsPath + "/clipboard-copy.sh", id]
+            copyProc.command = ["bash", Paths.scripts + "/clipboard-copy.sh", id]
             copyProc.running = true
         }
 

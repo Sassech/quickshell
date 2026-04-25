@@ -20,7 +20,6 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
 
     // ── Estado ────────────────────────────────────────────────
     property string _searchBuf: ""
@@ -84,10 +83,10 @@ PanelWindow {
         property string query: ""
         command: searchProc.query === "--list-apps"
             ? ["python3",
-               root._scriptsPath + "/spotlight-search.py",
+               Paths.scripts + "/spotlight-search.py",
                "--list-apps"]
             : ["python3",
-               root._scriptsPath + "/spotlight-search.py",
+               Paths.scripts + "/spotlight-search.py",
                searchProc.query]
         stdout: SplitParser {
             splitMarker: "\n"

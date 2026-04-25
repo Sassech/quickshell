@@ -19,7 +19,6 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
 
     // ── Read fan data from SysData (backend) ────────────────────────────
     property int fan1Rpm: SysData.fan1Rpm
@@ -71,7 +70,7 @@ PanelWindow {
     function setFanProfile(profile) {
         if (root.applying) return
         root.applying = true
-        fanApplyProc.command = ["sudo", root._scriptsPath + "/fan-control.sh", "set_profile", profile]
+        fanApplyProc.command = ["sudo", Paths.scripts + "/fan-control.sh", "set_profile", profile]
         fanApplyProc.running = true
     }
 

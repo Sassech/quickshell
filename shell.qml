@@ -11,9 +11,9 @@ import "Modals"
 ShellRoot {
     id: root
 
-    // ── Shared paths (resolved once, used by backend + FIFOs) ────────────
-    property string _scriptsPath: Qt.resolvedUrl("scripts").toString().replace("file://", "")
-    property string _configPath:  Qt.resolvedUrl("config").toString().replace("file://", "")
+    // ── Shared paths (resolved via Paths singleton) ──────────────────────
+    property string _scriptsPath: Paths.scripts
+    property string _configPath:  Paths.config
 
     // ════════════════════════════════════════════════════════════════════════
     // ── Python Backend — single process feeding all system data ──────────

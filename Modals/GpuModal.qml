@@ -19,7 +19,6 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-    property string _scriptsPath: Qt.resolvedUrl("../scripts").toString().replace("file://", "")
 
     // ── Data ─────────────────────────────────────────────
     // Intel
@@ -54,7 +53,7 @@ PanelWindow {
     property string _buf: ""
     Process {
         id: gpuProc
-        command: ["bash", root._scriptsPath + "/gpu-detail.sh"]
+        command: ["bash", Paths.scripts + "/gpu-detail.sh"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => root._buf += data + "\n"
