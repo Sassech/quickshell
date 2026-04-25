@@ -230,7 +230,7 @@ PanelWindow {
                 visible: root.fanAvailable
             }
 
-            // Fan load bars
+            // ── Fan load bars (percent + RPM) ────────────────────────
             Column {
                 spacing: 5
                 visible: root.fanAvailable
@@ -245,7 +245,7 @@ PanelWindow {
                         width: 18
                     }
                     Rectangle {
-                        width: 210
+                        width: 160
                         height: 8
                         radius: 4
                         color: Theme.surface2
@@ -262,8 +262,15 @@ PanelWindow {
                     Text {
                         text: root.fan1Percent + "%"
                         font.pixelSize: 9
-                        color: Theme.muted1
-                        width: 30
+                        font.family: "monospace"
+                        color: Theme.text
+                        width: 28
+                    }
+                    Text {
+                        text: root.fan1Rpm + " rpm"
+                        font.pixelSize: 9
+                        font.family: "monospace"
+                        color: Theme.muted2
                     }
                 }
 
@@ -276,7 +283,7 @@ PanelWindow {
                         width: 18
                     }
                     Rectangle {
-                        width: 210
+                        width: 160
                         height: 8
                         radius: 4
                         color: Theme.surface2
@@ -293,8 +300,15 @@ PanelWindow {
                     Text {
                         text: root.fan2Percent + "%"
                         font.pixelSize: 9
-                        color: Theme.muted1
-                        width: 30
+                        font.family: "monospace"
+                        color: Theme.text
+                        width: 28
+                    }
+                    Text {
+                        text: root.fan2Rpm + " rpm"
+                        font.pixelSize: 9
+                        font.family: "monospace"
+                        color: Theme.muted2
                     }
                 }
             }
@@ -307,131 +321,7 @@ PanelWindow {
                 visible: root.fanAvailable
             }
 
-            // Fan RPM
-            RowLayout {
-                spacing: 6
-                visible: root.fanAvailable
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 50
-                    radius: 8
-                    color: Theme.surface2
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 3
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: root.fan1Rpm > 0 ? root.fan1Rpm : "—"
-                            font.pixelSize: 14
-                            font.weight: Font.DemiBold
-                            color: Theme.text
-                        }
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "Ventilador 1"
-                            font.pixelSize: 10
-                            color: Theme.muted1
-                        }
-                    }
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 50
-                    radius: 8
-                    color: Theme.surface2
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 3
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: root.fan2Rpm > 0 ? root.fan2Rpm : "—"
-                            font.pixelSize: 14
-                            font.weight: Font.DemiBold
-                            color: Theme.text
-                        }
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "Ventilador 2"
-                            font.pixelSize: 10
-                            color: Theme.muted1
-                        }
-                    }
-                }
-            }
-
-            // Divider
-            Rectangle {
-                Layout.fillWidth: true
-                height: 1
-                color: Theme.surface2
-                visible: root.fanAvailable
-            }
-
-            // Fan percent bars
-            RowLayout {
-                spacing: 6
-                visible: root.fanAvailable
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 40
-                    radius: 8
-                    color: Theme.surface2
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 2
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: root.fan1Percent + "%"
-                            font.pixelSize: 13
-                            font.weight: Font.DemiBold
-                            color: Theme.text
-                        }
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "Ventilador 1"
-                            font.pixelSize: 10
-                            color: Theme.muted1
-                        }
-                    }
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 40
-                    radius: 8
-                    color: Theme.surface2
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 2
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: root.fan2Percent + "%"
-                            font.pixelSize: 13
-                            font.weight: Font.DemiBold
-                            color: Theme.text
-                        }
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "Ventilador 2"
-                            font.pixelSize: 10
-                            color: Theme.muted1
-                        }
-                    }
-                }
-            }
-
-            // Divider
-            Rectangle {
-                Layout.fillWidth: true
-                height: 1
-                color: Theme.surface2
-                visible: root.fanAvailable
-            }
-
-            // Thermal profile buttons
+            // ── Thermal profile buttons ────────────────────────────
             Text {
                 text: "Perfil Térmico"
                 font.pixelSize: 11
