@@ -90,6 +90,25 @@ ShellRoot {
         return Quickshell.screens[0]
     }
 
+    function mkFifoCmd(fifoPath) {
+        const rawPath = String(fifoPath ?? "")
+        const safePath = rawPath.replace(/'/g, "'\"'\"'")
+        return [
+            "bash", "-c",
+            "[ -p '" + safePath + "' ] || { rm -f '" + safePath + "'; mkfifo '" + safePath + "'; }; exec cat '" + safePath + "'"
+        ]
+    }
+
+    function fifoScreenReader(monName, broadcaster) {
+        const name = (monName ?? "").trim()
+        const targetScreen = name.length > 0
+            ? root.getScreenFromMonName(name)
+            : Quickshell.screens[0]
+        if (typeof broadcaster === "function") {
+            broadcaster(targetScreen)
+        }
+    }
+
     function _containsAny(text, needles) {
         const value = (text ?? "").toLowerCase()
         for (var i = 0; i < needles.length; i++) {
