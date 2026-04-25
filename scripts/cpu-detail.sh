@@ -4,7 +4,10 @@ set -euo pipefail
 IFS=$'\n\t'
 
 CURSOR_FILE="/tmp/qs-cpu-detail-cursor"
-CURSOR=$(cat "$CURSOR_FILE" 2>/dev/null)
+CURSOR=""
+if [ -r "$CURSOR_FILE" ]; then
+    CURSOR="$(<"$CURSOR_FILE")"
+fi
 
 if [ -n "$CURSOR" ]; then
     dgop meta --modules cpu --cpu-cursor "$CURSOR" --json 2>/dev/null
