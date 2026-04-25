@@ -94,7 +94,7 @@ PanelWindow {
         anchors.right: parent.right
         anchors.topMargin: 44
         anchors.rightMargin: 8
-        width: 290
+        width: 300
         height: col.implicitHeight + 24
         radius: 12
         color: Theme.base
