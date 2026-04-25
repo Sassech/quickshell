@@ -44,20 +44,19 @@ QtObject {
         geoProcess.running = true
     }
     
-    // ── Refresh Timer (10 min) ───────────────────────────────────────────
-    Timer {
+    // ── Children (QtObject has no default property — must declare explicitly) ─
+    property Timer _refreshTimer: Timer {
         interval: 600000
         running: true
         repeat: true
         onTriggered: {
-            if (latitude !== 0 && longitude !== 0) {
-                fetchWeather()
+            if (root.latitude !== 0 && root.longitude !== 0) {
+                root.fetchWeather()
             }
         }
     }
     
-    // ── Geo Process ─────────────────────────────────────────────────────
-    Process {
+    property Process _geoProcess: Process {
         id: geoProcess
         command: ["sh", "-c", "curl -s --max-time 6 'http://ip-api.com/json/'"]
         
@@ -67,32 +66,31 @@ QtObject {
         }
         
         onExited: function(exitCode) {
-            loading = false
-            statusChanged()
+            root.loading = false
+            root.statusChanged()
             
             if (exitCode !== 0 || !root._geoRaw.trim()) {
-                cityName = "Sin conexion"
+                root.cityName = "Sin conexion"
                 return
             }
             try {
                 var j = JSON.parse(root._geoRaw.trim())
                 if (j.status !== "success" || j.lat === undefined || j.lon === undefined) {
-                    cityName = "Sin ubicacion"
+                    root.cityName = "Sin ubicacion"
                     return
                 }
-                latitude = parseFloat(j.lat)
-                longitude = parseFloat(j.lon)
-                cityName = j.city || j.regionName || j.country || "Desconocido"
-                _geoRaw = ""
-                fetchWeather()
+                root.latitude = parseFloat(j.lat)
+                root.longitude = parseFloat(j.lon)
+                root.cityName = j.city || j.regionName || j.country || "Desconocido"
+                root._geoRaw = ""
+                root.fetchWeather()
             } catch(e) {
-                cityName = "Error geo"
+                root.cityName = "Error geo"
             }
         }
     }
     
-    // ── Weather Process ──────────────────────────────────────────────────
-    Process {
+    property Process _weatherProcess: Process {
         id: weatherProcess
         command: ["sh", "-c", "echo init"]
         running: false
@@ -103,8 +101,8 @@ QtObject {
         }
         
         onExited: function(exitCode) {
-            loading = false
-            statusChanged()
+            root.loading = false
+            root.statusChanged()
             
             if (exitCode !== 0 || !root._weatherRaw.trim()) {
                 return
@@ -114,20 +112,20 @@ QtObject {
                 var j = JSON.parse(root._weatherRaw.trim())
                 var c = j.current
                 
-                temperature = c.temperature_2m
-                feelsLike = c.apparent_temperature
-                windSpeed = c.wind_speed_10m
-                humidity = c.relative_humidity_2m
-                weatherCode = c.weather_code
-                isDay = (c.is_day === 1)
+                root.temperature = c.temperature_2m
+                root.feelsLike = c.apparent_temperature
+                root.windSpeed = c.wind_speed_10m
+                root.humidity = c.relative_humidity_2m
+                root.weatherCode = c.weather_code
+                root.isDay = (c.is_day === 1)
                 
                 if (j.daily && j.daily.sunrise && j.daily.sunrise.length > 0) {
                     var srFull = j.daily.sunrise[0]
-                    sunrise = srFull.substring(srFull.indexOf("T") + 1)
+                    root.sunrise = srFull.substring(srFull.indexOf("T") + 1)
                 }
                 if (j.daily && j.daily.sunset && j.daily.sunset.length > 0) {
                     var ssFull = j.daily.sunset[0]
-                    sunset = ssFull.substring(ssFull.indexOf("T") + 1)
+                    root.sunset = ssFull.substring(ssFull.indexOf("T") + 1)
                 }
                 
                 var nowHour = new Date().getHours()
@@ -154,7 +152,7 @@ QtObject {
                         })
                     }
                 }
-                hourlyData = hourlyArr
+                root.hourlyData = hourlyArr
                 
                 var days = ["dom","lun","mar","mie","jue","vie","sab"]
                 var dailyArr = []
@@ -169,11 +167,11 @@ QtObject {
                         })
                     }
                 }
-                dailyData = dailyArr
+                root.dailyData = dailyArr
                 
-                hasData = true
-                _weatherRaw = ""
-                dataReady()
+                root.hasData = true
+                root._weatherRaw = ""
+                root.dataReady()
                 
             } catch(e) {
                 console.log("WeatherProvider: Parse error:", e)
