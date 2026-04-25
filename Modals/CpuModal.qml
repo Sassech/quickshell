@@ -180,7 +180,7 @@ PanelWindow {
                                     height: parent.height; radius: parent.radius
                                     width: Math.max(4, parent.width * parent.parent.pct / 100)
                                     color: parent.parent.barColor
-                                    Behavior on width { NumberAnimation { duration: 300 } }
+                                    Behavior on width { NumberAnimation { duration: 200 } }
                                 }
                             }
                             Text {
@@ -238,7 +238,7 @@ PanelWindow {
                                     height: parent.height; radius: parent.radius
                                     width: Math.max(4, parent.width * parent.parent.pct / 100)
                                     color: parent.parent.barColor
-                                    Behavior on width { NumberAnimation { duration: 300 } }
+                                    Behavior on width { NumberAnimation { duration: 200 } }
                                 }
                             }
                             Text {

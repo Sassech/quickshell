@@ -1,0 +1,10 @@
+config/*
+Components/Theme.qml
+AGENTS.md
+scripts/lyricsgenius/*
+scripts/utils/*
+TODO
+docs
+assets/*
+.vscode
+scripts/__pycache__/*
