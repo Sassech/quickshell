@@ -3,12 +3,16 @@ import Quickshell.Io
 import Quickshell.Services.Pipewire
 import "../Components"
 
-Item {
+Rectangle {
     id: root
     signal clicked()
 
-    implicitWidth:  pill.width
+    implicitWidth: row.implicitWidth + 16
     implicitHeight: 26
+    radius: 8
+    color: mouseArea.containsMouse ? Theme.surface3 : Theme.surface2
+
+    Behavior on color { ColorAnimation { duration: 100 } }
 
     readonly property var sink: Pipewire.defaultAudioSink
     property real volume: 0.75
@@ -33,8 +37,6 @@ Item {
     }
 
     // ── Refresh on default sink change ──────────────────────────────────
-    // PipeWire may briefly return null during sink switch, so we use wpctl
-    // as a reliable fallback to get the real volume of the new default sink.
     Connections {
         target: Pipewire
         function onDefaultAudioSinkChanged() {
@@ -69,38 +71,30 @@ Item {
         return "󰕾"
     }
 
-    Rectangle {
-        id: pill
+    Row {
+        id: row
         anchors.centerIn: parent
-        width:  pillRow.implicitWidth + 16
-        height: 26; radius: 8
-        color: pillMA.containsMouse ? Theme.surface3 : Theme.surface2
-        Behavior on color { ColorAnimation { duration: 100 } }
+        spacing: 5
 
-        Row {
-            id: pillRow
-            anchors.centerIn: parent
-            spacing: 5
-
-            Text {
-                text: root.volIcon()
-                font.pixelSize: 13
-                color: root.muted ? Theme.muted2 : Theme.accent
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            Text {
-                text: root.muted ? "Mudo" : Math.round(root.volume * 100) + "%"
-                font.pixelSize: 11
-                color: root.muted ? Theme.muted2 : Theme.text
-                anchors.verticalCenter: parent.verticalCenter
-            }
+        Text {
+            text: root.volIcon()
+            font.pixelSize: 13
+            color: root.muted ? Theme.muted2 : Theme.accent
+            anchors.verticalCenter: parent.verticalCenter
         }
-
-        MouseArea {
-            id: pillMA
-            anchors.fill: parent; hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: root.clicked()
+        Text {
+            text: root.muted ? "Mudo" : Math.round(root.volume * 100) + "%"
+            font.pixelSize: 11
+            color: root.muted ? Theme.muted2 : Theme.text
+            anchors.verticalCenter: parent.verticalCenter
         }
+    }
+
+    MouseArea {
+        id: mouseArea
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.clicked()
     }
 }
