@@ -20,7 +20,6 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-
     // ── Estado ─────────────────────────────────────────────────
     property string currentFolder: "~/Imágenes"
     property string currentWallpaper: ""

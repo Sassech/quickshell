@@ -19,7 +19,6 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-
     // ── Data read when opened ────────────────────────────────────────────
     property bool batteryAvailable: false
     property string batteryPath: ""

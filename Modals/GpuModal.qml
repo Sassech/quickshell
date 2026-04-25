@@ -19,7 +19,6 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-
     // ── Data ─────────────────────────────────────────────
     // Intel
     property string intelName: "Intel UHD"

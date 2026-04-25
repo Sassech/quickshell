@@ -19,7 +19,6 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-
     // ── Data ─────────────────────────────────────────────
     property string cpuModel: "—"
     property int nCores: 0

@@ -20,7 +20,6 @@ PanelWindow {
     anchors.top: true; anchors.bottom: true
     anchors.left: true; anchors.right: true
 
-
     // ── Estado ─────────────────────────────────────────────────────────────
     property var    adapter:   Bluetooth.defaultAdapter
     property bool   available: adapter !== null

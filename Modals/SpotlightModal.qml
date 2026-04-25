@@ -20,7 +20,6 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-
     // ── Estado ────────────────────────────────────────────────
     property string _searchBuf: ""
     property bool   _searching: false

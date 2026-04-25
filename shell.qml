@@ -14,7 +14,6 @@ ShellRoot {
     // ── Shared paths (resolved via Paths singleton) ──────────────────────
     property string _scriptsPath: Paths.scripts
     property string _configPath:  Paths.config
-
     // ════════════════════════════════════════════════════════════════════════
     // ── Python Backend — single process feeding all system data ──────────
     // ════════════════════════════════════════════════════════════════════════

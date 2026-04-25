@@ -19,7 +19,6 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-
     // ── Read fan data from SysData (backend) ────────────────────────────
     property int fan1Rpm: SysData.fan1Rpm
     property int fan2Rpm: SysData.fan2Rpm

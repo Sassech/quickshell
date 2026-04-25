@@ -19,7 +19,6 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-
     property var screen: null
     property int currentMonth: new Date().getMonth()
     property int currentYear: new Date().getFullYear()

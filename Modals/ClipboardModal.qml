@@ -20,8 +20,6 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-    // ── Paths ───────────────────────────────────────────────────────────
-
     // ── Data ────────────────────────────────────────────────────────────
     property var  allEntries:  []
     property int  entryCount:  0

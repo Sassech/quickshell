@@ -20,7 +20,6 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-
     // ── API pública ───────────────────────────────────────────
     signal folderSelected(string path)
 
