@@ -53,6 +53,12 @@ QtObject {
     property string fanProfile: ""
     property bool fanAvailable: false
 
+    // ── Battery ───────────────────────────────────────────────────────────
+    property int batPercent: 0
+    property string batStatus: "Unknown"
+    property bool batCharging: false
+    property bool batAvailable: false
+
     // ── Dispatch — called from shell.qml backend parser ───────────────────
     function dispatch(msg) {
         if (!msg) return
@@ -100,6 +106,12 @@ QtObject {
             data.fanGpuTemp = msg.t2
             data.fanProfile = msg.pr
             data.fanAvailable = msg.a
+            break
+        case "bat":
+            data.batAvailable = msg.a
+            data.batPercent = msg.p
+            data.batStatus = msg.s
+            data.batCharging = (msg.s === "Charging")
             break
         }
     }

@@ -32,6 +32,7 @@ POLL_GPU     = 4
 POLL_DISK    = 30
 POLL_NET     = 3
 POLL_FAN     = 5
+POLL_BAT     = 15
 
 # ── Fan sysfs paths (Alienware) ──────────────────────────────────────────────
 HWMON_SMM  = "/sys/class/hwmon/hwmon5"
@@ -80,6 +81,37 @@ def _run_cmd(cmd: list[str], timeout: int = 5) -> tuple[int, str]:
 # ══════════════════════════════════════════════════════════════════════════════
 # DATA FETCHERS
 # ══════════════════════════════════════════════════════════════════════════════
+
+def fetch_battery() -> dict:
+    """Read basic battery level + status from sysfs."""
+    try:
+        bats = [d for d in os.listdir("/sys/class/power_supply") if d.startswith("BAT")]
+    except FileNotFoundError:
+        return {}
+
+    if not bats:
+        return {"t": "bat", "a": False, "p": 0, "s": "Unknown"}
+
+    base = f"/sys/class/power_supply/{bats[0]}"
+
+    raw_cap = _read_sys(f"{base}/capacity")
+    raw_sts = _read_sys(f"{base}/status")
+
+    pct = 0
+    try:
+        pct = int(raw_cap)
+    except ValueError:
+        pass
+
+    status = raw_sts or "Unknown"
+
+    return {
+        "t": "bat",
+        "a": True,
+        "p": pct,
+        "s": status,
+    }
+
 
 def fetch_cpu() -> dict:
     global _cpu_cursor
@@ -410,6 +442,7 @@ def main() -> None:
         threading.Thread(target=_poll, args=(fetch_disk, POLL_DISK), daemon=True),
         threading.Thread(target=_poll_network, daemon=True),
         threading.Thread(target=_poll, args=(fetch_fan, POLL_FAN), daemon=True),
+        threading.Thread(target=_poll, args=(fetch_battery, POLL_BAT), daemon=True),
     ]
 
     for t in threads:
