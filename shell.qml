@@ -95,7 +95,9 @@ ShellRoot {
         const safePath = rawPath.replace(/'/g, "'\"'\"'")
         return [
             "bash", "-c",
-            "[ -p '" + safePath + "' ] || { rm -f '" + safePath + "'; mkfifo '" + safePath + "'; }; exec cat '" + safePath + "'"
+            "[ -p '" + safePath + "' ] || { rm -f '" + safePath + "'; mkfifo '" + safePath + "'; }; " +
+            "exec 3<>'" + safePath + "'; " +
+            "while IFS= read -r line <&3; do printf '%s\\n' \"$line\"; done"
         ]
     }
 
@@ -534,6 +536,10 @@ ShellRoot {
             splitMarker: "\n"
             onRead: monName => root.fifoScreenReader(monName, root.broadcastClipboard)
         }
+        onExited: function(code) {
+            console.log("[FIFO] clipboard exited (" + code + "), restarting")
+            clipboardFifo.running = true
+        }
     }
 
     // ── WALLPAPER PICKER FIFO (SUPER+Y) ───────────────────────────────────
@@ -544,6 +550,10 @@ ShellRoot {
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: monName => root.fifoScreenReader(monName, root.broadcastWallpaperPicker)
+        }
+        onExited: function(code) {
+            console.log("[FIFO] wallpaper exited (" + code + "), restarting")
+            wallpaperFifo.running = true
         }
     }
 
@@ -600,6 +610,10 @@ ShellRoot {
             splitMarker: "\n"
             onRead: monName => root.fifoScreenReader(monName, root.broadcastOverview)
         }
+        onExited: function(code) {
+            console.log("[FIFO] overview exited (" + code + "), restarting")
+            overviewFifo.running = true
+        }
     }
 
     // ── SPOTLIGHT FIFO ────────────────────────────────────────────────────
@@ -610,6 +624,10 @@ ShellRoot {
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: monName => root.fifoScreenReader(monName, root.broadcastSpotlight)
+        }
+        onExited: function(code) {
+            console.log("[FIFO] spotlight exited (" + code + "), restarting")
+            spotlightFifo.running = true
         }
     }
 
