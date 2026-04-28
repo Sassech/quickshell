@@ -95,7 +95,8 @@ PanelWindow {
         for (var i = 0; i < source.length; i++) {
             var d = source[i]
             all.push(d)
-            if (d.paired) paired.push(d)
+            const isPaired = d.bonded || d.paired || d.trusted
+            if (isPaired) paired.push(d)
             else nearby.push(d)
             if (d.connected) connected++
         }
