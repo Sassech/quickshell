@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+
 set -euo pipefail
 IFS=$'\n\t'
 
@@ -28,7 +29,7 @@ install_packages() {
 
     for pkg in "${_pkgs[@]}"; do
         if ! command -v "$pkg" &>/dev/null; then
-            echo "$pkg no encontrado, instalando..."
+            echo "$pkg not found, installing..."
             if command -v dnf &>/dev/null; then
                 sudo dnf install -y "$pkg" || ((failed++))
             elif command -v pacman &>/dev/null; then
@@ -36,18 +37,18 @@ install_packages() {
             elif command -v apt &>/dev/null; then
                 sudo apt install -y "$pkg" || ((failed++))
             else
-                echo "Gestor de paquetes no reconocido para instalar $pkg"
+                echo "Package manager not recognized for installing $pkg"
                 ((failed++))
             fi
         else
-            echo "$pkg ya está instalado."
+            echo "$pkg already installed."
         fi
     done
 
     return "$failed"
 }
 
-echo "▶ Instalando paquetes principales..."
+echo "▶ Installing packages..."
 failed=0
 install_packages packages || failed=$?
 
