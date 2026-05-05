@@ -51,6 +51,25 @@ PanelWindow {
                     workspace: modelData
                 }
             }
+        Rectangle {
+                radius: 6
+                color: Theme.surface2
+                implicitWidth: mediaPlayerContent.implicitWidth + 12
+                implicitHeight: 28
+
+                MediaPlayer {
+                    id: mediaPlayerContent
+                    anchors.centerIn: parent
+                }
+
+                // Click en zona vacía del contenedor → abrir MediaModal
+                MouseArea {
+                    anchors.fill: parent
+                    z: -1
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.mediaClicked(root.screen)
+                }
+            }
         }
         
         // ── Center section — Tray, Clock, Media ───────────────────────────
@@ -78,26 +97,6 @@ PanelWindow {
             Clock {
                 id: clockWidget
                 onClicked: root.clockClicked(root.screen)
-            }
-
-            Rectangle {
-                radius: 6
-                color: Theme.surface2
-                implicitWidth: mediaPlayerContent.implicitWidth + 12
-                implicitHeight: 28
-
-                MediaPlayer {
-                    id: mediaPlayerContent
-                    anchors.centerIn: parent
-                }
-
-                // Click en zona vacía del contenedor → abrir MediaModal
-                MouseArea {
-                    anchors.fill: parent
-                    z: -1
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.mediaClicked(root.screen)
-                }
             }
         }
         

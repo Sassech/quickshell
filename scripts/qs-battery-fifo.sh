@@ -10,7 +10,7 @@ readonly FIFO="/tmp/qs-battery"
 readonly POLL_INTERVAL=10          # segundos entre checks
 
 # Umbrales de batería baja (de mayor a menor, cada uno se notifica una vez)
-readonly LOW_THRESHOLDS="30 20 15"
+readonly LOW_THRESHOLDS="40 30 20"
 
 # ── Detección de batería ─────────────────────────────────────────────────────
 bat_path=""
