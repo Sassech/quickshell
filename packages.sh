@@ -4,7 +4,7 @@ IFS=$'\n\t'
 
 packages=(
   swww               # Wallpaper
-  swaybg             # Wallpaper (fallback)
+# swaybg             # Wallpaper (fallback) (eliminado, no se usa)
   matugen            # Material You color generation
   mpDris2            # MPD → MPRIS2 bridge
   cava               # Audio visualizer for terminal
