@@ -115,7 +115,7 @@ PanelWindow {
         anchors.horizontalCenter: parent.horizontalCenter
         y: yOffset
         width: 292; height: 52; radius: 13
-        color: Theme.base
+        color: Theme.cardBg3
 
         property real yOffset: 0
 

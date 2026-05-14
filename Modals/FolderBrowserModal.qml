@@ -102,7 +102,7 @@ PanelWindow {
         width:  740
         height: Math.min(560, root.height * 0.78)
         radius: 16
-        color:  Theme.base
+        color:  Theme.cardBg3
         border.color: Theme.surface2
         border.width: 1
         clip: true
@@ -215,7 +215,7 @@ PanelWindow {
                 Rectangle {
                     width: 160
                     Layout.fillHeight: true
-                    color: Theme.base
+                    color: Theme.cardBg3
 
                     Column {
                         anchors.left: parent.left
@@ -394,7 +394,7 @@ PanelWindow {
             Rectangle {
                 Layout.fillWidth: true
                 height: 56
-                color: Theme.base
+                color: Theme.cardBg3
 
                 // Borde superior
                 Rectangle {
@@ -459,7 +459,7 @@ PanelWindow {
                             text: "󰄬  Seleccionar"
                             font.pixelSize: 12
                             font.weight: Font.Normal
-                            color: Theme.base
+                            color: Theme.cardBg3
                         }
                         MouseArea {
                             id: selectMa

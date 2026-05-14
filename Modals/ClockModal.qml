@@ -80,7 +80,7 @@ PanelWindow {
         width: 380
         height: 380
         radius: 16
-        color: Theme.base
+        color: Theme.cardBg3
         border.color: Theme.surface2
         border.width: 1
 

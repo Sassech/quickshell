@@ -554,7 +554,7 @@ PanelWindow {
         width:                    400
         height:                   Math.min(560, cardCol.implicitHeight + 32)
         radius:                   14
-        color:                    Theme.base
+        color:                    Theme.cardBg3
 
         Keys.onEscapePressed: root.visible = false
 

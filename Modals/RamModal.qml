@@ -126,7 +126,7 @@ PanelWindow {
         width: 340
         height: col.implicitHeight + 24
         radius: 12
-        color: Theme.base
+        color: Theme.cardBg3
         border.color: Theme.surface2
         border.width: 1
 

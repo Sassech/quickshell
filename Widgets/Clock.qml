@@ -210,7 +210,7 @@ Rectangle {
         width: 160
         height: 95
         radius: 6
-        color: Theme.base
+        color: Theme.cardBg3
         border.color: Theme.surface2
         border.width: 1
         anchors.bottom: parent.top

@@ -265,7 +265,7 @@ PanelWindow {
         width:  440
         implicitHeight: contentCol.implicitHeight + 32
         radius: 14
-        color:  Theme.base
+        color:  Theme.cardBg3
 
         layer.enabled: true
         layer.effect: null

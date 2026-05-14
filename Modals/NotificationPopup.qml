@@ -86,7 +86,7 @@ PanelWindow {
         width:  400
         height: 100
         radius: 12
-        color:  Theme.base
+        color:  Theme.cardBg3
         border.color: root.notifIsMedia ? Theme.accent
                      : root.notifActive  ? Theme.warning
                      : Theme.muted3

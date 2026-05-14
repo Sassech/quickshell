@@ -163,7 +163,7 @@ PanelWindow {
         width: 580
         height: Math.min(520, root.height * 0.65)
         radius: 14
-        color: Theme.base
+        color: Theme.cardBg3
         border.color: Theme.surface2
         border.width: 1
         clip: true
@@ -237,7 +237,7 @@ PanelWindow {
                 Layout.fillWidth: true
                 height: 36
                 radius: 10
-                color: Theme.base
+                color: Theme.cardBg3
                 border.color: searchField.activeFocus ? Theme.accent2 : Theme.surface2
                 border.width: 1
                 Behavior on border.color { ColorAnimation { duration: 150 } }

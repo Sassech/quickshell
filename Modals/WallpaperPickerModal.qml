@@ -149,7 +149,7 @@ PanelWindow {
         width: 720
         height: Math.min(620, root.height * 0.82)
         radius: 16
-        color: Theme.base
+        color: Theme.cardBg3
         border.color: Theme.surface2
         border.width: 1
         clip: true
@@ -232,7 +232,7 @@ PanelWindow {
                 Layout.fillWidth: true
                 height: 38
                 radius: 10
-                color: Theme.base
+                color: Theme.cardBg3
                 border.color: folderBarMa.containsMouse ? Theme.accent2 : Theme.surface2
                 border.width: 1
                 Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -374,7 +374,7 @@ PanelWindow {
                             anchors.fill: parent
                             anchors.margins: 4
                             radius: 10
-                            color: cellMa.containsMouse ? Theme.surface2 : Theme.base
+                            color: cellMa.containsMouse ? Theme.surface2 : Theme.cardBg3
                             border.color: isActive ? Theme.accent2 : (cellMa.containsMouse ? Theme.surface3 : Theme.surface2)
                             border.width: isActive ? 2 : 1
                             clip: true
@@ -397,7 +397,7 @@ PanelWindow {
                                 // Placeholder si falla la imagen
                                 Rectangle {
                                     anchors.fill: parent
-                                    color: Theme.base
+                                    color: Theme.cardBg3
                                     visible: thumb.status !== Image.Ready
                                     Text {
                                         anchors.centerIn: parent

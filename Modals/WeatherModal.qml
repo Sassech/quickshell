@@ -110,7 +110,7 @@ PanelWindow {
         anchors.centerIn: parent
         width:  700
         radius: 16
-        color:  Theme.base
+        color:  Theme.cardBg3
         border.color: Theme.surface2
         border.width: 1
         height: mainCol.implicitHeight + 44

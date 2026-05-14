@@ -66,7 +66,7 @@ PanelWindow {
             case "app":  return Theme.accentSurface
             case "file": return Theme.surface3
             case "cmd":  return Theme.accentDim
-            default:     return Theme.base
+            default:     return Theme.cardBg3
         }
     }
 
@@ -230,7 +230,7 @@ PanelWindow {
         }
 
         radius: 16
-        color: Theme.base
+        color: Theme.cardBg3
         border.color: Theme.surface2
         border.width: 1
 
