@@ -152,9 +152,13 @@ PanelWindow {
 
     // ── UI ──────────────────────────────────────────────────────────────
     // Overlay: click fuera cierra
-    MouseArea {
+    Rectangle {
         anchors.fill: parent
-        onClicked: root.visible = false
+        color: Theme.scrim
+        MouseArea {
+            anchors.fill: parent
+            onClicked: root.visible = false
+        }
     }
 
     Rectangle {
@@ -164,17 +168,9 @@ PanelWindow {
         height: Math.min(520, root.height * 0.65)
         radius: 14
         color: Theme.cardBg3
-        border.color: Theme.surface2
+        border.color: Qt.rgba(1, 1, 1, 0.06)
         border.width: 1
         clip: true
-
-        // Top accent stripe
-        Rectangle {
-            width: parent.width; height: 3; radius: 2
-            anchors.top: parent.top
-            color: Theme.accent2
-            Rectangle { width: parent.width/2; height: parent.height; anchors.right: parent.right; color: Theme.accent }
-        }
 
         // Consume clicks (no cerrar al hacer click dentro del card)
         MouseArea { anchors.fill: parent; onClicked: {} }
@@ -237,8 +233,8 @@ PanelWindow {
                 Layout.fillWidth: true
                 height: 36
                 radius: 10
-                color: Theme.cardBg3
-                border.color: searchField.activeFocus ? Theme.accent2 : Theme.surface2
+                color: Theme.surface2
+                border.color: searchField.activeFocus ? Theme.accent2 : Theme.surface3
                 border.width: 1
                 Behavior on border.color { ColorAnimation { duration: 150 } }
 
