@@ -37,23 +37,32 @@ print('AVG_FREQ:' + str(round(c['frequency'])))
 "
 
 # Per-core temps y max freq desde sysfs (dgop no los provee)
+# Usa bash built-in reads (< file) — cero forks en el loop de temperaturas
 for d in /sys/class/hwmon/hwmon*/; do
-    [ "$(cat "$d/name" 2>/dev/null)" = "coretemp" ] || continue
+    [ -r "${d}name" ] || continue
+    hwmon_name=$(< "${d}name")
+    [ "$hwmon_name" = "coretemp" ] || continue
     ct=""
     for f in "${d}"temp*_input; do
+        [ -r "$f" ] || continue
         lbl_file="${f/_input/_label}"
-        label=$(cat "$lbl_file" 2>/dev/null)
+        [ -r "$lbl_file" ] || continue
+        label=$(< "$lbl_file")
         [[ "$label" == Core* ]] || continue
-        t=$(($(cat "$f" 2>/dev/null || echo 0)/1000))
+        raw=$(< "$f")
+        t=$(( ${raw:-0} / 1000 ))
         ct="${ct},${t}"
     done
     echo "CORE_TEMPS:${ct#,}"
     break
 done
 
-MAX_FREQ=$(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq 2>/dev/null)
-GOV=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null)
-EPP=$(cat /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference 2>/dev/null)
-echo "MAX_FREQ:$((${MAX_FREQ:-0}/1000))"
+MAX_FREQ=""
+GOV=""
+EPP=""
+[ -r /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq ]         && MAX_FREQ=$(< /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq)
+[ -r /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor ]          && GOV=$(< /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor)
+[ -r /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference ] && EPP=$(< /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference)
+echo "MAX_FREQ:$(( ${MAX_FREQ:-0} / 1000 ))"
 echo "GOV:${GOV:-unknown}"
 echo "EPP:${EPP:-unknown}"

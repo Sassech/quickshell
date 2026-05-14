@@ -5,9 +5,15 @@ set -eo pipefail
 
 FIFO=/tmp/qs-brightness
 
+# Limpiar FIFO al salir (SIGTERM, SIGINT, exit normal)
+trap 'rm -f "$FIFO"' EXIT INT TERM
+
 rm -f "$FIFO"
 mkfifo "$FIFO"
 exec 3<>"$FIFO"
+
+# Cachear el máximo — no cambia en runtime, ahorra 1 fork por cada lectura
+BRIGHT_MAX=$(brightnessctl max)
 
 while IFS= read -r cmd <&3; do
     case "$cmd" in
@@ -21,5 +27,5 @@ while IFS= read -r cmd <&3; do
             ;;
     esac
 
-    echo $(( $(brightnessctl get) * 100 / $(brightnessctl max) ))
+    echo $(( $(brightnessctl get) * 100 / BRIGHT_MAX ))
 done

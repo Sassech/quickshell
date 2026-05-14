@@ -23,9 +23,9 @@ if [ -z "$bat_path" ]; then
     exit 0
 fi
 
-# ── Funciones de lectura ─────────────────────────────────────────────────────
-read_cap()   { cat "$bat_path/capacity" 2>/dev/null || echo "0"; }
-read_status() { cat "$bat_path/status" 2>/dev/null || echo "Unknown"; }
+# ── Funciones de lectura — bash built-in, cero forks ─────────────────────────
+read_cap()    { local v; v=$(< "$bat_path/capacity" 2>/dev/null) && printf '%s' "${v:-0}" || printf '0'; }
+read_status() { local v; v=$(< "$bat_path/status"   2>/dev/null) && printf '%s' "${v:-Unknown}" || printf 'Unknown'; }
 
 # ── Estado previo ────────────────────────────────────────────────────────────
 prev_cap=-1
@@ -85,6 +85,9 @@ check_and_emit() {
 }
 
 # ── Main loop: polling + FIFO ────────────────────────────────────────────────
+# Limpiar FIFO al salir (SIGTERM, SIGINT, exit normal)
+trap 'rm -f "$FIFO"' EXIT INT TERM
+
 rm -f "$FIFO"
 mkfifo "$FIFO"
 exec 3<>"$FIFO"
