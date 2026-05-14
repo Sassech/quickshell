@@ -88,7 +88,7 @@ PanelWindow {
     // ── UI ────────────────────────────────────────────────────
     Rectangle {
         anchors.fill: parent
-        color: "#88000000"
+        color: Theme.scrim
         MouseArea {
             anchors.fill: parent
             onClicked: root.visible = false

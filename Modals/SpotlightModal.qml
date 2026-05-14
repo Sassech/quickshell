@@ -198,7 +198,7 @@ PanelWindow {
     // Overlay oscuro — click fuera cierra
     Rectangle {
         anchors.fill: parent
-        color: "#80000000"
+        color: Theme.scrim
 
         MouseArea {
             anchors.fill: parent

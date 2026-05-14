@@ -63,7 +63,7 @@ PanelWindow {
     // Overlay oscuro
     Rectangle {
         anchors.fill: parent
-        color: "#000000"
+        color: Theme.scrim
         opacity: 0.55
 
         MouseArea {
