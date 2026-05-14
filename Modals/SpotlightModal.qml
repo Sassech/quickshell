@@ -26,6 +26,12 @@ PanelWindow {
     property int    selectedIndex: 0
     property string activeTab: "all"
 
+    // Dimensiones de la grilla
+    readonly property int _cellSize:   88   // ancho de cada celda
+    readonly property int _cellHeight: 96   // alto de cada celda (ícono + label)
+    readonly property int _cols:       7    // columnas visibles por fila
+    readonly property int _maxRows:    3    // filas máximas antes de scrollear
+
     readonly property var tabs: [
         { id: "all",  label: "Todo",     icon: "󰍉" },
         { id: "app",  label: "Apps",     icon: "󰣆" },
@@ -150,23 +156,12 @@ PanelWindow {
         debounce.stop()
     }
 
-    function sanitizeExec(exec) {
-        if (!exec) return ""
-        if (exec.includes(" ") || exec.includes("'") || exec.includes('"')) {
-            return exec.replace(/'/g, "'\\''")
-        }
-        return exec
-    }
-
     function launchSelected() {
-        console.log("launchSelected called, count:", filteredModel.count, "selectedIndex:", selectedIndex)
         if (filteredModel.count === 0) return
         var idx = Math.min(selectedIndex, filteredModel.count - 1)
         var item = filteredModel.get(idx)
-        console.log("Launching item:", JSON.stringify(item))
         launcher.running = false
 
-        // Preferir execArgs (lista de args, sin bash -c, sin injection posible)
         if (item.execArgs && item.execArgs.length > 0) {
             launcher.command = item.execArgs
             launcher.running = true
@@ -174,10 +169,8 @@ PanelWindow {
             return
         }
 
-        if (!item || !item.exec) {
-            console.log("No item or no exec")
-            return
-        }
+        if (!item || !item.exec) return
+
         var exec = item.exec
         var cmd
         if (exec.includes(" ") || exec.includes("'") || exec.includes('"')) {
@@ -185,7 +178,6 @@ PanelWindow {
         } else {
             cmd = "setsid " + exec + " &>/dev/null &"
         }
-        console.log("Executing:", cmd)
         launcher.command = ["bash", "-c", cmd]
         launcher.running = true
         closeSpotlight(true)
@@ -194,17 +186,14 @@ PanelWindow {
     Process {
         id: launcher
         running: false
-        onExited: {
-            console.log("Launcher exited")
-            running = false
-        }
+        onExited: running = false
     }
 
     onVisibleChanged: {
         if (visible) searchInput.forceActiveFocus()
     }
 
-    // UI ─────────────────────────────────────────────────────────────────
+    // ── UI ────────────────────────────────────────────────────
 
     // Overlay oscuro — click fuera cierra
     Rectangle {
@@ -217,25 +206,37 @@ PanelWindow {
         }
     }
 
-    // Card central
+    // ── Card ──────────────────────────────────────────────────
     Rectangle {
         id: card
+
+        // Ancho = cols × cellSize + márgenes laterales (16px c/u)
+        readonly property int gridW: root._cols * root._cellSize + 32
+
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
         anchors.topMargin: Math.max(80, root.height * 0.18)
 
-        width: 660
-        height: searchBar.height
-                + tabBar.height
-                + (filteredModel.count > 0 ? Math.min(filteredModel.count, 8) * 56 + 12 : 0)
-                + (filteredModel.count === 0 && !_searching ? 64 : 0)
-                + 2
+        width: gridW
+        height: {
+            var rows = filteredModel.count > 0
+                ? Math.min(Math.ceil(filteredModel.count / root._cols), root._maxRows)
+                : 0
+            return searchBar.height
+                 + tabBar.height
+                 + (rows > 0 ? rows * root._cellHeight + 16 : 0)
+                 + (filteredModel.count === 0 && !_searching ? 72 : 0)
+                 + 2
+        }
+
         radius: 16
         color: Theme.base
         border.color: Theme.surface2
         border.width: 1
 
-        // Sombra (bloque relleno más oscuro debajo)
+        Behavior on height { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+
+        // Sombra
         Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.bottom
@@ -259,7 +260,6 @@ PanelWindow {
             }
         }
 
-        // Consume clicks dentro del card
         MouseArea { anchors.fill: parent; onClicked: {} }
 
         Column {
@@ -280,7 +280,6 @@ PanelWindow {
                     height: parent.height
                     spacing: 12
 
-                    // Contenedor para input + foco visual + icono
                     Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 40
@@ -288,7 +287,7 @@ PanelWindow {
                         Layout.leftMargin: -4
                         Layout.rightMargin: -4
 
-                        // Icono lupa
+                        // Icono lupa / spinner
                         Text {
                             anchors.left: parent.left
                             anchors.leftMargin: 12
@@ -305,7 +304,7 @@ PanelWindow {
                             }
                         }
 
-                        // Foco visual (fondo del input)
+                        // Foco visual
                         Rectangle {
                             anchors.fill: parent
                             radius: 8
@@ -325,64 +324,81 @@ PanelWindow {
                             selectedTextColor: Theme.text
                             clip: true
 
-                            // Placeholder
                             Text {
                                 anchors.fill: parent
                                 anchors.verticalCenter: parent.verticalCenter
-                            text: "Buscar aplicaciones, archivos, comandos..."
-                            font.pixelSize: 18
-                            color: Theme.surface2
-                            visible: !parent.text && !parent.activeFocus
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        onTextChanged: {
-                            root.selectedIndex = 0
-                            if (text.trim() === "") {
-                                debounce.stop()
-                                searchProc.running = false
-                                root.loadDefaultApps()
-                            } else {
-                                debounce.restart()
+                                text: "Buscar aplicaciones, archivos, comandos..."
+                                font.pixelSize: 18
+                                color: Theme.surface2
+                                visible: !parent.text && !parent.activeFocus
+                                verticalAlignment: Text.AlignVCenter
                             }
-                        }
 
-                        Keys.onEscapePressed: root.closeSpotlight()
-                        Keys.onReturnPressed: root.launchSelected()
-                        Keys.onEnterPressed:  root.launchSelected()
+                            onTextChanged: {
+                                root.selectedIndex = 0
+                                if (text.trim() === "") {
+                                    debounce.stop()
+                                    searchProc.running = false
+                                    root.loadDefaultApps()
+                                } else {
+                                    debounce.restart()
+                                }
+                            }
 
-                        Keys.onUpPressed: {
-                            if (root.selectedIndex > 0) root.selectedIndex--
-                            listView.positionViewAtIndex(root.selectedIndex, ListView.Contain)
-                        }
-                        Keys.onDownPressed: {
-                            if (root.selectedIndex < filteredModel.count - 1) root.selectedIndex++
-                            listView.positionViewAtIndex(root.selectedIndex, ListView.Contain)
-                        }
-                        Keys.onTabPressed: {
-                            var cur = root.getCurrentTabIndex()
-                            root.activeTab = root.tabs[(cur + 1) % root.tabs.length].id
-                        }
-                        Keys.onBacktabPressed: {
-                            var cur = root.getCurrentTabIndex()
-                            root.activeTab = root.tabs[(cur - 1 + root.tabs.length) % root.tabs.length].id
-                        }
+                            Keys.onEscapePressed: root.closeSpotlight()
+                            Keys.onReturnPressed: root.launchSelected()
+                            Keys.onEnterPressed:  root.launchSelected()
 
-                        // Atajos Ctrl+1-5 para tabs
-                        Keys.onPressed: function(event) {
-                            if (event.modifiers & Qt.ControlModifier) {
-                                var num = parseInt(event.text)
-                                if (num >= 1 && num <= root.tabs.length) {
-                                    root.activeTab = root.tabs[num - 1].id
-                                    event.accepted = true
+                            // Navegación grilla: ←→↑↓
+                            Keys.onLeftPressed: {
+                                if (root.selectedIndex > 0) {
+                                    root.selectedIndex--
+                                    gridView.positionViewAtIndex(root.selectedIndex, GridView.Contain)
+                                }
+                            }
+                            Keys.onRightPressed: {
+                                if (root.selectedIndex < filteredModel.count - 1) {
+                                    root.selectedIndex++
+                                    gridView.positionViewAtIndex(root.selectedIndex, GridView.Contain)
+                                }
+                            }
+                            Keys.onUpPressed: {
+                                var next = root.selectedIndex - root._cols
+                                if (next >= 0) {
+                                    root.selectedIndex = next
+                                    gridView.positionViewAtIndex(root.selectedIndex, GridView.Contain)
+                                }
+                            }
+                            Keys.onDownPressed: {
+                                var next = root.selectedIndex + root._cols
+                                if (next < filteredModel.count) {
+                                    root.selectedIndex = next
+                                    gridView.positionViewAtIndex(root.selectedIndex, GridView.Contain)
+                                }
+                            }
+
+                            Keys.onTabPressed: {
+                                var cur = root.getCurrentTabIndex()
+                                root.activeTab = root.tabs[(cur + 1) % root.tabs.length].id
+                            }
+                            Keys.onBacktabPressed: {
+                                var cur = root.getCurrentTabIndex()
+                                root.activeTab = root.tabs[(cur - 1 + root.tabs.length) % root.tabs.length].id
+                            }
+
+                            Keys.onPressed: function(event) {
+                                if (event.modifiers & Qt.ControlModifier) {
+                                    var num = parseInt(event.text)
+                                    if (num >= 1 && num <= root.tabs.length) {
+                                        root.activeTab = root.tabs[num - 1].id
+                                        event.accepted = true
+                                    }
                                 }
                             }
                         }
                     }
-                    }
                 }
 
-                // Separador
                 Rectangle {
                     anchors.bottom: parent.bottom
                     anchors.left: parent.left
@@ -462,22 +478,25 @@ PanelWindow {
                 }
             }
 
-            // ── Resultados ────────────────────────────────────
+            // ── Grilla de resultados ──────────────────────────
             Item {
                 width: parent.width
-                height: Math.min(filteredModel.count, 8) * 56 + 12
+                height: Math.min(Math.ceil(filteredModel.count / root._cols), root._maxRows)
+                         * root._cellHeight + 16
                 visible: filteredModel.count > 0
 
-                ListView {
-                    id: listView
+                GridView {
+                    id: gridView
                     anchors.fill: parent
-                    anchors.topMargin: 6
-                    anchors.bottomMargin: 6
-                    anchors.leftMargin: 8
-                    anchors.rightMargin: 8
+                    anchors.topMargin: 8
+                    anchors.bottomMargin: 8
+                    anchors.leftMargin: 16
+                    anchors.rightMargin: 16
                     clip: true
+
                     model: filteredModel
-                    spacing: 2
+                    cellWidth:  root._cellSize
+                    cellHeight: root._cellHeight
 
                     ScrollBar.vertical: ScrollBar {
                         policy: ScrollBar.AsNeeded
@@ -486,116 +505,90 @@ PanelWindow {
                         }
                     }
 
-                    delegate: Rectangle {
-                        id: resultRow
-                        width: listView.width - 8
-                        height: 52
-                        radius: 10
-                        color: (index === root.selectedIndex)
-                               ? Theme.surface2
-                               : (rowHover.containsMouse ? Theme.accentSurface : "transparent")
-                        Behavior on color { ColorAnimation { duration: 80 } }
-
+                    delegate: Item {
+                        id: gridCell
                         required property var   model
                         required property int   index
 
-                        // Indicador de selección (barra izq)
+                        width:  root._cellSize
+                        height: root._cellHeight
+
+                        readonly property bool isSelected: gridCell.index === root.selectedIndex
+
+                        // Fondo hover/selected
                         Rectangle {
-                            anchors.left: parent.left
-                            anchors.leftMargin: 2
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 3; height: 28; radius: 2
-                            color: Theme.accent2
-                            visible: resultRow.index === root.selectedIndex
-                        }
+                            anchors.centerIn: parent
+                            width:  72
+                            height: 80
+                            radius: 12
+                            color: gridCell.isSelected
+                                   ? Theme.accentSurface
+                                   : (cellHover.containsMouse ? Theme.surface2 : "transparent")
+                            Behavior on color { ColorAnimation { duration: 80 } }
 
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 14
-                            anchors.rightMargin: 14
-                            spacing: 12
-
-                            // ── Icono ──────────────────────────
-                            Item {
-                                Layout.preferredWidth: 36
-                                Layout.preferredHeight: 36
-                                Layout.alignment: Qt.AlignVCenter
-
-                                // Imagen real (app icon)
-                                Image {
-                                    anchors.centerIn: parent
-                                    width: 32; height: 32
-                                    source: (resultRow.model.iconPath !== "")
-                                            ? ("file://" + resultRow.model.iconPath)
-                                            : ""
-                                    visible: resultRow.model.iconPath !== ""
-                                    fillMode: Image.PreserveAspectFit
-                                    asynchronous: true
-                                    cache: true
-                                    smooth: true
-                                }
-
-                                // Icono de texto fallback
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: resultRow.model.icon
-                                    font.pixelSize: 22
-                                    visible: resultRow.model.iconPath === ""
-                                    color: root.getTypeColor(resultRow.model.type)
-                                }
-                            }
-
-                            // ── Nombre + detalle ──────────────
-                            Column {
-                                Layout.fillWidth: true
-                                Layout.alignment: Qt.AlignVCenter
-                                spacing: 2
-
-                                Text {
-                                    width: parent.width
-                                    text: resultRow.model.name
-                                    font.pixelSize: 14
-                                    font.weight: Font.Normal
-                                    color: Theme.text
-                                    elide: Text.ElideRight
-                                }
-                                Text {
-                                    width: parent.width
-                                    text: resultRow.model.detail
-                                    font.pixelSize: 11
-                                    color: Theme.muted3
-                                    elide: Text.ElideRight
-                                    visible: text !== ""
-                                }
-                            }
-
-                            // ── Badge tipo ────────────────────
+                            // Borde de selección
                             Rectangle {
-                                Layout.alignment: Qt.AlignVCenter
-                                Layout.preferredWidth: badgeText.width + 10
-                                Layout.preferredHeight: 18
-                                radius: 5
-                                color: root.getTypeColorSurface(resultRow.model.type)
+                                anchors.fill: parent
+                                radius: parent.radius
+                                color: "transparent"
+                                border.color: Theme.accent
+                                border.width: gridCell.isSelected ? 2 : 0
+                                Behavior on border.width { NumberAnimation { duration: 80 } }
+                            }
+
+                            Column {
+                                anchors.centerIn: parent
+                                spacing: 6
+
+                                // ── Ícono ─────────────────────
+                                Item {
+                                    width: 48; height: 48
+                                    anchors.horizontalCenter: parent.horizontalCenter
+
+                                    Image {
+                                        anchors.fill: parent
+                                        source: (gridCell.model.iconPath !== "")
+                                                ? ("file://" + gridCell.model.iconPath)
+                                                : ""
+                                        visible: gridCell.model.iconPath !== ""
+                                        fillMode: Image.PreserveAspectFit
+                                        asynchronous: true
+                                        cache: true
+                                        smooth: true
+                                    }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: gridCell.model.icon
+                                        font.pixelSize: 28
+                                        visible: gridCell.model.iconPath === ""
+                                        color: root.getTypeColor(gridCell.model.type)
+                                    }
+                                }
+
+                                // ── Nombre ────────────────────
                                 Text {
-                                    id: badgeText
-                                    anchors.centerIn: parent
-                                    text: resultRow.model.type
-                                    font.pixelSize: 9
-                                    font.weight: Font.Normal
-                                    color: root.getTypeColor(resultRow.model.type)
+                                    width: 68
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    text: gridCell.model.name
+                                    font.pixelSize: 10
+                                    color: gridCell.isSelected ? Theme.accent : Theme.text
+                                    horizontalAlignment: Text.AlignHCenter
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 1
+                                    Behavior on color { ColorAnimation { duration: 80 } }
                                 }
                             }
                         }
 
                         MouseArea {
-                            id: rowHover
+                            id: cellHover
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onEntered: root.selectedIndex = resultRow.index
+                            onEntered: root.selectedIndex = gridCell.index
                             onClicked: {
-                                console.log("Row clicked, index:", resultRow.index)
-                                root.selectedIndex = resultRow.index
+                                root.selectedIndex = gridCell.index
                                 root.launchSelected()
                             }
                         }
@@ -606,7 +599,7 @@ PanelWindow {
             // ── Sin resultados / ayuda ────────────────────────
             Item {
                 width: parent.width
-                height: 64
+                height: 72
                 visible: filteredModel.count === 0 && !_searching
 
                 Column {
