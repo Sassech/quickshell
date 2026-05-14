@@ -23,10 +23,10 @@ Rectangle {
     }
 
     property color iconColor: {
-        if (SysData.netConnectionType === "ethernet") return Theme.success
+        if (SysData.netConnectionType === "ethernet") return Theme.accent
         if (!SysData.netRadioOn) return Theme.muted1
         if (!SysData.netConnected) return Theme.muted2
-        if (SysData.netSignal >= 60) return Theme.success
+        if (SysData.netSignal >= 60) return Theme.text
         if (SysData.netSignal >= 40) return Theme.warning
         return Theme.error
     }
@@ -78,7 +78,7 @@ Rectangle {
                 text: "↓"
                 font.pixelSize: 9
                 font.weight: Font.Bold
-                color: Theme.success
+                color: Theme.accent
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {

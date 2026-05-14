@@ -17,7 +17,7 @@ Rectangle {
         if (!SysData.diskAvailable) return Theme.muted2
         if (SysData.diskPercent >= 90) return Theme.error
         if (SysData.diskPercent >= 75) return Theme.warning
-        return Theme.success
+        return Theme.text
     }
 
     Behavior on color { ColorAnimation { duration: 100 } }
