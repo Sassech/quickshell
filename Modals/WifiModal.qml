@@ -542,7 +542,7 @@ PanelWindow {
     // ── Backdrop ──────────────────────────────────────────────────────────
     Rectangle {
         anchors.fill: parent
-        color: Qt.rgba(0, 0, 0, 0.55)
+        color: Theme.scrim
         MouseArea { anchors.fill: parent; onClicked: root.visible = false }
     }
 
@@ -561,7 +561,7 @@ PanelWindow {
         Rectangle {
             anchors.fill: parent; radius: parent.radius
             color: "transparent"
-            border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.25)
+            border.color: Theme.accentSurface
             border.width: 1
         }
 
@@ -656,8 +656,8 @@ PanelWindow {
                     anchors.fill: parent
                     anchors.topMargin: 8
                     radius: 10
-                    color: Qt.rgba(Theme.success.r, Theme.success.g, Theme.success.b, 0.12)
-                    border.color: Qt.rgba(Theme.success.r, Theme.success.g, Theme.success.b, 0.3)
+                    color: Theme.successSurface
+                    border.color: Qt.tint(Theme.surface2, Qt.rgba(Theme.success.r, Theme.success.g, Theme.success.b, 0.30))
 
                     Row {
                         anchors.fill: parent
@@ -815,7 +815,7 @@ PanelWindow {
                             width: parent.width; height: 40; radius: 8
                             color: {
                                 if (netRow.isActive)
-                                    return Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                                    return Theme.accentSurface
                                 if (root.selectedIdx === index)
                                     return Theme.surface3
                                 return rowMA.containsMouse ? Theme.surface3 : Theme.surface2
@@ -968,7 +968,7 @@ PanelWindow {
 
                             Rectangle {
                                 anchors.fill: parent; radius: parent.radius; color: "transparent"
-                                border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.3)
+                                border.color: Theme.accentSurface
                                 border.width: 1
                             }
 
@@ -1108,7 +1108,7 @@ PanelWindow {
                                     Rectangle {
                                         width: forgetBtnText.implicitWidth + 20; height: 26; radius: 6
                                         color: forgetBtnMA.containsMouse
-                                            ? Qt.rgba(Theme.error.r, Theme.error.g, Theme.error.b, 0.18)
+                                            ? Qt.tint(Theme.surface3, Qt.rgba(Theme.error.r, Theme.error.g, Theme.error.b, 0.18))
                                             : Theme.surface3
                                         Behavior on color { ColorAnimation { duration: 100 } }
                                         Text { id: forgetBtnText; anchors.centerIn: parent; text: "󱑃  Olvidar red"; font.pixelSize: 11; color: Theme.error }
