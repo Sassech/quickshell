@@ -5,6 +5,9 @@ set -eo pipefail
 
 FIFO=/tmp/qs-volume
 
+# Limpiar FIFO al salir (SIGTERM, SIGINT, exit normal)
+trap 'rm -f "$FIFO"' EXIT INT TERM
+
 rm -f "$FIFO"
 mkfifo "$FIFO"
 exec 3<>"$FIFO"
@@ -23,7 +26,4 @@ while IFS= read -r cmd <&3; do
             wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle >/dev/null 2>&1
             ;;
     esac
-
-    # Trigger OSD in shell.qml (values are ignored there now)
-    echo "0:0"
 done
