@@ -24,6 +24,7 @@ import threading
 import time
 import signal as signal_mod
 from datetime import datetime
+from pathlib import Path
 
 # ── Configuration ────────────────────────────────────────────────────────────
 POLL_CPU     = 4    # seconds
@@ -34,13 +35,58 @@ POLL_NET     = 3
 POLL_FAN     = 5
 POLL_BAT     = 15
 
-# ── Fan sysfs paths (Alienware) ──────────────────────────────────────────────
-HWMON_SMM  = "/sys/class/hwmon/hwmon5"
-HWMON_AWCC = "/sys/class/hwmon/hwmon4"
+# ── Fan sysfs paths (Alienware) — detectados dinámicamente en main() ─────────
+HWMON_SMM  = ""
+HWMON_AWCC = ""
 PLATFORM_PROFILE = "/sys/class/platform-profile/platform-profile-0"
 
 _running = True
+_stop_event = threading.Event()
 _cpu_cursor = ""
+
+# ── Cache de paths que no cambian en runtime ──────────────────────────────────
+_bat_path: str = ""       # /sys/class/power_supply/BAT0
+_gpu_card_path: str = ""  # /sys/class/drm/cardX
+
+
+def _find_hwmon(name: str) -> str:
+    """Detecta dinámicamente el path de un hwmon por su nombre en /sys."""
+    try:
+        for h in sorted(Path("/sys/class/hwmon").iterdir()):
+            nm_file = h / "name"
+            if nm_file.exists():
+                nm = nm_file.read_text().strip()
+                if nm == name:
+                    return str(h)
+    except Exception:
+        pass
+    return ""
+
+
+def _detect_bat_path() -> str:
+    """Detecta el primer BAT disponible. Retorna path completo o ''."""
+    try:
+        bats = sorted(d for d in os.listdir("/sys/class/power_supply") if d.startswith("BAT"))
+        if bats:
+            return f"/sys/class/power_supply/{bats[0]}"
+    except Exception:
+        pass
+    return ""
+
+
+def _detect_gpu_card() -> str:
+    """Detecta el path de la tarjeta GPU principal en /sys/class/drm."""
+    try:
+        for card in sorted(os.listdir("/sys/class/drm")):
+            if not card.startswith("card") or "-" in card:
+                continue
+            cpath = f"/sys/class/drm/{card}"
+            # Verificar que tiene device/vendor (tarjeta real, no conector)
+            if os.path.exists(f"{cpath}/device/vendor"):
+                return cpath
+    except Exception:
+        pass
+    return ""
 
 
 def _log(msg: str) -> None:
@@ -83,17 +129,11 @@ def _run_cmd(cmd: list[str], timeout: int = 5) -> tuple[int, str]:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def fetch_battery() -> dict:
-    """Read basic battery level + status from sysfs."""
-    try:
-        bats = [d for d in os.listdir("/sys/class/power_supply") if d.startswith("BAT")]
-    except FileNotFoundError:
-        return {}
-
-    if not bats:
+    """Read basic battery level + status from sysfs (path cacheado en main)."""
+    if not _bat_path:
         return {"t": "bat", "a": False, "p": 0, "s": "Unknown"}
 
-    base = f"/sys/class/power_supply/{bats[0]}"
-
+    base = _bat_path
     raw_cap = _read_sys(f"{base}/capacity")
     raw_sts = _read_sys(f"{base}/status")
 
@@ -190,34 +230,33 @@ def fetch_gpu() -> dict:
             name = name.replace("NVIDIA GeForce ", "").replace("GeForce ", "")
             return {"t": "gpu", "u": pct, "tmp": tmp, "n": name}
 
-    # Fallback: sysfs (AMD/Intel)
+    # Fallback: sysfs (AMD/Intel) — usa el path cacheado en main()
     pct, tmp, name = -1, 0, "GPU"
-    for card in sorted(os.listdir("/sys/class/drm")):
-        if not card.startswith("card"):
-            continue
-        cpath = f"/sys/class/drm/{card}"
-        vendor = _read_sys(f"{cpath}/device/vendor")
-        if "10de" in vendor:
-            name = "NVIDIA"
-        elif "8086" in vendor:
-            name = "Intel"
-        elif "1002" in vendor:
-            name = "AMD"
+    cpath = _gpu_card_path
+    if not cpath:
+        return {"t": "gpu", "u": pct, "tmp": tmp, "n": name}
 
-        busy = _read_sys(f"{cpath}/device/gpu_busy_percent")
-        if busy:
-            try:
-                pct = int("".join(filter(str.isdigit, busy)))
-                break
-            except ValueError:
-                pass
+    vendor = _read_sys(f"{cpath}/device/vendor")
+    if "10de" in vendor:
+        name = "NVIDIA"
+    elif "8086" in vendor:
+        name = "Intel"
+    elif "1002" in vendor:
+        name = "AMD"
 
+    busy = _read_sys(f"{cpath}/device/gpu_busy_percent")
+    if busy:
+        try:
+            pct = int("".join(filter(str.isdigit, busy)))
+        except ValueError:
+            pass
+
+    if pct < 0:
         freq = _read_sys(f"{cpath}/gt_act_freq_mhz") or _read_sys(f"{cpath}/gt_cur_freq_mhz")
         maxf = _read_sys(f"{cpath}/gt_max_freq_mhz") or _read_sys(f"{cpath}/gt_RP0_freq_mhz")
         if freq and maxf:
             try:
                 pct = int(int(freq) * 100 / int(maxf))
-                break
             except (ValueError, ZeroDivisionError):
                 pass
 
@@ -396,37 +435,62 @@ def fetch_fan() -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _poll(fn, interval: int) -> None:
-    """Generic poller: call fn(), emit result, sleep interval."""
-    while _running:
+    """Generic poller: call fn(), emit result, sleep interval (interruptible)."""
+    while not _stop_event.is_set():
         data = fn()
         if data:
             _emit(data)
-        time.sleep(interval)
+        _stop_event.wait(interval)
 
 
 def _poll_network() -> None:
     """Network poller with state tracking for speed calculation."""
     rx, tx = -1.0, -1.0
-    while _running:
+    while not _stop_event.is_set():
         data, rx, tx = fetch_network(rx, tx)
         _emit(data)
-        time.sleep(POLL_NET)
+        _stop_event.wait(POLL_NET)
 
 
 def _signal_handler(signum, frame) -> None:
     global _running
     _running = False
+    _stop_event.set()
 
 
 def main() -> None:
-    global _cpu_cursor, _running
+    global _cpu_cursor, _running, HWMON_SMM, HWMON_AWCC, _bat_path, _gpu_card_path
 
     _log("Starting system data backend...")
 
     signal_mod.signal(signal_mod.SIGINT, _signal_handler)
     signal_mod.signal(signal_mod.SIGTERM, _signal_handler)
 
-    # Restore CPU cursor
+    # ── Detectar paths de hardware una sola vez ───────────────────────────────
+    HWMON_SMM  = _find_hwmon("dell_smm")
+    HWMON_AWCC = _find_hwmon("awcc")
+    if HWMON_SMM:
+        _log(f"hwmon SMM  → {HWMON_SMM}")
+    else:
+        _log("hwmon SMM  no encontrado (fans no disponibles)")
+    if HWMON_AWCC:
+        _log(f"hwmon AWCC → {HWMON_AWCC}")
+    else:
+        _log("hwmon AWCC no encontrado (temps AWCC no disponibles)")
+
+    _bat_path = _detect_bat_path()
+    if _bat_path:
+        _log(f"Battery    → {_bat_path}")
+    else:
+        _log("Battery    no encontrada")
+
+    _gpu_card_path = _detect_gpu_card()
+    if _gpu_card_path:
+        _log(f"GPU card   → {_gpu_card_path}")
+    else:
+        _log("GPU card   no encontrada en sysfs (se usará nvidia-smi)")
+
+    # ── Restore CPU cursor ────────────────────────────────────────────────────
     cursor_file = "/tmp/qs-cpu-cursor"
     if os.path.exists(cursor_file):
         try:
@@ -450,9 +514,8 @@ def main() -> None:
 
     _log(f"Running {len(threads)} poller threads")
 
-    # Keep alive
-    while _running:
-        time.sleep(0.5)
+    # Keep alive — espera en el evento, shutdown en <1ms tras señal
+    _stop_event.wait()
 
     _log("Shutting down")
 
