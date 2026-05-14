@@ -11,23 +11,13 @@ Row {
 
     // ── Player state ──────────────────────────────────────────────────────────
     property MprisPlayer _cachedPlayer: null
-    property var _lastPlayerIds: []
 
     function _updateCachedPlayer() {
         var players = Mpris.players.values || []
-        
-        // Extraer IDs para comparar (más eficiente que JSON.stringify)
-        var currentIds = players.map(p => p.identity + ":" + p.playbackState)
-        
-        if (arraysEqual(currentIds, _lastPlayerIds)) {
-            return
-        }
-        _lastPlayerIds = currentIds
-        
         var playingOther = null
         var playingMpd   = null
         var first        = null
-        
+
         for (var i = 0; i < players.length; i++) {
             var p = players[i]
             if (!first) first = p
@@ -38,14 +28,6 @@ Row {
             }
         }
         _cachedPlayer = playingOther ?? playingMpd ?? first ?? null
-    }
-
-    function arraysEqual(a, b) {
-        if (a.length !== b.length) return false
-        for (var i = 0; i < a.length; i++) {
-            if (a[i] !== b[i]) return false
-        }
-        return true
     }
 
     // ── Bindings ─────────────────────────────────────────────────────────────
@@ -62,7 +44,7 @@ Row {
     }
 
     // ── Inicialización: leer players existentes al arrancar ──────────────────
-    Component.onCompleted: root._updateCachedPlayer()
+    Component.onCompleted: Qt.callLater(root._updateCachedPlayer)
 
     // ── Event-driven: reacciona a cambios de players y estado de reproducción ─
     Connections {
