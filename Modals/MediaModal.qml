@@ -55,7 +55,7 @@ PanelWindow {
         width:  380
         height: 110
         radius: 16
-        color:  Theme.base
+        color:  Theme.cardBg3
 
         Keys.onEscapePressed: root.visible = false
 
