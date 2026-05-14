@@ -358,7 +358,7 @@ PanelWindow {
                         required property var modelData
                         required property int index
                         width:  110; height: 158; radius: 10
-                        color:  index === root.selectedHourIndex ? Theme.surface1 : Theme.base
+                        color:  index === root.selectedHourIndex ? Theme.surface1 : Theme.cardBg3
                         border.color: index === root.selectedHourIndex ? root.accent : Theme.surface2
                         border.width: index === root.selectedHourIndex ? 1 : 0
 
@@ -463,7 +463,7 @@ PanelWindow {
                             required property int index
                             width:  (parent.width - 6 * 6) / 7
                             height: 104; radius: 10
-                            color:  index === root.selectedDayIndex ? Theme.surface1 : Theme.base
+                            color:  index === root.selectedDayIndex ? Theme.surface1 : Theme.cardBg3
                             border.color: index === root.selectedDayIndex ? root.accent : Theme.surface2
                             border.width: index === root.selectedDayIndex ? 1 : 0
 

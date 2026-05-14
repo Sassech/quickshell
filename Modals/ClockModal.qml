@@ -257,7 +257,7 @@ PanelWindow {
                                 text: modelData.day
                                 font.pixelSize: 13
                                 color: {
-                                    if (modelData.isToday) return Theme.base;
+                                    if (modelData.isToday) return Theme.cardBg3;
                                     if (modelData.otherMonth) return Theme.muted3;
                                     return Theme.text;
                                 }

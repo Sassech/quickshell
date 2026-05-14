@@ -220,7 +220,7 @@ PanelWindow {
                         anchors.centerIn: parent
                         text: "󱃦"
                         font.pixelSize: 14
-                        color: wipeMa.containsMouse ? Theme.base : Theme.text
+                        color: wipeMa.containsMouse ? Theme.cardBg3 : Theme.text
                     }
                     MouseArea {
                         id: wipeMa

@@ -24,7 +24,7 @@ Rectangle {
         Text {
             anchors.centerIn: parent
             text: workspace.id
-            color: workspace.active ? Theme.base : Theme.muted1
+            color: workspace.active ? Theme.cardBg3 : Theme.muted1
             font.pixelSize: 11
             font.bold: workspace.active
         }

@@ -201,7 +201,7 @@ PanelWindow {
                                   (root.memTotal / 1024).toFixed(1) + " GB"
                             font.pixelSize: 10
                             font.weight: Font.DemiBold
-                            color: root.memPercent > 40 ? Theme.base : Theme.text
+                            color: root.memPercent > 40 ? Theme.cardBg3 : Theme.text
                         }
                     }
                 }
@@ -236,7 +236,7 @@ PanelWindow {
                         text: (root.swapUsed / 1024).toFixed(1) + " GB / " + 
                               (root.swapTotal / 1024).toFixed(1) + " GB"
                         font.pixelSize: 9
-                        color: root.swapPercent > 40 ? Theme.base : Theme.muted1
+                        color: root.swapPercent > 40 ? Theme.cardBg3 : Theme.muted1
                     }
                 }
             }

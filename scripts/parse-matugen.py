@@ -62,7 +62,7 @@ import QtQuick
 QtObject {{
 
     // ── Wallpaper-derived (Material You dark scheme) ──────────────────────
-    readonly property color base:         "{c('surface_dim',               '#141318')}"
+    readonly property color _bg:          "{c('surface_dim',               '#141318')}"   // base color — internal use only
     readonly property color surface1:     "{c('surface_container_low',     '#1C1B20')}"
     readonly property color surface2:     "{c('surface_container',         '#201F24')}"
     readonly property color surface3:     "{c('surface_container_high',    '#2B292F')}"
@@ -84,11 +84,11 @@ QtObject {{
     readonly property color sky:          "#88C9D4"   // no M3 equivalent — fixed
 
     // ── Computed alpha variants (auto-update from above) ──────────────────
-    readonly property color dim:            Qt.rgba(base.r, base.g, base.b, 0.80)
-    readonly property color cardBg:         Qt.rgba(base.r, base.g, base.b, 0.91)
-    readonly property color cardBg2:        Qt.rgba(base.r, base.g, base.b, 0.60)
-    readonly property color cardBg3:        Qt.rgba(base.r, base.g, base.b, 0.97)  // modales muy opacos
-    readonly property color scrim:          Qt.rgba(0, 0, 0, 0.55)                  // overlay oscuro estándar
+    readonly property color dim:            Qt.rgba(_bg.r, _bg.g, _bg.b, 0.80)
+    readonly property color cardBg:         Qt.rgba(_bg.r, _bg.g, _bg.b, 0.91)
+    readonly property color cardBg2:        Qt.rgba(_bg.r, _bg.g, _bg.b, 0.60)
+    readonly property color cardBg3:        Qt.rgba(_bg.r, _bg.g, _bg.b, 0.97)
+    readonly property color scrim:          Qt.rgba(0, 0, 0, 0.55)
     readonly property color accentSurface:  Qt.tint(surface2, Qt.rgba(accent.r,  accent.g,  accent.b,  0.22))
     readonly property color successSurface: Qt.tint(surface2, Qt.rgba(success.r, success.g, success.b, 0.22))
     readonly property color hover:          Qt.rgba(1, 1, 1, 0.08)

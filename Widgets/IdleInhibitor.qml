@@ -239,7 +239,7 @@ Rectangle {
         width:           tipText.implicitWidth + 16
         height:          32
         radius:          4
-        color:           Theme.base
+        color:           Theme.cardBg3
         border.color:    Theme.surface2
         border.width:    1
         anchors.bottom:  parent.top

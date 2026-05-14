@@ -314,7 +314,7 @@ PanelWindow {
                                 anchors.centerIn: parent
                                 text: root.player?.playbackState === MprisPlaybackState.Playing ? "󰏤" : "󰐊"
                                 font.pixelSize: 15
-                                color: Theme.base
+                                color: Theme.cardBg3
                             }
                             MouseArea {
                                 id: playMA; anchors.fill: parent; hoverEnabled: true

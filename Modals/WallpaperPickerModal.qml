@@ -435,7 +435,7 @@ PanelWindow {
                                     anchors.centerIn: parent
                                     text: "󰄬"
                                     font.pixelSize: 12
-                                    color: Theme.base
+                                    color: Theme.cardBg3
                                 }
                             }
 
