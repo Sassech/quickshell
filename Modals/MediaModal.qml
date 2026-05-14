@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Services.Mpris
+import "../Components"
 
 PanelWindow {
     id: root
@@ -18,9 +19,9 @@ PanelWindow {
 
     // ── Active player ──────────────────────────────────────────────────────
     property var player: {
-        var players = MprisController.players.values
+        var players = Mpris.players.values
         for (var i = 0; i < players.length; i++) {
-            if (players[i].playbackStatus === MprisPlaybackStatus.Playing)
+            if (players[i].playbackState === MprisPlaybackState.Playing)
                 return players[i]
         }
         return players.length > 0 ? players[0] : null
@@ -28,8 +29,8 @@ PanelWindow {
 
     // Helpers
     function formatTime(ms) {
-        if (ms < 0) return "0:00"
-        var s = Math.floor(ms / 1000000)
+        if (!ms || ms <= 0) return "0:00"
+        var s = Math.floor(ms / 1000)
         var m = Math.floor(s / 60)
         s = s % 60
         return m + ":" + (s < 10 ? "0" : "") + s
@@ -62,7 +63,7 @@ PanelWindow {
         Rectangle {
             anchors.fill: parent; radius: parent.radius
             color: "transparent"
-            border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.25)
+            border.color: Theme.accentSurface
             border.width: 1
         }
 
@@ -196,8 +197,8 @@ PanelWindow {
 
                             property real progress: {
                                 var p = root.player
-                                if (!p || p.length <= 0) return 0
-                                return Math.max(0, Math.min(1, p.position / p.length))
+                                if (!p || !p.trackLength || p.trackLength <= 0) return 0
+                                return Math.max(0, Math.min(1, p.position / p.trackLength))
                             }
 
                             // Track background
@@ -221,8 +222,8 @@ PanelWindow {
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: function(mouse) {
                                     var p = root.player
-                                    if (p && p.length > 0)
-                                        p.position = (mouse.x / width) * p.length
+                                    if (p && p.trackLength > 0)
+                                        p.position = (mouse.x / width) * p.trackLength
                                 }
                             }
                         }
@@ -238,7 +239,7 @@ PanelWindow {
                             }
                             Item { Layout.fillWidth: true }
                             Text {
-                                text: root.player ? root.formatTime(root.player.length) : "0:00"
+                                text: root.player ? root.formatTime(root.player.trackLength) : "0:00"
                                 font.pixelSize: 9
                                 color: Theme.muted2
                             }
@@ -272,13 +273,11 @@ PanelWindow {
                         // Play / Pause
                         Rectangle {
                             width: 36; height: 36; radius: 10
-                            color: playMA.containsMouse
-                                ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.85)
-                                : Theme.accent
+                            color: playMA.containsMouse ? Theme.accentSurface : Theme.accent
                             Behavior on color { ColorAnimation { duration: 100 } }
                             Text {
                                 anchors.centerIn: parent
-                                text: root.player?.playbackStatus === MprisPlaybackStatus.Playing ? "󰏤" : "󰐊"
+                                text: root.player?.playbackState === MprisPlaybackState.Playing ? "󰏤" : "󰐊"
                                 font.pixelSize: 15
                                 color: Theme.base
                             }
@@ -314,8 +313,8 @@ PanelWindow {
         Timer {
             interval: 1000
             repeat: true
-            running: root.visible && root.player?.playbackStatus === MprisPlaybackStatus.Playing
-            onTriggered: card.requestPaint !== undefined ? card.update() : {}
+            running: root.visible && root.player?.playbackState === MprisPlaybackState.Playing
+            onTriggered: {} // fuerza re-evaluación de bindings de position
         }
     }
 }
