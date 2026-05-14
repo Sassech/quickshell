@@ -27,6 +27,41 @@ PanelWindow {
         return players.length > 0 ? players[0] : null
     }
 
+    // ── Position tracking ──────────────────────────────────────────────────
+    property real trackedPosition: 0
+    property int  _syncCounter: 0
+
+    function syncPosition() {
+        if (root.player && root.player.position !== undefined)
+            root.trackedPosition = root.player.position
+    }
+
+    onVisibleChanged: {
+        if (visible) {
+            root.syncPosition()
+            Qt.callLater(function() { card.forceActiveFocus() })
+        }
+    }
+
+    Connections {
+        target: root.player ?? null
+        function onTrackTitleChanged() { root.syncPosition(); root._syncCounter = 0 }
+    }
+
+    Timer {
+        interval: 1000
+        repeat: true
+        running: root.visible && root.player?.playbackState === MprisPlaybackState.Playing
+        onTriggered: {
+            root.trackedPosition += 1000
+            root._syncCounter++
+            if (root._syncCounter >= 10) {
+                root._syncCounter = 0
+                root.syncPosition()
+            }
+        }
+    }
+
     // Helpers
     function formatTime(ms) {
         if (!ms || ms <= 0) return "0:00"
@@ -34,10 +69,6 @@ PanelWindow {
         var m = Math.floor(s / 60)
         s = s % 60
         return m + ":" + (s < 10 ? "0" : "") + s
-    }
-
-    onVisibleChanged: {
-        if (visible) Qt.callLater(function() { card.forceActiveFocus() })
     }
 
     // ── Backdrop ───────────────────────────────────────────────────────────
@@ -198,7 +229,7 @@ PanelWindow {
                             property real progress: {
                                 var p = root.player
                                 if (!p || !p.trackLength || p.trackLength <= 0) return 0
-                                return Math.max(0, Math.min(1, p.position / p.trackLength))
+                                return Math.max(0, Math.min(1, root.trackedPosition / p.trackLength))
                             }
 
                             // Track background
@@ -222,8 +253,12 @@ PanelWindow {
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: function(mouse) {
                                     var p = root.player
-                                    if (p && p.trackLength > 0)
-                                        p.position = (mouse.x / width) * p.trackLength
+                                    if (p && p.trackLength > 0) {
+                                        var newPos = (mouse.x / width) * p.trackLength
+                                        p.position = newPos
+                                        root.trackedPosition = newPos
+                                        root._syncCounter = 0
+                                    }
                                 }
                             }
                         }
@@ -233,7 +268,7 @@ PanelWindow {
                             Layout.fillWidth: true
 
                             Text {
-                                text: root.player ? root.formatTime(root.player.position) : "0:00"
+                                text: root.formatTime(root.trackedPosition)
                                 font.pixelSize: 9
                                 color: Theme.muted2
                             }
@@ -309,12 +344,6 @@ PanelWindow {
             }
         }
 
-        // ── Progress tick timer ────────────────────────────────────────────
-        Timer {
-            interval: 1000
-            repeat: true
-            running: root.visible && root.player?.playbackState === MprisPlaybackState.Playing
-            onTriggered: {} // fuerza re-evaluación de bindings de position
-        }
+
     }
 }
