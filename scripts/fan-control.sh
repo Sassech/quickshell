@@ -2,31 +2,46 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-HWMON_SMM="/sys/class/hwmon/hwmon5"
-HWMON_AWCC="/sys/class/hwmon/hwmon4"
+# Detectar hwmon dinámicamente — el número cambia entre boots
+HWMON_SMM=""
+HWMON_AWCC=""
+for _h in /sys/class/hwmon/hwmon*/; do
+    [ -r "${_h}name" ] || continue
+    _nm=$(< "${_h}name")
+    case "$_nm" in
+        dell_smm) HWMON_SMM="${_h%/}" ;;
+        awcc)     HWMON_AWCC="${_h%/}" ;;
+    esac
+done
 PLATFORM_PROFILE="/sys/class/platform-profile/platform-profile-0"
 
 _get_smm() {
     local key=$1
-    cat "$HWMON_SMM/$key" 2>/dev/null || echo ""
+    [ -r "$HWMON_SMM/$key" ] && < "$HWMON_SMM/$key" 2>/dev/null || echo ""
 }
 
 _get_awcc() {
     local key=$1
-    cat "$HWMON_AWCC/$key" 2>/dev/null || echo ""
+    [ -r "$HWMON_AWCC/$key" ] && < "$HWMON_AWCC/$key" 2>/dev/null || echo ""
 }
 
 _get_profile() {
-    cat "$PLATFORM_PROFILE/profile" 2>/dev/null || echo ""
+    [ -r "$PLATFORM_PROFILE/profile" ] && < "$PLATFORM_PROFILE/profile" 2>/dev/null || echo ""
 }
 
 _set_profile() {
     local profile=$1
-    if [[ "$profile" == "auto" ]]; then
-        echo "balanced" > "$PLATFORM_PROFILE/profile" 2>/dev/null
-    else
-        echo "$profile" > "$PLATFORM_PROFILE/profile" 2>/dev/null
-    fi
+    # Normalizar "auto" → "balanced"
+    [[ "$profile" == "auto" ]] && profile="balanced"
+    # Whitelist explícita — rechaza cualquier valor no conocido
+    case "$profile" in
+        balanced|performance|quiet|custom) ;;
+        *)
+            echo "Error: perfil inválido: '$profile'. Valores válidos: balanced, performance, quiet, custom, auto" >&2
+            exit 1
+            ;;
+    esac
+    echo "$profile" > "$PLATFORM_PROFILE/profile" 2>/dev/null || true
 }
 
 _set_pwm() {

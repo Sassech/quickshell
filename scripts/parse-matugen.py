@@ -4,6 +4,7 @@ Runs matugen on the current wallpaper, parses the Material You dark palette,
 and regenerates Components/Theme.qml with the new colors.
 Called by wallpaper-set.sh.
 """
+import os
 import subprocess
 import sys
 import re
@@ -15,11 +16,16 @@ if len(sys.argv) < 3:
 WALLPAPER = sys.argv[1]
 OUTPUT = sys.argv[2]
 
-result = subprocess.run(
-    ["matugen", "-m", "dark", "image", WALLPAPER,
-     "--source-color-index", "0", "--dry-run", "--show-colors"],
-    capture_output=True, text=True
-)
+try:
+    result = subprocess.run(
+        ["matugen", "-m", "dark", "image", WALLPAPER,
+         "--source-color-index", "0", "--dry-run", "--show-colors"],
+        capture_output=True, text=True,
+        timeout=30,  # evita que matugen cuelgue indefinidamente
+    )
+except subprocess.TimeoutExpired:
+    print("ERROR: matugen tardó más de 30s, abortando.", file=sys.stderr)
+    sys.exit(1)
 
 raw = result.stdout + result.stderr
 
@@ -88,8 +94,20 @@ QtObject {{
 }}
 """
 
-with open(OUTPUT, "w") as f:
-    f.write(theme)
+# Write atómico: escribir a .tmp y mover — Theme.qml nunca queda corrupto
+_tmp = OUTPUT + ".tmp"
+try:
+    with open(_tmp, "w") as f:
+        f.write(theme)
+    os.replace(_tmp, OUTPUT)  # atómico en POSIX
+except Exception as e:
+    # Limpiar .tmp si quedó
+    try:
+        os.unlink(_tmp)
+    except OSError:
+        pass
+    print(f"ERROR: No se pudo escribir {OUTPUT}: {e}", file=sys.stderr)
+    sys.exit(1)
 
 print(f"Theme.qml written ({len(colors)} colors extracted)")
 
@@ -226,6 +244,16 @@ label {{
 }}
 """
 
-    with open(HYPRLOCK, "w") as f:
-        f.write(hyprlock)
+    _tmp_hl = HYPRLOCK + ".tmp"
+    try:
+        with open(_tmp_hl, "w") as f:
+            f.write(hyprlock)
+        os.replace(_tmp_hl, HYPRLOCK)
+    except Exception as e:
+        try:
+            os.unlink(_tmp_hl)
+        except OSError:
+            pass
+        print(f"ERROR: No se pudo escribir {HYPRLOCK}: {e}", file=sys.stderr)
+        sys.exit(1)
     print(f"hyprlock.conf written")

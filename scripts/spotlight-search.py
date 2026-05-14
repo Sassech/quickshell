@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Spotlight search backend — outputs JSON array of results."""
+import ast
 import json
+import operator
 import os
 import sys
 import glob
@@ -224,12 +226,42 @@ if list_apps_mode:
     sys.exit(0)
 
 
-# ── Calculadora ─────────────────────────────────────────────────────────
+# ── Calculadora — eval seguro via ast ────────────────────────────────────
 calc_re = re.compile(r"^[\d\s+\-*/().^%,]+$")
+
+_SAFE_OPS = {
+    ast.Add:      operator.add,
+    ast.Sub:      operator.sub,
+    ast.Mult:     operator.mul,
+    ast.Div:      operator.truediv,
+    ast.Mod:      operator.mod,
+    ast.Pow:      operator.pow,
+    ast.USub:     operator.neg,
+    ast.UAdd:     operator.pos,
+    ast.FloorDiv: operator.floordiv,
+}
+
+
+def _safe_eval(node):
+    """Evalúa un AST numérico sin ejecutar código arbitrario."""
+    if isinstance(node, ast.Expression):
+        return _safe_eval(node.body)
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return node.value
+    if isinstance(node, ast.BinOp) and type(node.op) in _SAFE_OPS:
+        left  = _safe_eval(node.left)
+        right = _safe_eval(node.right)
+        return _SAFE_OPS[type(node.op)](left, right)
+    if isinstance(node, ast.UnaryOp) and type(node.op) in _SAFE_OPS:
+        return _SAFE_OPS[type(node.op)](_safe_eval(node.operand))
+    raise ValueError(f"Operación no permitida: {type(node).__name__}")
+
+
 if calc_re.match(query) and query and any(c.isdigit() for c in query):
     try:
         expr = query.replace("^", "**").replace(",", ".")
-        val = eval(expr, {"__builtins__": {}})  # noqa: S307
+        tree = ast.parse(expr, mode="eval")
+        val  = _safe_eval(tree)
         if isinstance(val, float) and val == int(val):
             val = int(val)
         results.append({
@@ -311,12 +343,14 @@ if query_low and len(query_low) >= 2 and len(results) < 12:
 
 
 # ── Comando de shell ─────────────────────────────────────────────────────
+# execArgs pasa la lista directamente a Quickshell para evitar injection via bash -c
 if query and not calc_re.match(query):
     results.append({
         "type": "cmd",
         "name": query,
         "detail": "Ejecutar en terminal",
-        "exec": f"kitty --hold -e bash -c {query!r}",
+        "exec": "",   # obsoleto — usar execArgs
+        "execArgs": ["kitty", "--hold", "-e", "bash", "-c", query],
         "icon": "󰆍",
         "iconPath": "",
     })

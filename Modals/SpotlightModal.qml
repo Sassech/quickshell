@@ -164,11 +164,20 @@ PanelWindow {
         var idx = Math.min(selectedIndex, filteredModel.count - 1)
         var item = filteredModel.get(idx)
         console.log("Launching item:", JSON.stringify(item))
+        launcher.running = false
+
+        // Preferir execArgs (lista de args, sin bash -c, sin injection posible)
+        if (item.execArgs && item.execArgs.length > 0) {
+            launcher.command = item.execArgs
+            launcher.running = true
+            closeSpotlight(true)
+            return
+        }
+
         if (!item || !item.exec) {
             console.log("No item or no exec")
             return
         }
-        launcher.running = false
         var exec = item.exec
         var cmd
         if (exec.includes(" ") || exec.includes("'") || exec.includes('"')) {
