@@ -29,7 +29,7 @@ PanelWindow {
     // Dimensiones de la grilla
     readonly property int _cellSize:   88   // ancho de cada celda
     readonly property int _cellHeight: 96   // alto de cada celda (ícono + label)
-    readonly property int _cols:       7    // columnas visibles por fila
+    readonly property int _cols:       6    // columnas visibles por fila
     readonly property int _maxRows:    3    // filas máximas antes de scrollear
 
     readonly property var tabs: [
@@ -246,18 +246,6 @@ PanelWindow {
             radius: 8
             color: "#55000000"
             z: -1
-        }
-
-        // Stripe superior
-        Rectangle {
-            width: parent.width; height: 3; radius: 3
-            anchors.top: parent.top
-            color: Theme.accent2
-            Rectangle {
-                width: parent.width * 0.4; height: parent.height
-                anchors.right: parent.right
-                color: Theme.accent
-            }
         }
 
         MouseArea { anchors.fill: parent; onClicked: {} }
