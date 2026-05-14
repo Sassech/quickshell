@@ -87,6 +87,8 @@ QtObject {{
     readonly property color dim:            Qt.rgba(base.r, base.g, base.b, 0.80)
     readonly property color cardBg:         Qt.rgba(base.r, base.g, base.b, 0.91)
     readonly property color cardBg2:        Qt.rgba(base.r, base.g, base.b, 0.60)
+    readonly property color cardBg3:        Qt.rgba(base.r, base.g, base.b, 0.97)  // modales muy opacos
+    readonly property color scrim:          Qt.rgba(0, 0, 0, 0.55)                  // overlay oscuro estándar
     readonly property color accentSurface:  Qt.tint(surface2, Qt.rgba(accent.r,  accent.g,  accent.b,  0.22))
     readonly property color successSurface: Qt.tint(surface2, Qt.rgba(success.r, success.g, success.b, 0.22))
     readonly property color hover:          Qt.rgba(1, 1, 1, 0.08)

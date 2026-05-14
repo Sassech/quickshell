@@ -33,8 +33,7 @@ PanelWindow {
     // ── Overlay — click fuera cierra ──────────────────────────────────────
     Rectangle {
         anchors.fill: parent
-        color: "#000000"
-        opacity: 0.55
+        color: Theme.scrim
 
         MouseArea {
             anchors.fill: parent
@@ -51,7 +50,7 @@ PanelWindow {
         height: 90 + 28 + 32
 
         radius: 18
-        color: Qt.rgba(0.11, 0.11, 0.13, 0.97)
+        color: Theme.cardBg3
         border.color: Qt.rgba(1, 1, 1, 0.06)
         border.width: 1
 
@@ -156,7 +155,7 @@ PanelWindow {
         height: col.implicitHeight + 32
 
         radius: 16
-        color: Qt.rgba(0.11, 0.11, 0.13, 0.98)
+        color: Theme.cardBg3
         border.color: Qt.rgba(1, 1, 1, 0.08)
         border.width: 1
 
