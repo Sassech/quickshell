@@ -247,9 +247,13 @@ PanelWindow {
     }
 
     // ── UI ───────────────────────────────────────────────────────────────
-    MouseArea {
+    Rectangle {
         anchors.fill: parent
-        onClicked: root.visible = false
+        color: Theme.scrim
+        MouseArea {
+            anchors.fill: parent
+            onClicked: root.visible = false
+        }
     }
 
     Rectangle {
@@ -262,20 +266,12 @@ PanelWindow {
         height: col.implicitHeight + 24
         radius: 12
         color: Theme.cardBg3
-        border.color: Theme.surface2
+        border.color: Qt.rgba(1, 1, 1, 0.06)
         border.width: 1
-
-        // Header accent stripe
-        Rectangle {
-            width: parent.width; height: 3; radius: 2
-            anchors.top: parent.top
-            color: Theme.accent
-        }
 
         MouseArea {
             anchors.fill: parent
-             // ── Absorb clicks to prevent propagation ──────
-             onClicked: {}
+            onClicked: {}
         }
 
         ColumnLayout {
@@ -433,7 +429,7 @@ PanelWindow {
                         Layout.fillWidth: true
                         height: 52
                         radius: 8
-                        color: root.currentMode === modelData ? Qt.darker(root.modeColor(modelData), 3.5) : Theme.surface2
+                        color: root.currentMode === modelData ? Theme.surface3 : Theme.surface2
                         border.color: root.currentMode === modelData ? root.modeColor(modelData) : "transparent"
                         border.width: 1.5
 
