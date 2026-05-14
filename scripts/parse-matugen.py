@@ -19,7 +19,7 @@ OUTPUT = sys.argv[2]
 try:
     result = subprocess.run(
         ["matugen", "-m", "dark", "image", WALLPAPER,
-         "--source-color-index", "0", "--dry-run", "--show-colors"],
+         "--dry-run", "--show-colors"],
         capture_output=True, text=True,
         timeout=30,  # evita que matugen cuelgue indefinidamente
     )

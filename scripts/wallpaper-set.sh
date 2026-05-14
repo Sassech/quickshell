@@ -61,7 +61,7 @@ fi
 nohup quickshell > /tmp/quickshell.log 2>&1 &
 
 # ── 5. Actualizar mako con los nuevos colores ─────────────────────────────
-BASE_COLOR=$(grep   'readonly property color base:'   "$THEME_FILE" | awk -F'"' '{print $2}')
+BASE_COLOR=$(grep   'readonly property color _bg:'    "$THEME_FILE" | awk -F'"' '{print $2}')
 ACCENT_COLOR=$(grep 'readonly property color accent:' "$THEME_FILE" | awk -F'"' '{print $2}')
 TEXT_COLOR=$(grep   'readonly property color text:'   "$THEME_FILE" | awk -F'"' '{print $2}')
 
