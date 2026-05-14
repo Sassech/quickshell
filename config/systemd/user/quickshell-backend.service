@@ -1,0 +1,48 @@
+[Unit]
+Description=Quickshell system metrics backend
+# Arrancar después de que la sesión gráfica Wayland esté activa
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+
+# ── Reinicio automático ───────────────────────────────────────────────────────
+Restart=on-failure
+RestartSec=2
+StartLimitBurst=5
+
+# ── Script dir (sustituido por install.sh) ────────────────────────────────────
+Environment=SCRIPT_DIR=__SCRIPT_DIR__
+
+# ── FIFO de comunicación con Quickshell ──────────────────────────────────────
+ExecStartPre=/bin/sh -c 'if [ -p /tmp/qs-backend ]; then chmod 600 /tmp/qs-backend; else rm -f /tmp/qs-backend; mkfifo -m 600 /tmp/qs-backend; fi'
+ExecStart=/usr/bin/python3 $SCRIPT_DIR/scripts/quickshell_backend.py
+
+# ── Shutdown limpio ───────────────────────────────────────────────────────────
+# Sin este timeout systemd espera infinito si el proceso no responde a SIGTERM
+TimeoutStopSec=10
+KillMode=mixed
+KillSignal=SIGTERM
+
+# ── Límites de recursos ───────────────────────────────────────────────────────
+# El backend Python + 7 threads no debería superar 256 MB jamás
+MemoryMax=256M
+# Máximo de threads/procesos hijos (7 pollers + Python runtime + subprocesos)
+TasksMax=64
+
+# ── Hardening (sandboxing compatible con lectura de sysfs/proc) ───────────────
+# PrivateTmp=false — necesita /tmp/qs-backend (FIFO) y /tmp/qs-cpu-cursor
+PrivateTmp=false
+# No puede escalar a root ni obtener nuevas capabilities
+NoNewPrivileges=true
+# /usr, /boot, /etc son read-only; /proc y /sys siguen accesibles
+ProtectSystem=strict
+# Home read-only — el backend no escribe nada en home
+ProtectHome=read-only
+# Capabilities vacías — no necesita ninguna
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=graphical-session.target
