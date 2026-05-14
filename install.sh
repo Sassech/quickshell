@@ -41,7 +41,32 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2. mpDris2  —  puente MPD → MPRIS2 (necesario para rmpc y otros clientes MPD)
+# 2. quickshell-backend — servicio systemd de métricas del sistema
+# ─────────────────────────────────────────────────────────────────────────────
+echo ""
+echo "▶ Instalando servicio quickshell-backend (systemd user)..."
+
+BACKEND_SERVICE_SRC="$SCRIPT_DIR/config/systemd/user/quickshell-backend.service"
+BACKEND_SERVICE_DST="$HOME/.config/systemd/user/quickshell-backend.service"
+
+mkdir -p "$HOME/.config/systemd/user"
+
+# Sustituir el token __SCRIPT_DIR__ por la ruta real del proyecto
+sed "s|__SCRIPT_DIR__|$SCRIPT_DIR|g" "$BACKEND_SERVICE_SRC" > "$BACKEND_SERVICE_DST"
+
+if [ "$EUID" -eq 0 ]; then
+    sudo -u "$CURRENT_USER" systemctl --user daemon-reload
+    sudo -u "$CURRENT_USER" systemctl --user enable quickshell-backend.service
+    sudo -u "$CURRENT_USER" systemctl --user restart quickshell-backend.service
+else
+    systemctl --user daemon-reload
+    systemctl --user enable quickshell-backend.service
+    systemctl --user restart quickshell-backend.service
+fi
+ok "Servicio quickshell-backend instalado, habilitado e iniciado."
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. mpDris2  —  puente MPD → MPRIS2 (necesario para rmpc y otros clientes MPD)
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Configuración de mpDris2
@@ -103,7 +128,7 @@ fi
 ok "Servicio mpDris2 habilitado e iniciado (Restart=always)."
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. Geoclue2 — permisos de ubicación para el clima
+# 5. Geoclue2 — permisos de ubicación para el clima
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "▶ Configurando geoclue2 para ubicación del clima..."
