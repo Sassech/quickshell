@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -19,7 +18,7 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-    // ── Confirmación corta ───────────────────────────────────────────────
+    // ── Confirmación corta ────────────────────────────────────────────────
     property string pendingAction: ""
 
     Timer {
@@ -28,7 +27,14 @@ PanelWindow {
         onTriggered: root.pendingAction = ""
     }
 
-    // Overlay oscuro — click fuera cierra
+    onVisibleChanged: {
+        if (!visible) {
+            root.pendingAction = ""
+            confirmTimer.stop()
+        }
+    }
+
+    // ── Overlay — click fuera cierra ──────────────────────────────────────
     Rectangle {
         anchors.fill: parent
         color: "#000000"
@@ -40,144 +46,137 @@ PanelWindow {
         }
     }
 
-    onVisibleChanged: {
-        if (!visible) {
-            root.pendingAction = ""
-            confirmTimer.stop()
-        }
-    }
-
-    // Card centrado
+    // ── Card centrada ─────────────────────────────────────────────────────
     Rectangle {
         id: card
         anchors.centerIn: parent
-        width: 300
-        height: col.implicitHeight + 28
-        radius: 12
-        color: Theme.base
-        border.color: Theme.surface2
+
+        // 4 botones × 90px + 3 gaps × 10px + márgenes 16px c/u
+        width:  4 * 90 + 3 * 10 + 32
+        height: 90 + 28 + 32   // botón + label + padding vertical
+
+        radius: 18
+        color: Qt.rgba(0.11, 0.11, 0.13, 0.97)
+        border.color: Qt.rgba(1, 1, 1, 0.06)
         border.width: 1
 
-        // Header accent stripe
+        // Sombra
         Rectangle {
-            width: parent.width; height: 3; radius: 2
-            anchors.top: parent.top
-            color: Theme.error
-            Rectangle {
-                width: parent.width / 2; height: parent.height
-                anchors.right: parent.right
-                color: Theme.warning
-            }
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.bottom
+            anchors.topMargin: -10
+            width: parent.width - 40
+            height: 24
+            radius: 10
+            color: "#66000000"
+            z: -1
         }
 
-        // Absorbe clicks para no cerrar
         MouseArea { anchors.fill: parent; onClicked: {} }
 
-        ColumnLayout {
-            id: col
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.margins: 14
-            anchors.topMargin: 18
-            spacing: 8
-
-            // Título
-            RowLayout {
-                spacing: 10
-                Text { text: "⏻"; font.pixelSize: 20; color: Theme.error }
-                Text {
-                    text: "Sistema"
-                    font.pixelSize: 16
-                    font.weight: Font.DemiBold
-                    color: Theme.text
-                }
-            }
-
-            // Divider
-            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.surface2 }
+        // ── Fila de botones ───────────────────────────────────────────────
+        Row {
+            anchors.centerIn: parent
+            spacing: 10
 
             Repeater {
                 model: [
-                    { id: "poweroff", icon: "⏻",  label: "Apagar",        sub: "systemctl poweroff",    color: Theme.error },
-                    { id: "reboot",   icon: "󰜉",  label: "Reiniciar",      sub: "systemctl reboot",      color: Theme.warning },
-                    { id: "suspend",  icon: "󰒲",  label: "Suspender",      sub: "systemctl suspend",     color: Theme.accent },
-                    { id: "logout",   icon: "󰍃",  label: "Cerrar Sesión",  sub: "hyprctl dispatch exit", color: Theme.yellow }
+                    { id: "poweroff", icon: "⏻",  label: "Shutdown",  cmd: ["systemctl", "poweroff"],         critical: true  },
+                    { id: "logout",   icon: "󰍃",  label: "Log Out",   cmd: ["hyprctl", "dispatch", "exit"],   critical: false },
+                    { id: "reboot",   icon: "󰜉",  label: "Reboot",    cmd: ["systemctl", "reboot"],           critical: true  },
+                    { id: "suspend",  icon: "󰒲",  label: "Sleep",     cmd: ["systemctl", "suspend"],          critical: false }
                 ]
 
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 52
-                    radius: 8
+                // ── Botón individual ──────────────────────────────────────
+                Column {
+                    spacing: 8
+
                     property bool isConfirming: root.pendingAction === modelData.id
-                    color: isConfirming
-                        ? Qt.rgba(modelData.color.r, modelData.color.g, modelData.color.b, 0.18)
-                        : (itemMouse.containsMouse ? Qt.darker(modelData.color, 3.8) : Theme.surface2)
-                    border.color: isConfirming ? modelData.color : (itemMouse.containsMouse ? modelData.color : "transparent")
-                    border.width: 1
 
-                    Behavior on color { ColorAnimation { duration: 120 } }
+                    // Cuadrado redondeado con ícono
+                    Rectangle {
+                        width: 90; height: 90
+                        radius: 16
 
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.margins: 12
-                        spacing: 12
+                        color: isConfirming
+                            ? Qt.rgba(1, 0.35, 0.35, 0.25)
+                            : (btnHover.containsMouse
+                               ? Qt.rgba(1, 1, 1, 0.10)
+                               : Qt.rgba(1, 1, 1, 0.06))
 
-                        Text {
-                            text: modelData.icon
-                            font.pixelSize: 18
-                            color: modelData.color
+                        border.color: isConfirming
+                            ? Qt.rgba(1, 0.4, 0.4, 0.6)
+                            : (btnHover.containsMouse ? Qt.rgba(1, 1, 1, 0.18) : "transparent")
+                        border.width: 1
+
+                        Behavior on color       { ColorAnimation { duration: 120 } }
+                        Behavior on border.color { ColorAnimation { duration: 120 } }
+
+                        // Escala al hover
+                        transform: Scale {
+                            origin.x: 45; origin.y: 45
+                            xScale: btnHover.containsMouse ? 1.06 : 1.0
+                            yScale: btnHover.containsMouse ? 1.06 : 1.0
+                            Behavior on xScale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                            Behavior on yScale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                         }
 
-                        Column {
-                            spacing: 2
-                            Text {
-                                text: isConfirming ? "Confirmar" : modelData.label
-                                font.pixelSize: 13
-                                font.weight: Font.Normal
-                                color: Theme.text
-                            }
-                            Text {
-                                text: isConfirming ? "Click de nuevo" : modelData.sub
-                                font.pixelSize: 9
-                                color: Theme.muted3
+                        Text {
+                            anchors.centerIn: parent
+                            text: isConfirming ? "?" : modelData.icon
+                            font.pixelSize: isConfirming ? 32 : 36
+                            color: isConfirming
+                                ? Qt.rgba(1, 0.5, 0.5, 1)
+                                : Qt.rgba(1, 1, 1, btnHover.containsMouse ? 1.0 : 0.80)
+                            Behavior on color { ColorAnimation { duration: 100 } }
+                        }
+
+                        MouseArea {
+                            id: btnHover
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (modelData.critical) {
+                                    if (root.pendingAction === modelData.id) {
+                                        root.pendingAction = ""
+                                        confirmTimer.stop()
+                                        root.visible = false
+                                        execProc.command = modelData.cmd
+                                        execProc.running = true
+                                    } else {
+                                        root.pendingAction = modelData.id
+                                        confirmTimer.restart()
+                                    }
+                                } else {
+                                    root.visible = false
+                                    execProc.command = modelData.cmd
+                                    execProc.running = true
+                                }
                             }
                         }
                     }
 
-                    MouseArea {
-                        id: itemMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            var critical = modelData.id === "poweroff" || modelData.id === "reboot"
-                            if (critical) {
-                                if (root.pendingAction === modelData.id) {
-                                    root.pendingAction = ""
-                                    confirmTimer.stop()
-                                } else {
-                                    root.pendingAction = modelData.id
-                                    confirmTimer.restart()
-                                    return
-                                }
-                            }
-                            root.visible = false
-                            if      (modelData.id === "poweroff") poweroffProc.running = true
-                            else if (modelData.id === "reboot")   rebootProc.running   = true
-                            else if (modelData.id === "suspend")  suspendProc.running  = true
-                            else if (modelData.id === "logout")   logoutProc.running   = true
-                        }
+                    // Label debajo
+                    Text {
+                        width: 90
+                        horizontalAlignment: Text.AlignHCenter
+                        text: isConfirming ? "Confirm?" : modelData.label
+                        font.pixelSize: 12
+                        color: isConfirming
+                            ? Qt.rgba(1, 0.6, 0.6, 1)
+                            : Qt.rgba(1, 1, 1, 0.75)
+                        Behavior on color { ColorAnimation { duration: 100 } }
                     }
                 }
             }
-
-            Item { height: 2 }
         }
     }
 
-    Process { id: poweroffProc; running: false; command: ["systemctl", "poweroff"] }
-    Process { id: rebootProc;   running: false; command: ["systemctl", "reboot"]   }
-    Process { id: suspendProc;  running: false; command: ["systemctl", "suspend"]  }
-    Process { id: logoutProc;   running: false; command: ["hyprctl", "dispatch", "exit"] }
+    // Un solo proceso reutilizable (las acciones no solapan)
+    Process {
+        id: execProc
+        running: false
+        onExited: running = false
+    }
 }
