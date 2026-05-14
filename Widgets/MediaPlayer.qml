@@ -61,6 +61,9 @@ Row {
         return title || artist || "No media"
     }
 
+    // ── Inicialización: leer players existentes al arrancar ──────────────────
+    Component.onCompleted: root._updateCachedPlayer()
+
     // ── Event-driven: reacciona a cambios de players y estado de reproducción ─
     Connections {
         target: Mpris
