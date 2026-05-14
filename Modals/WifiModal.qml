@@ -53,6 +53,45 @@ PanelWindow {
     // Set of saved connection names (ssid → true)
     property var savedSsids: ({})
 
+    // ── Password fetch — Process único compartido por todas las filas ─────────
+    property string _pwFetchSsid: ""
+    property int    _pwFetchIdx:  -1
+
+    Process {
+        id: sharedPwFetchProc
+        property string _buf: ""
+        command: ["bash", "-c", ""]
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: d => sharedPwFetchProc._buf += d
+        }
+        onExited: {
+            var pw = sharedPwFetchProc._buf.trim()
+            sharedPwFetchProc._buf = ""
+            // Señalizar el resultado al delegate activo via propiedades del modal
+            root._pwFetchResult = pw
+            root._pwFetchResultIdx = root._pwFetchIdx
+        }
+    }
+
+    // El delegate observa estas dos propiedades para saber si le toca a él
+    property string _pwFetchResult:    ""
+    property int    _pwFetchResultIdx: -2
+
+    function fetchPasswordFor(ssid, idx) {
+        _pwFetchSsid = ssid
+        _pwFetchIdx  = idx
+        _pwFetchResult = ""
+        _pwFetchResultIdx = -2
+        sharedPwFetchProc._buf = ""
+        sharedPwFetchProc.command = [
+            "bash", "-c",
+            "nmcli -s -t -f 802-11-wireless-security.psk con show "
+            + JSON.stringify(ssid) + " 2>/dev/null | cut -d: -f2-"
+        ]
+        sharedPwFetchProc.running = true
+    }
+
     // Shared floating dropdown state
     property int    menuOpenIdx:  -1
     property real   menuDropX:    0
@@ -756,20 +795,15 @@ PanelWindow {
                                 return
                             }
                             fetchingPw = true
-                            pwFetchProc.running = true
+                            root.fetchPasswordFor(modelData.ssid, index)
                         }
 
-                        Process {
-                            id: pwFetchProc
-                            property string _buf: ""
-                            command: ["bash", "-c",
-                                "nmcli -s -t -f 802-11-wireless-security.psk con show "
-                                + JSON.stringify(modelData.ssid) + " 2>/dev/null | cut -d: -f2-"]
-                            stdout: SplitParser { splitMarker: "\n"
-                                onRead: d => pwFetchProc._buf += d }
-                            onExited: {
-                                var pw = _buf.trim()
-                                _buf = ""
+                        // Observa el resultado del Process compartido
+                        Connections {
+                            target: root
+                            function onPwFetchResultIdxChanged() {
+                                if (root._pwFetchResultIdx !== index) return
+                                var pw = root._pwFetchResult
                                 netRow.realPassword = pw
                                 netRow.fetchingPw   = false
                                 if (pw !== "") netRow.showPwText = true

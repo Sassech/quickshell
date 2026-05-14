@@ -40,7 +40,7 @@ PanelWindow {
     onVisibleChanged: { if (visible) fetchData() }
 
     Timer {
-        interval: 500
+        interval: 1500
         running: root.visible
         repeat: true
         onTriggered: fetchData()

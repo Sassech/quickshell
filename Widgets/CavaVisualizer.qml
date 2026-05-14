@@ -101,25 +101,36 @@ Rectangle {
             model: 8
 
             Item {
+                id: barItem
                 width: 3
                 height: 16
 
-                property real baseHeight: 4
-                property real targetHeight: root.isPlaying && index < root.audioLevels.length
-                    ? Math.max(baseHeight, root.audioLevels[index])
-                    : baseHeight
+                // Escala normalizada 0.0–1.0 (baseScale mínima para no desaparecer)
+                property real baseScale: 0.25
+                property real targetScale: root.isPlaying && index < root.audioLevels.length
+                    ? Math.max(baseScale, root.audioLevels[index] / 16.0)
+                    : baseScale
 
                 Rectangle {
-                    anchors.bottom: parent.bottom
                     width: parent.width
-                    height: parent.targetHeight
+                    height: parent.height
+                    // Anclar al bottom via transform origin
+                    transformOrigin: Item.Bottom
+                    anchors.bottom: parent.bottom
                     color: root.isPlaying ? Theme.accent : Theme.surface3
                     radius: 1.5
 
-                    Behavior on height {
-                        NumberAnimation {
-                            duration: 66
-                            easing.type: Easing.OutCubic
+                    // GPU-accelerated: scale en Y no dispara re-layout
+                    transform: Scale {
+                        origin.x: 0
+                        origin.y: barItem.height
+                        yScale: barItem.targetScale
+
+                        Behavior on yScale {
+                            NumberAnimation {
+                                duration: 66
+                                easing.type: Easing.OutCubic
+                            }
                         }
                     }
 
