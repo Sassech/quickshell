@@ -229,47 +229,55 @@ PanelWindow {
             }
 
             // ── Buscador ──────────────────────────────────────────────
-            Rectangle {
+            Item {
                 Layout.fillWidth: true
-                height: 36
-                radius: 10
-                color: Theme.surface2
-                border.color: searchField.activeFocus ? Theme.accent2 : Theme.surface3
-                border.width: 1
-                Behavior on border.color { ColorAnimation { duration: 150 } }
+                height: 40
 
-                Row {
-                    anchors.verticalCenter: parent.verticalCenter
+                // Foco visual (borde accent)
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 10
+                    color: "transparent"
+                    border.color: searchField.activeFocus ? Theme.accent : "transparent"
+                    border.width: 2
+                    Behavior on border.color { ColorAnimation { duration: 150 } }
+                }
+
+                // Icono lupa
+                Text {
                     anchors.left: parent.left
-                    anchors.leftMargin: 10
-                    spacing: 8
+                    anchors.leftMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "󰍉"
+                    font.pixelSize: 18
+                    color: searchField.text !== "" ? Theme.accent2 : Theme.muted3
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                }
+
+                TextInput {
+                    id: searchField
+                    anchors.fill: parent
+                    leftPadding: 40
+                    rightPadding: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    font.pixelSize: 16
+                    color: Theme.text
+                    selectionColor: Theme.accent
+                    selectedTextColor: Theme.text
+                    clip: true
+                    verticalAlignment: TextInput.AlignVCenter
 
                     Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "󰍉"
-                        font.pixelSize: 14
+                        anchors.fill: parent
+                        text: "Buscar en portapapeles..."
+                        font.pixelSize: 15
                         color: Theme.muted3
+                        visible: !parent.text && !parent.activeFocus
+                        verticalAlignment: Text.AlignVCenter
                     }
 
-                    TextInput {
-                        id: searchField
-                        width: card.width - 80
-                        anchors.verticalCenter: parent.verticalCenter
-                        font.pixelSize: 13
-                        color: Theme.text
-                        selectionColor: Theme.accent
-                        selectedTextColor: Theme.text
-
-                        Text {
-                            anchors.fill: parent
-                            text: "Buscar..."
-                            font.pixelSize: 13
-                            color: Theme.surface3
-                            visible: !parent.text && !parent.activeFocus
-                        }
-
-                        onTextChanged: root.updateDisplay()
-                    }
+                    onTextChanged: root.updateDisplay()
+                    Keys.onEscapePressed: root.visible = false
                 }
             }
 
