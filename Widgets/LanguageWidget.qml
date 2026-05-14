@@ -17,9 +17,9 @@ Rectangle {
 
     Behavior on color { ColorAnimation { duration: 100 } }
 
-    // Poll keyboard layout every 3 s
+    // Poll keyboard layout — 30s es más que suficiente para un dato que cambia manualmente
     Timer {
-        interval: 3000; running: true; repeat: true; triggeredOnStart: true
+        interval: 30000; running: true; repeat: true; triggeredOnStart: true
         onTriggered: devProc.running = true
     }
 

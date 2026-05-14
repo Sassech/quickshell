@@ -61,12 +61,18 @@ Row {
         return title || artist || "No media"
     }
 
-    // ── Timer: 1s polling (era 500ms) ─────────────────────────────────────
-    Timer {
-        interval: 1000
-        running: true
-        repeat: true
-        onTriggered: root._updateCachedPlayer()
+    // ── Event-driven: reacciona a cambios de players y estado de reproducción ─
+    Connections {
+        target: Mpris
+        function onPlayersChanged() { root._updateCachedPlayer() }
+    }
+
+    // Conecta dinámicamente al player activo para recibir sus signals
+    Connections {
+        target: root._cachedPlayer ?? null
+        function onPlaybackStateChanged() { root._updateCachedPlayer() }
+        function onTrackTitleChanged()    { root._updateCachedPlayer() }
+        function onTrackArtistChanged()   { root._updateCachedPlayer() }
     }
 
     visible: true

@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Services.Mpris
 import "../Components"
 
 Rectangle {
@@ -18,7 +19,6 @@ Rectangle {
     property bool mediaPlaying: false
     property string _loadBuf: ""
     property string _idleBuf: ""
-    property string _mediaBuf: ""
     property string _sessionId: ""
 
     Behavior on color { ColorAnimation { duration: 120 } }
@@ -121,36 +121,33 @@ Rectangle {
         return `${h}h ${m}m`;
     }
 
-    Process {
-        id: mediaProc
-        running: false
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => {
-                root._mediaBuf += data;
-                const status = root._mediaBuf.trim();
-                root.mediaPlaying = (status === "Playing" || status === "0");
-                root._mediaBuf = "";
-                
-                if (root.mediaPlaying && !root.inhibiting) {
-                    root.inhibiting = true;
-                    root.inhibitProc.running = true;
-                    saveState({ inhibiting: true });
-                }
+    // ── Detección de reproducción via Mpris nativo (event-driven, sin forks) ──
+    function _checkMediaPlaying() {
+        var playing = false
+        var players = Mpris.players.values || []
+        for (var i = 0; i < players.length; i++) {
+            if (players[i].playbackState === MprisPlaybackState.Playing) {
+                playing = true
+                break
             }
+        }
+        root.mediaPlaying = playing
+        if (root.mediaPlaying && !root.inhibiting) {
+            root.inhibiting = true
+            root.inhibitProc.running = true
+            saveState({ inhibiting: true })
         }
     }
 
-    Timer {
-        id: mediaTimer
-        interval: 5000
-        running: true
-        repeat: true
-        triggeredOnStart: false
-        onTriggered: {
-            mediaProc.command = ["bash", "-c", "dbus-send --print-reply=literal --dest=org.freedesktop.MediaPlayer /org/freedesktop/MediaPlayer org.freedesktop.MediaPlayer.GetStatus 2>/dev/null | grep -oP 'state:\\\\K.+' | head -1 || echo 'stopped'"];
-            mediaProc.running = true;
-        }
+    Connections {
+        target: Mpris
+        function onPlayersChanged() { root._checkMediaPlaying() }
+    }
+
+    // Conecta al player activo para detectar pausa/stop
+    Connections {
+        target: Mpris.players.values.length > 0 ? Mpris.players.values[0] : null
+        function onPlaybackStateChanged() { root._checkMediaPlaying() }
     }
 
     Process {

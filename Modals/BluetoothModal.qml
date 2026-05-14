@@ -347,17 +347,24 @@ PanelWindow {
         }
     }
 
+    // ── Debounce para ráfagas de señales BT (ej: conectar dispara 6+ signals) ──
+    Timer {
+        id: _refreshDebounce
+        interval: 60
+        onTriggered: refreshDeviceLists()
+    }
+
     Instantiator {
         model: root.adapter ? root.adapter.devices : null
         delegate: Connections {
             required property var modelData
             target: modelData
-            function onPairedChanged() { refreshDeviceLists() }
-            function onConnectedChanged() { refreshDeviceLists() }
-            function onTrustedChanged() { refreshDeviceLists() }
-            function onNameChanged() { refreshDeviceLists() }
-            function onDeviceNameChanged() { refreshDeviceLists() }
-            function onStateChanged() { refreshDeviceLists() }
+            function onPairedChanged()     { _refreshDebounce.restart() }
+            function onConnectedChanged()  { _refreshDebounce.restart() }
+            function onTrustedChanged()    { _refreshDebounce.restart() }
+            function onNameChanged()       { _refreshDebounce.restart() }
+            function onDeviceNameChanged() { _refreshDebounce.restart() }
+            function onStateChanged()      { _refreshDebounce.restart() }
         }
     }
 
