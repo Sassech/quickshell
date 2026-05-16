@@ -250,7 +250,6 @@ ShellRoot {
     // ── Signals ───────────────────────────────────────────────
     signal broadcastNotify(string title, string body, string icon, bool active, bool isMedia)
     signal broadcastCloseAll(var screen)
-    signal broadcastPowerMenu(var screen)
     signal broadcastWeather(var screen)
 
 
@@ -280,7 +279,6 @@ ShellRoot {
         TopBar {
             property var modelData
             screen: modelData
-            onPowerButtonClicked:    screen => root.broadcastPowerMenu(screen)
             onWeatherClicked:        screen => root.broadcastWeather(screen)
 
 
@@ -307,27 +305,6 @@ ShellRoot {
         }
     }
 
-    // ── POWER MENU ────────────────────────────────────────────────────────
-    Variants {
-        model: Quickshell.screens
-        PowerMenu {
-            id: powerMenuInst
-            property var modelData
-            screen: modelData
-            Connections {
-                target: root
-                function onBroadcastCloseAll(screen) {
-                    if (powerMenuInst.modelData === screen) powerMenuInst.visible = false
-                }
-                function onBroadcastPowerMenu(screen) {
-                    if (powerMenuInst.modelData !== screen) return
-                    var was = powerMenuInst.visible
-                    root.broadcastCloseAll(screen)
-                    powerMenuInst.visible = !was
-                }
-            }
-        }
-    }
 
     // ── CLOCK MODAL ───────────────────────────────────────────────────────
     Variants {

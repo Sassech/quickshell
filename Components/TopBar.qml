@@ -7,7 +7,6 @@ import "../Widgets"
 PanelWindow {
     id: root
     
-    signal powerButtonClicked(var screen)
     signal weatherClicked(var screen)
 
 
@@ -117,9 +116,6 @@ PanelWindow {
             BatteryWidget {}
             ControlCenterButton {
                 onClicked: root.controlCenterClicked(root.screen)
-            }
-            PowerButton {
-                onClicked: root.powerButtonClicked(root.screen)
             }
         }
     }

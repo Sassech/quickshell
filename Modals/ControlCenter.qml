@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
@@ -53,6 +54,36 @@ PanelWindow {
     property var    _langLayouts:  []   // [{label, code}]
     property string _langBuf:      ""
     property string _langSetBuf:   ""
+    property var    _langLocales:  []
+    property string _langLocaleBuf:""
+    property string _langSearch:   ""
+    property string _langTab:      "keyboard"
+
+    property var _filteredLayouts: {
+        root._langLayouts; root._langSearch
+        var q = (root._langSearch || "").toLowerCase()
+        if (!q) return root._langLayouts
+        var result = []
+        for (var i = 0; i < root._langLayouts.length; i++) {
+            var item = root._langLayouts[i]
+            if ((item.code || "").toLowerCase().indexOf(q) >= 0)
+                result.push(item)
+        }
+        return result
+    }
+
+    property var _filteredLocales: {
+        root._langLocales; root._langSearch
+        var q = (root._langSearch || "").toLowerCase()
+        if (!q) return root._langLocales
+        var result = []
+        for (var i = 0; i < root._langLocales.length; i++) {
+            var item = root._langLocales[i]
+            if ((item.value || "").toLowerCase().indexOf(q) >= 0)
+                result.push(item)
+        }
+        return result
+    }
 
     // ── Métricas expandibles — estado ─────────────────────────────────────
     property string _expandedMetric: ""   // "cpu" | "ram" | "gpu" | ""
@@ -1410,9 +1441,12 @@ PanelWindow {
                                 var next = root._expandedToggle === "language" ? "" : "language"
                                 root._expandedToggle = next
                                 if (next === "language") {
-                                    langLayoutProc.running  = true
-                                    langCurrentProc.running = true
-                                    langLocaleProc.running  = true
+                                    root._langSearch = ""
+                                    root._langTab    = "keyboard"
+                                    langLayoutProc.running     = true
+                                    langCurrentProc.running    = true
+                                    langLocaleProc.running     = true
+                                    langLocaleListProc.running = true
                                 }
                             }
                         }
@@ -1704,64 +1738,216 @@ PanelWindow {
 
                     Column {
                         id: langDetailCol
-                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
                         spacing: 8
 
-                        // Current
+                        // ── Mini tabs ──────────────────────────────────────────
                         Row {
-                            spacing: 10
-                            Text { text: "󰌌"; font.pixelSize: 14; color: Theme.accent; anchors.verticalCenter: parent.verticalCenter }
-                            Column {
-                                spacing: 1
-                                Text { text: root._langLayout; font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text }
-                                Text { text: root._langLocale;  font.pixelSize: 9;  color: Theme.muted1 }
+                            width: parent.width
+                            spacing: 4
+                            Repeater {
+                                model: [
+                                    { id: "keyboard", icon: "󰌌", label: "Keyboard" },
+                                    { id: "locale",   icon: "󰗊", label: "Locale"   }
+                                ]
+                                Rectangle {
+                                    required property var modelData
+                                    height: 24
+                                    width: langTabInner.implicitWidth + 16
+                                    radius: 6
+                                    color: root._langTab === modelData.id ? Theme.accentSurface : "transparent"
+                                    Behavior on color { ColorAnimation { duration: 80 } }
+                                    Row {
+                                        id: langTabInner
+                                        anchors.centerIn: parent
+                                        spacing: 4
+                                        Text {
+                                            text: modelData.icon; font.pixelSize: 10
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            color: root._langTab === modelData.id ? Theme.accent : Theme.muted3
+                                            Behavior on color { ColorAnimation { duration: 80 } }
+                                        }
+                                        Text {
+                                            text: modelData.label; font.pixelSize: 10
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            color: root._langTab === modelData.id ? Theme.accent : Theme.muted3
+                                            Behavior on color { ColorAnimation { duration: 80 } }
+                                        }
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            root._langTab    = modelData.id
+                                            root._langSearch = ""
+                                            langSearchInput.text = ""
+                                        }
+                                    }
+                                }
                             }
                         }
 
-                        // Available layouts list
-                        Column {
+                        // ── Search ─────────────────────────────────────────────
+                        Rectangle {
+                            width: parent.width; height: 28; radius: 7
+                            color: Theme.surface3
+
+                            Row {
+                                anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
+                                spacing: 6
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "󰍉"; font.pixelSize: 11; color: Theme.muted2
+                                }
+                                TextInput {
+                                    id: langSearchInput
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width - 26
+                                    font.pixelSize: 10; color: Theme.text
+                                    selectionColor: Theme.accent; selectedTextColor: Theme.text
+                                    clip: true
+                                    onTextChanged: root._langSearch = text
+                                    Text {
+                                        anchors.fill: parent
+                                        text: root._langTab === "keyboard" ? "Search layout…" : "Search locale…"
+                                        font.pixelSize: 10; color: Theme.muted2
+                                        visible: !parent.text && !parent.activeFocus
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Keyboard tab: layout list ──────────────────────────
+                        Item {
+                            visible: root._langTab === "keyboard"
                             width: parent.width
-                            spacing: 3
+                            height: visible ? Math.min(root._filteredLayouts.length, 5) * 32 + 4 : 0
+                            clip: true
 
-                            Repeater {
-                                model: root._langLayouts.slice(0, 6)
+                            ListView {
+                                anchors.fill: parent
+                                model: root._filteredLayouts
+                                spacing: 2
+                                clip: true
 
-                                Rectangle {
+                                ScrollBar.vertical: ScrollBar {
+                                    policy: ScrollBar.AsNeeded
+                                    contentItem: Rectangle { implicitWidth: 3; radius: 2; color: Theme.surface3 }
+                                }
+
+                                delegate: Rectangle {
                                     required property var modelData
-                                    width: parent.width; height: 30; radius: 7
-                                    color: langRowHov.containsMouse
+                                    required property int index
+                                    width: ListView.view.width; height: 30; radius: 7
+                                    property bool isActive: {
+                                        var layout = (root._langLayout || "").toLowerCase()
+                                        var code   = (modelData.code   || "").toLowerCase()
+                                        return layout.indexOf(code) >= 0 || code.indexOf(layout) >= 0
+                                    }
+                                    color: langItemHov.containsMouse
                                         ? Theme.surface3
-                                        : (modelData.code === root._langLayout.toLowerCase()
-                                               ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15)
-                                               : "transparent")
+                                        : (isActive ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15) : "transparent")
                                     Behavior on color { ColorAnimation { duration: 80 } }
 
+                                    Rectangle {
+                                        visible: isActive
+                                        width: 3; height: 14; radius: 2
+                                        anchors { left: parent.left; leftMargin: 4; verticalCenter: parent.verticalCenter }
+                                        color: Theme.accent
+                                    }
+
                                     RowLayout {
-                                        anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
+                                        anchors { fill: parent; leftMargin: isActive ? 12 : 8; rightMargin: 8 }
                                         Text {
                                             Layout.fillWidth: true
-                                            text: modelData.label
+                                            text: modelData.code
                                             font.pixelSize: 10; color: Theme.text
                                             elide: Text.ElideRight
                                         }
                                         Text {
-                                            visible: modelData.code === root._langLayout.toLowerCase()
-                                            text: "󰄬"
-                                            font.pixelSize: 11; color: Theme.accent
+                                            visible: isActive
+                                            text: "󰄬"; font.pixelSize: 10; color: Theme.accent
                                         }
                                     }
 
                                     MouseArea {
-                                        id: langRowHov
+                                        id: langItemHov
                                         anchors.fill: parent; hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
-                                            langSetProc.command = [
-                                                "bash", "-c",
-                                                "hyprctl keyword input:kb_layout " + modelData.code + " 2>/dev/null"
-                                            ]
+                                            var cmd = "hyprctl keyword input:kb_layout " + modelData.code +
+                                                      " 2>/dev/null && sleep 0.4 && hyprctl dispatch switchxkblayout all 0"
+                                            langSetProc.command = ["sh", "-c", cmd]
                                             if (!langSetProc.running) langSetProc.running = true
-                                            root._langLayout = modelData.code.toUpperCase()
+                                            root._langLayout = modelData.code
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Locale tab: locale list ────────────────────────────
+                        Item {
+                            visible: root._langTab === "locale"
+                            width: parent.width
+                            height: visible ? Math.min(root._filteredLocales.length, 5) * 32 + 4 : 0
+                            clip: true
+
+                            ListView {
+                                anchors.fill: parent
+                                model: root._filteredLocales
+                                spacing: 2
+                                clip: true
+
+                                ScrollBar.vertical: ScrollBar {
+                                    policy: ScrollBar.AsNeeded
+                                    contentItem: Rectangle { implicitWidth: 3; radius: 2; color: Theme.surface3 }
+                                }
+
+                                delegate: Rectangle {
+                                    required property var modelData
+                                    required property int index
+                                    width: ListView.view.width; height: 30; radius: 7
+                                    property bool isActive: {
+                                        var locale = (root._langLocale  || "").toLowerCase()
+                                        var value  = (modelData.value   || "").toLowerCase()
+                                        return locale.indexOf(value) >= 0 || value.indexOf(locale) >= 0
+                                    }
+                                    color: localeItemHov.containsMouse
+                                        ? Theme.surface3
+                                        : (isActive ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15) : "transparent")
+                                    Behavior on color { ColorAnimation { duration: 80 } }
+
+                                    Rectangle {
+                                        visible: isActive
+                                        width: 3; height: 14; radius: 2
+                                        anchors { left: parent.left; leftMargin: 4; verticalCenter: parent.verticalCenter }
+                                        color: Theme.accent
+                                    }
+
+                                    RowLayout {
+                                        anchors { fill: parent; leftMargin: isActive ? 12 : 8; rightMargin: 8 }
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: modelData.value
+                                            font.pixelSize: 10; color: Theme.text
+                                            elide: Text.ElideRight
+                                        }
+                                        Text {
+                                            visible: isActive
+                                            text: "󰄬"; font.pixelSize: 10; color: Theme.accent
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        id: localeItemHov
+                                        anchors.fill: parent; hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            langSetLocaleProc.command = ["sh", "-c",
+                                                "localectl set-locale LANG=" + modelData.value + " 2>/dev/null"]
+                                            if (!langSetLocaleProc.running) langSetLocaleProc.running = true
+                                            root._langLocale = modelData.value
                                         }
                                     }
                                 }
@@ -2573,12 +2759,13 @@ PanelWindow {
     Process {
         id: langCurrentProc
         command: ["sh", "-c",
-            "hyprctl devices -j 2>/dev/null | awk -F'\"' '/active_keymap/{print $4; exit}'"]
+            "hyprctl devices -j 2>/dev/null | " +
+            "python3 -c \"import json,sys; d=json.load(sys.stdin); k=d.get('keyboards',[]); kb=next((x for x in k if x.get('main')), k[0] if k else {}); print(kb.get('active_keymap',''))\""]
         stdout: SplitParser {
             splitMarker: ""
             onRead: d => {
                 var v = d.trim()
-                if (v) root._langLayout = v.substring(0, 3).toUpperCase()
+                if (v) root._langLayout = v
             }
         }
     }
@@ -2587,18 +2774,17 @@ PanelWindow {
     Process {
         id: langLocaleProc
         command: ["sh", "-c",
-            "localectl status 2>/dev/null | awk '/System Locale/{print $3}' | cut -d= -f2 | cut -d_ -f1"]
+            "localectl status 2>/dev/null | awk -F'LANG=' '/System Locale/{print $2}' | awk '{print $1}'"]
         stdout: SplitParser {
             splitMarker: ""
-            onRead: d => { var v = d.trim(); if (v) root._langLocale = v.toUpperCase() }
+            onRead: d => { var v = d.trim(); if (v) root._langLocale = v }
         }
     }
 
-    // Available layouts from localectl — dynamic, no hardcoded list
+    // Available layouts from localectl
     Process {
         id: langLayoutProc
-        command: ["sh", "-c",
-            "localectl list-x11-keymap-layouts 2>/dev/null | head -60"]
+        command: ["sh", "-c", "timeout 3s localectl list-keymaps 2>/dev/null"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._langBuf += d + "\n" }
         onExited: {
             var lines = root._langBuf.trim().split("\n")
@@ -2607,7 +2793,7 @@ PanelWindow {
             for (var i = 0; i < lines.length; i++) {
                 var code = lines[i].trim()
                 if (code.length === 0) continue
-                layouts.push({ code: code, label: code.toUpperCase() })
+                layouts.push({ code: code, label: code })
             }
             if (layouts.length > 0) root._langLayouts = layouts
         }
@@ -2616,8 +2802,33 @@ PanelWindow {
     // Apply layout via Hyprland
     Process {
         id: langSetProc
-        command: ["bash", "-c", ""]
-        onExited: langCurrentProc.running = true
+        command: ["sh", "-c", ""]
+        onExited: Qt.callLater(() => langCurrentProc.running = true)
+    }
+
+    // Available locales from localectl
+    Process {
+        id: langLocaleListProc
+        command: ["sh", "-c", "timeout 3s localectl list-locales 2>/dev/null"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._langLocaleBuf += d + "\n" }
+        onExited: {
+            var lines = root._langLocaleBuf.trim().split("\n")
+            root._langLocaleBuf = ""
+            var locales = []
+            for (var i = 0; i < lines.length; i++) {
+                var value = lines[i].trim()
+                if (value.length === 0) continue
+                locales.push({ value: value, label: value })
+            }
+            if (locales.length > 0) root._langLocales = locales
+        }
+    }
+
+    // Apply locale via localectl
+    Process {
+        id: langSetLocaleProc
+        command: ["sh", "-c", ""]
+        onExited: langLocaleProc.running = true
     }
 
     // ── Disk detail process (root + home) ─────────────────────────────────
