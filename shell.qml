@@ -570,50 +570,6 @@ ShellRoot {
         }
     }
 
-    // ── WIFI MODAL ────────────────────────────────────────────────────────
-    Variants {
-        model: Quickshell.screens
-        WifiModal {
-            id: wifiModalInst
-            property var modelData
-            screen: modelData
-            Connections {
-                target: root
-                function onBroadcastCloseAll(screen) {
-                    if (wifiModalInst.modelData === screen) wifiModalInst.visible = false
-                }
-                function onBroadcastWifi(screen) {
-                    if (wifiModalInst.modelData !== screen) return
-                    var was = wifiModalInst.visible
-                    root.broadcastCloseAll(screen)
-                    wifiModalInst.visible = !was
-                }
-            }
-        }
-    }
-
-    // ── BLUETOOTH MODAL ───────────────────────────────────────────────────
-    Variants {
-        model: Quickshell.screens
-        BluetoothModal {
-            id: btModalInst
-            property var modelData
-            screen: modelData
-            Connections {
-                target: root
-                function onBroadcastCloseAll(screen) {
-                    if (btModalInst.modelData === screen) btModalInst.visible = false
-                }
-                function onBroadcastBluetooth(screen) {
-                    if (btModalInst.modelData !== screen) return
-                    var was = btModalInst.visible
-                    root.broadcastCloseAll(screen)
-                    btModalInst.visible = !was
-                }
-            }
-        }
-    }
-
     // ── MEDIA MODAL ───────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
@@ -643,8 +599,6 @@ ShellRoot {
             id: ccInst
             property var modelData
             screen: modelData
-            onRequestOpenWifi:      screen => { root.broadcastCloseAll(screen); root.broadcastWifi(screen) }
-            onRequestOpenBluetooth: screen => { root.broadcastCloseAll(screen); root.broadcastBluetooth(screen) }
             onRequestOpenAudio:     screen => { root.broadcastCloseAll(screen); root.broadcastAudio(screen) }
             Connections {
                 target: root
@@ -656,6 +610,29 @@ ShellRoot {
                     var was = ccInst.visible
                     root.broadcastCloseAll(screen)
                     ccInst.visible = !was
+                }
+                function onBroadcastWifi(screen) {
+                    if (ccInst.modelData !== screen) return
+                    root.broadcastCloseAll(screen)
+                    ccInst.visible = true
+                    ccInst._expandedToggle = "wifi"
+                    ccInst._wifiStatusMsg = ""
+                    ccInst._wifiSelectedIdx = -1
+                    ccInst._wifiPasswordByIndex = ({})
+                    ccInst.wifiLoadNetworks()
+                }
+                function onBroadcastBluetooth(screen) {
+                    if (ccInst.modelData !== screen) return
+                    root.broadcastCloseAll(screen)
+                    ccInst.visible = true
+                    ccInst._expandedToggle = "bluetooth"
+                    ccInst._btStatusMsg = ""
+                    ccInst.btRefreshDeviceLists()
+                    if (ccInst._btPwrd && ccInst._btAdapter) {
+                        ccInst._btAdapter.discoverable = true
+                        ccInst._btAdapter.pairable     = true
+                        ccInst.btAutoConnectTrusted()
+                    }
                 }
             }
         }

@@ -22,8 +22,6 @@ PanelWindow {
     anchors.left: true; anchors.right: true
 
     // ── Señales hacia el orquestador (shell.qml) ──────────────────────────
-    signal requestOpenWifi(var screen)
-    signal requestOpenBluetooth(var screen)
     signal requestOpenAudio(var screen)
 
     // ── Power confirm state ───────────────────────────────────────────────
@@ -35,7 +33,74 @@ PanelWindow {
     property int  _btRev: 0
 
     // ── Paneles expandibles en toggles ───────────────────────────────────
-    property string _expandedToggle: ""   // "power" | "battery" | "language" | ""
+    property string _expandedToggle: ""   // "wifi" | "power" | "battery" | "language" | ""
+
+    // ── WiFi inline state ─────────────────────────────────────────────────
+    property bool   _wifiRadioOn:       true
+    property bool   _wifiScanning:      false
+    property string _wifiConnectedSsid: ""
+    property string _wifiIface:         ""
+    property bool   _wifiWorking:       false
+    property string _wifiStatusMsg:     ""
+    property var    _wifiNetworks:      []
+    property var    _wifiSavedSsids:    ({})
+    property int    _wifiSelectedIdx:   -1
+    property var    _wifiPasswordByIndex: ({})
+
+    // WiFi connection info
+    property string _wifiIp:      ""
+    property string _wifiGateway: ""
+    property string _wifiDns:     ""
+
+    // Ethernet state
+    property bool   _ethConnected: false
+    property string _ethIp:        ""
+    property string _ethMac:       ""
+    property string _ethSpeed:     ""
+
+    // Password fetch shared state
+    property string _wifiPwFetchSsid:      ""
+    property int    _wifiPwFetchIdx:       -1
+    property string _wifiPwFetchResult:    ""
+    property int    _wifiPwFetchResultIdx: -2
+
+    // Menu copy/forget shared state
+    property string _wifiMenuSsid: ""
+
+    // Buffers
+    property string _wIfaceBuf:  ""
+    property string _wRadioBuf:  ""
+    property string _wNetBuf:    ""
+    property string _wSavedBuf:  ""
+    property string _wEthBuf:    ""
+
+    // ── Bluetooth inline state ────────────────────────────────────────────
+    property var    _btAdapter:   Bluetooth.defaultAdapter
+    property bool   _btAvailable: _btAdapter !== null
+    property bool   _btPwrd:      _btAdapter ? _btAdapter.enabled : false
+    property bool   _btScanning:  false
+    property bool   _btWorking:   false
+    property string _btStatusMsg: ""
+
+    property var    _btDevices:      []
+    property var    _btPairedList:   []
+    property var    _btNearbyList:   []
+    property int    _btPairedCount:  0
+    property int    _btNearbyCount:  0
+
+    property var    _btActionDevice:    null
+    property string _btActionType:      ""
+    property bool   _btSawConnecting:   false
+    property int    _btConnectRetries:  0
+    property bool   _btAutoConnRunning: false
+    property var    _btAutoConnQueue:   []
+    property var    _btAutoConnDevice:  null
+
+    // Codec info map: { "AA:BB:CC:DD:EE:FF" → {codec, active, rate, profiles:[{id,label}]} }
+    property var    _btCodecData:        ({})
+    property var    _btCodecQueue:       []
+    property string _btCurrentCodecMac:  ""
+    property string _btCodecBuf:         ""
 
     // Fan profiles (read from fan-control.sh)
     property var    _fanProfiles:  []     // [{id, label}] from fan-control.sh list
@@ -502,6 +567,676 @@ PanelWindow {
         if (pct < 50) return "󰃝"
         if (pct < 85) return "󰃟"
         return "󰃠"
+    }
+
+    // ── Bluetooth functions ───────────────────────────────────────────────
+    function btSanitizeMac(mac) {
+        return mac.replace(/[^0-9A-Fa-f:]/g, "")
+    }
+
+    function btRunNextCodecQuery() {
+        if (root._btCodecQueue.length === 0 || btCodecProc.running) return
+        root._btCurrentCodecMac = root._btCodecQueue[0]
+        root._btCodecQueue      = root._btCodecQueue.slice(1)
+        root._btCodecBuf        = ""
+        var safeMac = root.btSanitizeMac(root._btCurrentCodecMac)
+        btCodecProc.command = ["bash", "-c",
+            "\"" + Paths.scripts + "/bt-codec.sh\" info " + safeMac]
+        btCodecProc.running = true
+    }
+
+    function btSetCodec(mac, profile) {
+        root._btStatusMsg = ""
+        root._btCurrentCodecMac = mac
+        var safeMac     = root.btSanitizeMac(mac)
+        var safeProfile = profile.replace(/[^a-zA-Z0-9_-]/g, "")
+        btSetCodecProc.command = ["bash", "-c",
+            "\"" + Paths.scripts + "/bt-codec.sh\" set " + safeMac + " " + safeProfile]
+        btSetCodecProc.running = true
+    }
+
+    function btResetAction(msg) {
+        root._btWorking         = false
+        root._btActionDevice    = null
+        root._btActionType      = ""
+        root._btSawConnecting   = false
+        root._btConnectRetries  = 0
+        if (msg !== undefined) root._btStatusMsg = msg
+        btActionTimeout.stop()
+        btConnectRetryTimer.stop()
+    }
+
+    function btRefreshDeviceLists() {
+        var source  = root._btAdapter ? root._btAdapter.devices.values : []
+        var paired  = []
+        var nearby  = []
+        for (var i = 0; i < source.length; i++) {
+            var d = source[i]
+            var isPaired = d.bonded || d.paired || d.trusted
+            if (isPaired) paired.push(d)
+            else nearby.push(d)
+        }
+        root._btDevices     = source
+        root._btPairedList  = paired
+        root._btNearbyList  = nearby
+        root._btPairedCount = paired.length
+        root._btNearbyCount = nearby.length
+    }
+
+    function btAutoConnectTrusted() {
+        if (!root._btAvailable || !root._btPwrd) return
+        if (root._btAutoConnRunning) return
+        btRefreshDeviceLists()
+        var q = []
+        for (var i = 0; i < root._btDevices.length; i++) {
+            var d = root._btDevices[i]
+            if (d.paired && d.trusted && d.state !== BluetoothDeviceState.Connecting && !d.connected)
+                q.push(d)
+        }
+        if (q.length === 0) return
+        root._btAutoConnQueue   = q
+        root._btAutoConnRunning = true
+        root._btAutoConnDevice  = null
+        btAutoConnNext()
+    }
+
+    function btAutoConnNext() {
+        if (!root._btAutoConnRunning) return
+        btAutoConnTimer.stop()
+        root._btAutoConnDevice = null
+        if (root._btAutoConnQueue.length === 0) {
+            root._btAutoConnRunning = false
+            return
+        }
+        root._btAutoConnDevice = root._btAutoConnQueue.shift()
+        root._btAutoConnQueue  = root._btAutoConnQueue
+        if (root._btAutoConnDevice) {
+            root._btAutoConnDevice.connect()
+            btAutoConnTimer.restart()
+        } else {
+            btAutoConnNext()
+        }
+    }
+
+    function btTogglePower() {
+        if (!root._btAdapter) return
+        root._btAdapter.enabled = !root._btAdapter.enabled
+    }
+
+    function btToggleScan() {
+        if (!root._btPwrd) return
+        if (root._btScanning) {
+            root._btScanning = false
+            if (root._btAdapter) root._btAdapter.discovering = false
+            btScanTimer.stop()
+        } else {
+            root._btScanning = true
+            if (root._btAdapter) root._btAdapter.discovering = true
+            btScanTimer.restart()
+        }
+    }
+
+    function btConnectDevice(device) {
+        if (!device) return
+        if (!root._btPwrd) { root._btStatusMsg = "✗ Enciende el Bluetooth primero"; return }
+        if (device.state === BluetoothDeviceState.Connecting || device.connected) return
+        root._btActionDevice   = device
+        root._btActionType     = "connect"
+        root._btWorking        = true
+        root._btStatusMsg      = "Conectando..."
+        device.connect()
+        btActionTimeout.restart()
+    }
+
+    function btDisconnectDevice(device) {
+        if (!device || !device.connected) return
+        root._btActionDevice = device
+        root._btActionType   = "disconnect"
+        root._btWorking      = true
+        root._btStatusMsg    = "Desconectando..."
+        device.disconnect()
+        btActionTimeout.restart()
+    }
+
+    function btPairDevice(device) {
+        if (!device) return
+        if (!root._btPwrd) { root._btStatusMsg = "✗ Enciende el Bluetooth primero"; return }
+        if (device.pairing || device.paired) return
+        root._btActionDevice = device
+        root._btActionType   = "pair"
+        root._btWorking      = true
+        root._btStatusMsg    = "Emparejando..."
+        device.pair()
+        btActionTimeout.restart()
+    }
+
+    function btForgetDevice(device) {
+        if (!device) return
+        root._btActionDevice = device
+        root._btActionType   = "forget"
+        root._btWorking      = true
+        root._btStatusMsg    = "Olvidando..."
+        device.forget()
+        btActionTimeout.restart()
+    }
+
+    // ── Bluetooth timers & reactivity ─────────────────────────────────────
+    Timer {
+        id: btScanTimer
+        interval: 13000
+        onTriggered: {
+            if (root._btAdapter) root._btAdapter.discovering = false
+            root._btScanning = false
+        }
+    }
+
+    Timer {
+        id: btActionTimeout
+        interval: 10000
+        onTriggered: { if (root._btWorking) root.btResetAction("✗ Tiempo de espera") }
+    }
+
+    Timer {
+        id: btAutoConnTimer
+        interval: 1500
+        onTriggered: root.btAutoConnNext()
+    }
+
+    Timer {
+        id: btConnectRetryTimer
+        interval: 1500
+        onTriggered: {
+            if (!root._btActionDevice || root._btActionType !== "connect") return
+            root._btConnectRetries++
+            root._btStatusMsg     = "Reintentando (" + root._btConnectRetries + "/2)..."
+            root._btSawConnecting = false
+            root._btActionDevice.connect()
+            btActionTimeout.restart()
+        }
+    }
+
+    Timer {
+        id: btRefreshDebounce
+        interval: 60
+        onTriggered: root.btRefreshDeviceLists()
+    }
+
+    Timer {
+        id: btCodecRefreshTimer
+        interval: 12000; repeat: true
+        running: root.visible && root._expandedToggle === "bluetooth"
+        onTriggered: {
+            if (btCodecProc.running || btSetCodecProc.running) return
+            var q = []
+            var list = root._btAdapter ? root._btAdapter.devices.values : []
+            for (var i = 0; i < list.length; i++) {
+                if (list[i].connected) q.push(list[i].address)
+            }
+            if (q.length > 0) {
+                root._btCodecQueue = q
+                root.btRunNextCodecQuery()
+            }
+        }
+    }
+
+    // Observe adapter device changes
+    Connections {
+        target: root._btAdapter ? root._btAdapter.devices : null
+        function onObjectInsertedPost(object, index) { root.btRefreshDeviceLists() }
+        function onObjectRemovedPost(object, index) {
+            root.btRefreshDeviceLists()
+            if (root._btActionType === "forget" && root._btActionDevice === object)
+                root.btResetAction("✓ Dispositivo olvidado")
+        }
+    }
+
+    Instantiator {
+        model: root._btAdapter ? root._btAdapter.devices : null
+        delegate: Connections {
+            required property var modelData
+            target: modelData
+            function onPairedChanged()     { btRefreshDebounce.restart() }
+            function onConnectedChanged()  { btRefreshDebounce.restart() }
+            function onTrustedChanged()    { btRefreshDebounce.restart() }
+            function onNameChanged()       { btRefreshDebounce.restart() }
+            function onDeviceNameChanged() { btRefreshDebounce.restart() }
+            function onStateChanged()      { btRefreshDebounce.restart() }
+        }
+    }
+
+    Connections {
+        target: root._btActionDevice
+        function onConnectedChanged() {
+            if (!root._btActionDevice) return
+            if (root._btActionType === "connect" && root._btActionDevice.connected) {
+                root._btConnectRetries = 0
+                root.btResetAction("✓ Conectado")
+            } else if (root._btActionType === "disconnect" && !root._btActionDevice.connected) {
+                root.btResetAction("✓ Desconectado")
+            }
+        }
+        function onStateChanged() {
+            if (!root._btActionDevice || root._btActionType !== "connect") return
+            var s = root._btActionDevice.state
+            if (s === BluetoothDeviceState.Connecting) {
+                root._btSawConnecting = true
+            } else if (s === BluetoothDeviceState.Disconnected && root._btSawConnecting) {
+                root._btSawConnecting = false
+                if (root._btConnectRetries < 2) {
+                    btConnectRetryTimer.start()
+                } else {
+                    root._btConnectRetries = 0
+                    root.btResetAction("✗ No se pudo conectar")
+                }
+            }
+        }
+        function onPairedChanged() {
+            if (!root._btActionDevice) return
+            if (root._btActionType === "pair" && root._btActionDevice.paired) {
+                root._btActionDevice.trusted = true
+                root.btResetAction("✓ Emparejado")
+            }
+        }
+        function onPairingChanged() {
+            if (!root._btActionDevice) return
+            if (root._btActionType === "pair" && !root._btActionDevice.pairing && !root._btActionDevice.paired)
+                root.btResetAction("✗ No se pudo emparejar")
+        }
+    }
+
+    Connections {
+        target: root._btAutoConnDevice
+        function onConnectedChanged() {
+            if (root._btAutoConnDevice && root._btAutoConnDevice.connected) {
+                btAutoConnTimer.stop()
+                root.btAutoConnNext()
+            }
+        }
+        function onStateChanged() {
+            if (root._btAutoConnDevice
+                    && root._btAutoConnDevice.state === BluetoothDeviceState.Disconnected) {
+                btAutoConnTimer.stop()
+                root.btAutoConnNext()
+            }
+        }
+    }
+
+    on_BtPwrdChanged: {
+        if (!root._btPwrd) {
+            root._btCodecData       = ({})
+            root._btCodecQueue      = []
+            root._btAutoConnQueue   = []
+            root._btAutoConnRunning = false
+            root._btAutoConnDevice  = null
+            root.btResetAction("")
+        } else {
+            root.btAutoConnectTrusted()
+        }
+        root.btRefreshDeviceLists()
+    }
+
+    on_BtAdapterChanged: { root.btRefreshDeviceLists() }
+
+    // ── Bluetooth codec processes ─────────────────────────────────────────
+    Process {
+        id: btCodecProc
+        command: ["bash", "-c", ""]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._btCodecBuf += d + "\n" }
+        onExited: {
+            var output = root._btCodecBuf.trim()
+            root._btCodecBuf = ""
+            try {
+                var data   = JSON.parse(output)
+                var mac    = root._btCurrentCodecMac.toUpperCase()
+                var newMap = ({})
+                Object.assign(newMap, root._btCodecData)
+                newMap[mac]         = data
+                root._btCodecData   = newMap
+            } catch(e) {}
+            root.btRunNextCodecQuery()
+        }
+    }
+
+    Process {
+        id: btSetCodecProc
+        command: ["bash", "-c", ""]
+        onExited: function(ec) {
+            root._btStatusMsg = ec === 0 ? "✓ Codec cambiado" : "✗ Error al cambiar codec"
+            Qt.callLater(() => root.btRunNextCodecQuery())
+        }
+    }
+
+    // ── WiFi functions ────────────────────────────────────────────────────
+    function wifiSignalIcon(s) {
+        if (s >= 80) return "󰤨"
+        if (s >= 60) return "󰤥"
+        if (s >= 40) return "󰤢"
+        return "󰤟"
+    }
+
+    function wifiLoadNetworks() {
+        root._wifiWorking = true
+        wIfaceProc.running   = true
+        wRadioProc.running   = true
+        wNetListProc.running = true
+        wSavedProc.running   = true
+        wEthProc.running     = true
+    }
+
+    function wifiToggleRadio() {
+        root._wifiWorking = true
+        wToggleRadioProc.command = ["bash", "-c",
+            "LANG=C nmcli radio wifi " + (root._wifiRadioOn ? "off" : "on") + " 2>/dev/null"]
+        wToggleRadioProc.running = true
+    }
+
+    function wifiRescan() {
+        root._wifiScanning = true
+        wRescanProc.running = true
+    }
+
+    function wifiConnectTo(ssid, password) {
+        root._wifiWorking   = true
+        root._wifiStatusMsg = ""
+        var cmd = [
+            "bash", "-c",
+            "SSID=$1; PASS=$2; IFACE=$(nmcli dev | grep wifi | grep -v p2p | awk '{print $1}' | head -1); " +
+            "nmcli con delete \"$SSID\" 2>/dev/null || true; " +
+            "nmcli con add type wifi con-name \"$SSID\" ssid \"$SSID\" " +
+            "wifi-sec.key-mgmt wpa-psk wifi-sec.psk \"$PASS\" 2>&1 && " +
+            "nmcli con up \"$SSID\" ifname \"$IFACE\" 2>&1",
+            "--", ssid, password
+        ]
+        wConnectProc.command = cmd
+        wConnectProc.running = true
+    }
+
+    function wifiDisconnect() {
+        if (!root._wifiIface || root._wifiIface === "") {
+            root._wifiStatusMsg = "✗ No hay interfaz WiFi"
+            return
+        }
+        root._wifiWorking = true
+        wDisconnectProc.command = ["bash", "-c",
+            "LANG=C nmcli dev disconnect " + root._wifiIface + " 2>/dev/null"]
+        wDisconnectProc.running = true
+    }
+
+    function wifiFetchPasswordFor(ssid, idx) {
+        root._wifiPwFetchSsid      = ssid
+        root._wifiPwFetchIdx       = idx
+        root._wifiPwFetchResult    = ""
+        root._wifiPwFetchResultIdx = -2
+        wSharedPwFetchProc._buf    = ""
+        wSharedPwFetchProc.command = [
+            "bash", "-c",
+            "nmcli -s -t -f 802-11-wireless-security.psk con show "
+            + JSON.stringify(ssid) + " 2>/dev/null | cut -d: -f2-"
+        ]
+        wSharedPwFetchProc.running = true
+    }
+
+    function wifiMenuCopyPassword() {
+        var ssid = root._wifiMenuSsid
+        wMenuCopyFetchProc.command = ["bash", "-c",
+            "SSID=" + JSON.stringify(ssid) + "; " +
+            "PASS=$(nmcli -s -g 802-11-wireless-security.psk connection show \"$SSID\" 2>/dev/null); " +
+            "if [ -z \"$PASS\" ]; then " +
+            "  CONN_FILE=$(find /etc/NetworkManager/system-connections -name '*' -type f 2>/dev/null | xargs grep -l \"ssid=$SSID\" 2>/dev/null | head -1); " +
+            "  if [ -n \"$CONN_FILE\" ]; then " +
+            "    PASS=$(grep '^psk=' \"$CONN_FILE\" 2>/dev/null | head -1 | cut -d= -f2-); " +
+            "  fi; " +
+            "fi; " +
+            "if [ -n \"$PASS\" ]; then echo \"PASS:$PASS\"; else echo \"ERROR:No se encontró la contraseña\"; fi"
+        ]
+        wMenuCopyFetchProc.running = true
+    }
+
+    function wifiMenuForgetNetwork() {
+        var ssid = root._wifiMenuSsid
+        wMenuForgetProc.command = ["bash", "-c",
+            "nmcli con delete " + JSON.stringify(ssid) + " 2>/dev/null"]
+        wMenuForgetProc.running = true
+    }
+
+    // ── WiFi processes ────────────────────────────────────────────────────
+    Process {
+        id: wIfaceProc
+        command: ["bash", "-c",
+            "LANG=C nmcli -t -f DEVICE,TYPE,STATE dev 2>/dev/null "
+            + "| grep ':wifi:connected' | cut -d: -f1 | head -1; "
+            + "LANG=C nmcli -t -f active,ssid dev wifi 2>/dev/null "
+            + "| grep '^yes:' | cut -d: -f2- | head -1"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._wIfaceBuf += d + "\n" }
+        onExited: {
+            var parts = root._wIfaceBuf.trim().split("\n")
+            root._wIfaceBuf = ""
+            root._wifiIface        = (parts[0] || "").trim()
+            root._wifiConnectedSsid = (parts[1] || "").trim()
+        }
+    }
+
+    Process {
+        id: wRadioProc
+        command: ["bash", "-c", "LANG=C nmcli radio wifi 2>/dev/null"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._wRadioBuf += d }
+        onExited: {
+            root._wifiRadioOn = root._wRadioBuf.trim() === "enabled"
+            root._wRadioBuf = ""
+        }
+    }
+
+    Process {
+        id: wSavedProc
+        command: ["bash", "-c",
+            "LANG=C nmcli -t -f name,type con show 2>/dev/null "
+            + "| awk -F: '$2==\"802-11-wireless\"{print $1}'"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._wSavedBuf += d + "\n" }
+        onExited: {
+            var lines = root._wSavedBuf.trim().split("\n")
+            root._wSavedBuf = ""
+            var map = {}
+            for (var i = 0; i < lines.length; i++) {
+                var s = lines[i].trim()
+                if (s) map[s] = true
+            }
+            root._wifiSavedSsids = map
+        }
+    }
+
+    Process {
+        id: wEthProc
+        command: ["bash", "-c",
+            "ETH_IFACE=$(LANG=C nmcli -t -f DEVICE,TYPE,STATE dev 2>/dev/null | grep ':ethernet:connected' | cut -d: -f1); "
+            + "if [ -n \"$ETH_IFACE\" ]; then "
+            + "echo \"connected\"; "
+            + "LANG=C nmcli -t -f IP4.ADDRESS dev show \"$ETH_IFACE\" 2>/dev/null | cut -d: -f2 | cut -d/ -f1; "
+            + "LANG=C nmcli -t -f DEVICE,HWADDR dev show 2>/dev/null | grep \"^$ETH_IFACE:\" | cut -d: -f2; "
+            + "ethtool \"$ETH_IFACE\" 2>/dev/null | grep \"Speed:\" | awk '{print $2}'; "
+            + "else echo \"disconnected\"; fi"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._wEthBuf += d + "\n" }
+        onExited: {
+            var lines = root._wEthBuf.trim().split("\n")
+            root._wEthBuf = ""
+            root._ethConnected = (lines[0] || "").trim() === "connected"
+            root._ethIp    = (lines[1] || "").trim()
+            root._ethMac   = (lines[2] || "").trim()
+            root._ethSpeed = (lines[3] || "").trim()
+        }
+    }
+
+    Process {
+        id: wNetListProc
+        command: ["bash", "-c",
+            "LANG=C nmcli -t -f active,ssid,signal,security dev wifi list 2>/dev/null"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._wNetBuf += d + "\n" }
+        onExited: {
+            var lines  = root._wNetBuf.trim().split("\n")
+            root._wNetBuf = ""
+            var seen   = {}
+            var result = []
+            for (var i = 0; i < lines.length; i++) {
+                var l = lines[i].trim()
+                if (!l) continue
+                var p = l.split(":")
+                if (p.length < 3) continue
+                var active   = p[0] === "yes"
+                var security = p[p.length - 1].trim()
+                var sig      = parseInt(p[p.length - 2]) || 0
+                var ssid     = p.slice(1, p.length - 2).join(":")
+                if (!ssid) continue
+                if (seen[ssid]) continue
+                seen[ssid] = true
+                if (active) root._wifiConnectedSsid = ssid
+                result.push({ ssid: ssid, signal: sig, security: security, active: active })
+            }
+            result.sort((a, b) => {
+                if (a.active !== b.active) return a.active ? -1 : 1
+                return b.signal - a.signal
+            })
+            root._wifiNetworks = result
+            root._wifiWorking  = false
+            if (root._wifiIface) wWifiInfoProc.running = true
+        }
+    }
+
+    Process {
+        id: wWifiInfoProc
+        property string _buf: ""
+        command: ["bash", "-c",
+            "IFACE=$(nmcli dev | grep wifi | grep -v p2p | awk '{print $1}' | head -1); "
+            + "if [ -n \"$IFACE\" ]; then "
+            + "nmcli -g IP4.ADDRESS dev show \"$IFACE\" 2>/dev/null; "
+            + "nmcli -g IP4.GATEWAY dev show \"$IFACE\" 2>/dev/null; "
+            + "nmcli -g IP4.DNS dev show \"$IFACE\" 2>/dev/null; "
+            + "fi"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => wWifiInfoProc._buf += d + "\n" }
+        onExited: {
+            var lines = wWifiInfoProc._buf.trim().split("\n")
+            wWifiInfoProc._buf = ""
+            root._wifiIp      = (lines[0] || "").split("/")[0].trim()
+            root._wifiGateway = (lines[1] || "").trim()
+            root._wifiDns     = (lines[2] || "").trim()
+        }
+    }
+
+    Process {
+        id: wToggleRadioProc
+        command: ["bash", "-c", ""]
+        onExited: Qt.callLater(() => { root.wifiLoadNetworks(); root._wifiWorking = false })
+    }
+
+    Process {
+        id: wRescanProc
+        command: ["bash", "-c", "LANG=C nmcli dev wifi rescan 2>/dev/null; sleep 1"]
+        onExited: { root._wifiScanning = false; root.wifiLoadNetworks() }
+    }
+
+    Process {
+        id: wConnectProc
+        property string _buf: ""
+        command: ["bash", "-c", ""]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => wConnectProc._buf += d + "\n" }
+        onExited: function(exitCode) {
+            var output = wConnectProc._buf.trim()
+            wConnectProc._buf = ""
+            root._wifiWorking = false
+            if (exitCode === 0) {
+                root._wifiStatusMsg    = "✓ Conectado"
+                root._wifiSelectedIdx  = -1
+                root._wifiPasswordByIndex = ({})
+            } else {
+                var errLines = output.split("\n")
+                var errMsg = errLines.filter(l => l && !l.startsWith("DEBUG:"))[0] || "Error de conexión"
+                root._wifiStatusMsg = "✗ " + errMsg.substring(0, 40)
+            }
+            Qt.callLater(() => root.wifiLoadNetworks())
+        }
+    }
+
+    Process {
+        id: wDisconnectProc
+        command: ["bash", "-c", ""]
+        onExited: { root._wifiWorking = false; Qt.callLater(() => root.wifiLoadNetworks()) }
+    }
+
+    Process {
+        id: wSavedPwProc
+        property string ssid:  ""
+        property int    idx:   -1
+        property string _buf:  ""
+        command: ["bash", "-c", ""]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => wSavedPwProc._buf += d }
+        onExited: function() {
+            var pw = wSavedPwProc._buf.trim()
+            wSavedPwProc._buf = ""
+            root._wifiWorking = false
+            if (pw.length > 0) {
+                root.wifiConnectTo(wSavedPwProc.ssid, pw)
+            } else {
+                root._wifiStatusMsg = "✗ No se pudo obtener contraseña guardada"
+            }
+        }
+    }
+
+    Process {
+        id: wSharedPwFetchProc
+        property string _buf: ""
+        command: ["bash", "-c", ""]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => wSharedPwFetchProc._buf += d }
+        onExited: {
+            var pw = wSharedPwFetchProc._buf.trim()
+            wSharedPwFetchProc._buf = ""
+            root._wifiPwFetchResult    = pw
+            root._wifiPwFetchResultIdx = root._wifiPwFetchIdx
+        }
+    }
+
+    Process {
+        id: wMenuCopyFetchProc
+        property string _buf: ""
+        command: ["bash", "-c", ""]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => wMenuCopyFetchProc._buf += d }
+        onExited: {
+            var output = wMenuCopyFetchProc._buf.trim()
+            wMenuCopyFetchProc._buf = ""
+            var pw = ""
+            var errorMsg = ""
+            output.split("\n").forEach(function(line) {
+                if (line.startsWith("PASS:"))  { pw = line.substring(5) }
+                else if (line.startsWith("ERROR:")) { errorMsg = line.substring(6) }
+            })
+            if (pw !== "") {
+                wMenuCopyExecProc.command = ["bash", "-c", 'printf "%s" "$1" | wl-copy', "--", pw]
+                wMenuCopyExecProc.running = true
+            } else {
+                root._wifiStatusMsg = "✗ " + (errorMsg || "No se encontró la contraseña")
+            }
+        }
+    }
+
+    Process {
+        id: wMenuCopyExecProc
+        command: ["bash", "-c", ""]
+        onExited: (ec) => {
+            root._wifiStatusMsg = ec === 0 ? "✓ Contraseña copiada" : "✗ wl-copy error " + ec
+        }
+    }
+
+    Process {
+        id: wMenuForgetProc
+        command: ["bash", "-c", ""]
+        onExited: (ec) => {
+            root._wifiStatusMsg = ec === 0 ? "✓ Red olvidada" : "✗ No se pudo olvidar"
+            Qt.callLater(() => root.wifiLoadNetworks())
+        }
+    }
+
+    Timer {
+        interval: 15000
+        running: root.visible && root._expandedToggle === "wifi" && !root._wifiWorking
+        repeat: true
+        onTriggered: root.wifiLoadNetworks()
     }
 
     // ── Startup ────────────────────────────────────────────────────────────
@@ -1082,21 +1817,27 @@ PanelWindow {
                         property bool hov: false
                         width: (parent.width - 6) / 2; height: 52; radius: 10
                         color: hov ? Theme.surface3
-                             : (SysData.netConnected
+                             : (root._expandedToggle === "wifi"
                                     ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                                    : Theme.surface2)
+                                    : (SysData.netConnected
+                                           ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                                           : Theme.surface2))
                         Behavior on color { ColorAnimation { duration: 100 } }
 
                         // Barra lateral activo
                         Rectangle {
-                            visible: SysData.netConnected
+                            visible: SysData.netConnected || root._expandedToggle === "wifi"
                             width: 3; height: 24; radius: 2
                             anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
                             color: Theme.accent
                         }
 
                         RowLayout {
-                            anchors { fill: parent; leftMargin: SysData.netConnected ? 14 : 10; rightMargin: 10 }
+                            anchors {
+                                fill: parent
+                                leftMargin: (SysData.netConnected || root._expandedToggle === "wifi") ? 14 : 10
+                                rightMargin: 10
+                            }
                             spacing: 8
 
                             Text {
@@ -1133,13 +1874,27 @@ PanelWindow {
                                     elide: Text.ElideRight
                                 }
                             }
+
+                            Text {
+                                text: root._expandedToggle === "wifi" ? "󰅃" : "󰅀"
+                                font.pixelSize: 11; color: Theme.muted2
+                            }
                         }
 
                         MouseArea {
                             anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onEntered: wifiCard.hov = true
                             onExited:  wifiCard.hov = false
-                            onClicked: { root.visible = false; root.requestOpenWifi(root.screen) }
+                            onClicked: {
+                                var next = root._expandedToggle === "wifi" ? "" : "wifi"
+                                root._expandedToggle = next
+                                if (next === "wifi") {
+                                    root._wifiStatusMsg    = ""
+                                    root._wifiSelectedIdx  = -1
+                                    root._wifiPasswordByIndex = ({})
+                                    root.wifiLoadNetworks()
+                                }
+                            }
                         }
                     }
 
@@ -1149,20 +1904,26 @@ PanelWindow {
                         property bool hov: false
                         width: (parent.width - 6) / 2; height: 52; radius: 10
                         color: hov ? Theme.surface3
-                             : (root.btConnectedCount > 0
+                             : (root._expandedToggle === "bluetooth"
                                     ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                                    : Theme.surface2)
+                                    : (root.btConnectedCount > 0
+                                           ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                                           : Theme.surface2))
                         Behavior on color { ColorAnimation { duration: 100 } }
 
                         Rectangle {
-                            visible: root.btConnectedCount > 0
+                            visible: root.btConnectedCount > 0 || root._expandedToggle === "bluetooth"
                             width: 3; height: 24; radius: 2
                             anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
                             color: Theme.accent
                         }
 
                         RowLayout {
-                            anchors { fill: parent; leftMargin: root.btConnectedCount > 0 ? 14 : 10; rightMargin: 10 }
+                            anchors {
+                                fill: parent
+                                leftMargin: (root.btConnectedCount > 0 || root._expandedToggle === "bluetooth") ? 14 : 10
+                                rightMargin: 10
+                            }
                             spacing: 8
 
                             Text {
@@ -1186,7 +1947,6 @@ PanelWindow {
                                         if (!root.btAdapter)           return "Not available"
                                         if (!root.btPowered)           return "Disabled"
                                         if (root.btConnectedCount > 0) {
-                                            // Primer dispositivo conectado
                                             for (var i = 0; i < root.btDeviceList.length; i++) {
                                                 if (root.btDeviceList[i].connected)
                                                     return root.btDeviceList[i].name
@@ -1199,13 +1959,41 @@ PanelWindow {
                                     elide: Text.ElideRight
                                 }
                             }
+
+                            Text {
+                                text: root._expandedToggle === "bluetooth" ? "󰅃" : "󰅀"
+                                font.pixelSize: 11; color: Theme.muted2
+                            }
                         }
 
                         MouseArea {
                             anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onEntered: btCard.hov = true
                             onExited:  btCard.hov = false
-                            onClicked: { root.visible = false; root.requestOpenBluetooth(root.screen) }
+                            onClicked: {
+                                var next = root._expandedToggle === "bluetooth" ? "" : "bluetooth"
+                                root._expandedToggle = next
+                                if (next === "bluetooth") {
+                                    root._btStatusMsg = ""
+                                    root.btRefreshDeviceLists()
+                                    if (root._btPwrd && root._btAdapter) {
+                                        root._btAdapter.discoverable = true
+                                        root._btAdapter.pairable     = true
+                                        root.btAutoConnectTrusted()
+                                    }
+                                } else {
+                                    if (root._btAdapter) {
+                                        root._btAdapter.discovering  = false
+                                        root._btAdapter.discoverable = false
+                                        root._btAdapter.pairable     = false
+                                    }
+                                    root._btScanning = false
+                                    btScanTimer.stop()
+                                    btActionTimeout.stop()
+                                    btAutoConnTimer.stop()
+                                    btConnectRetryTimer.stop()
+                                }
+                            }
                         }
                     }
 
@@ -1452,6 +2240,846 @@ PanelWindow {
                         }
                     }
                 }
+
+                 // ── WiFi detail panel ─────────────────────────────────────
+                 Rectangle {
+                     width: parent.width
+                     height: root._expandedToggle === "wifi" ? wifiDetailCol.implicitHeight + 16 : 0
+                     radius: 10; color: Theme.surface2; clip: true
+                     Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+
+                     Column {
+                         id: wifiDetailCol
+                         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+                         spacing: 6
+
+                         // ── Header: toggle radio + rescan ──────────────────────
+                         Item {
+                             width: parent.width; height: 32
+
+                             Row {
+                                 anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                                 spacing: 8
+
+                                 Text {
+                                     text: root._wifiRadioOn ? "󰤨" : "󰤮"
+                                     font.pixelSize: 16
+                                     color: root._wifiRadioOn ? Theme.accent : Theme.muted2
+                                     anchors.verticalCenter: parent.verticalCenter
+                                 }
+                                 Column {
+                                     anchors.verticalCenter: parent.verticalCenter; spacing: 1
+                                     Text {
+                                         text: "WiFi"
+                                         font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text
+                                     }
+                                     Text {
+                                         text: root._wifiConnectedSsid ? root._wifiConnectedSsid
+                                               : (root._wifiRadioOn ? "Desconectado" : "Radio apagada")
+                                         font.pixelSize: 9; color: Theme.muted1
+                                     }
+                                 }
+                             }
+
+                             Row {
+                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                 spacing: 8
+
+                                 // Rescan button
+                                 Rectangle {
+                                     visible: root._wifiRadioOn
+                                     width: 26; height: 26; radius: 7
+                                     color: wRescanBtnMA.containsMouse ? Theme.surface3 : Theme.surface2
+                                     Behavior on color { ColorAnimation { duration: 100 } }
+                                     Text {
+                                         anchors.centerIn: parent; text: "󰑓"; font.pixelSize: 13
+                                         color: root._wifiScanning ? Theme.accent : Theme.muted1
+                                         RotationAnimation on rotation {
+                                             running: root._wifiScanning
+                                             loops: Animation.Infinite
+                                             from: 0; to: 360; duration: 1200
+                                         }
+                                     }
+                                     MouseArea {
+                                         id: wRescanBtnMA; anchors.fill: parent; hoverEnabled: true
+                                         cursorShape: Qt.PointingHandCursor
+                                         onClicked: root.wifiRescan()
+                                     }
+                                 }
+
+                                 // Toggle radio
+                                 Rectangle {
+                                     width: 40; height: 22; radius: 11
+                                     color: root._wifiRadioOn ? Theme.accent : Theme.surface3
+                                     Behavior on color { ColorAnimation { duration: 200 } }
+                                     Rectangle {
+                                         width: 16; height: 16; radius: 8
+                                         anchors.verticalCenter: parent.verticalCenter
+                                         x: root._wifiRadioOn ? parent.width - width - 3 : 3
+                                         color: "white"
+                                         Behavior on x { NumberAnimation { duration: 200 } }
+                                     }
+                                     MouseArea {
+                                         anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                         onClicked: root.wifiToggleRadio()
+                                     }
+                                 }
+                             }
+                         }
+
+                         // ── Status / Working ───────────────────────────────────
+                         Text {
+                             visible: root._wifiStatusMsg !== ""
+                             text: root._wifiStatusMsg
+                             font.pixelSize: 10
+                             color: root._wifiStatusMsg.startsWith("✓") ? Theme.success : Theme.error
+                         }
+                         Text {
+                             visible: root._wifiWorking
+                             text: "Cargando…"
+                             font.pixelSize: 10; color: Theme.muted1
+                         }
+
+                         // ── Ethernet info (if connected) ───────────────────────
+                         Rectangle {
+                             visible: root._ethConnected
+                             width: parent.width; height: root._ethConnected ? 48 : 0
+                             radius: 8; color: Theme.successSurface
+                             border.color: Qt.tint(Theme.surface2, Qt.rgba(Theme.success.r, Theme.success.g, Theme.success.b, 0.30))
+                             Behavior on height { NumberAnimation { duration: 150 } }
+
+                             Row {
+                                 anchors { fill: parent; margins: 10 }
+                                 spacing: 10
+                                 Text { text: "󰈀"; font.pixelSize: 16; color: Theme.success; anchors.verticalCenter: parent.verticalCenter }
+                                 Column {
+                                     spacing: 1; anchors.verticalCenter: parent.verticalCenter
+                                     Text { text: "Ethernet"; font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text }
+                                     Text { text: root._ethIp || "Sin IP"; font.pixelSize: 9; color: Theme.muted1 }
+                                 }
+                                 Item { width: 1 }
+                                 Text {
+                                     visible: root._ethSpeed !== ""
+                                     text: root._ethSpeed; font.pixelSize: 9; color: Theme.muted1
+                                     anchors.verticalCenter: parent.verticalCenter
+                                 }
+                             }
+                         }
+
+                         // ── No radio message ───────────────────────────────────
+                         Item {
+                             visible: !root._wifiRadioOn && !root._wifiWorking
+                             width: parent.width; height: 40
+                             Text {
+                                 anchors.centerIn: parent
+                                 text: "WiFi está apagado"
+                                 font.pixelSize: 11; color: Theme.muted1
+                             }
+                         }
+
+                         // ── Network list ───────────────────────────────────────
+                         Column {
+                             visible: root._wifiRadioOn
+                             width: parent.width
+                             spacing: 4
+
+                             Repeater {
+                                 model: root._wifiNetworks
+
+                                 Column {
+                                     id: wNetRow
+                                     required property var modelData
+                                     required property int index
+                                     width: parent.width
+                                     spacing: 0
+
+                                     property bool isSaved:    root._wifiSavedSsids[modelData.ssid] || false
+                                     property bool isActive:   root._wifiConnectedSsid === modelData.ssid
+                                     property bool showPwText:    false
+                                     property string realPassword: ""
+                                     property bool fetchingPw:    false
+
+                                     onIsSavedChanged: { showPwText = false; realPassword = "" }
+
+                                     function fetchSavedPassword() {
+                                         if (realPassword !== "" || fetchingPw) {
+                                             showPwText = !showPwText
+                                             return
+                                         }
+                                         fetchingPw = true
+                                         root.wifiFetchPasswordFor(modelData.ssid, index)
+                                     }
+
+                                     Connections {
+                                         target: root
+                                         function onWifiPwFetchResultIdxChanged() {
+                                             if (root._wifiPwFetchResultIdx !== index) return
+                                             var pw = root._wifiPwFetchResult
+                                             wNetRow.realPassword = pw
+                                             wNetRow.fetchingPw   = false
+                                             if (pw !== "") wNetRow.showPwText = true
+                                         }
+                                     }
+
+                                     // Network row
+                                     Rectangle {
+                                         width: parent.width; height: 36; radius: 8
+                                         color: {
+                                             if (wNetRow.isActive)                    return Theme.accentSurface
+                                             if (root._wifiSelectedIdx === index)     return Theme.surface3
+                                             return wRowMA.containsMouse ? Theme.surface3 : Theme.surface2
+                                         }
+                                         Behavior on color { ColorAnimation { duration: 100 } }
+
+                                         Rectangle {
+                                             visible: wNetRow.isActive
+                                             width: 3; height: 18; radius: 2
+                                             anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
+                                             color: Theme.accent
+                                         }
+
+                                         RowLayout {
+                                             anchors { fill: parent; leftMargin: 14; rightMargin: 10 }
+                                             spacing: 6
+
+                                             Text {
+                                                 text: root.wifiSignalIcon(modelData.signal)
+                                                 font.pixelSize: 13
+                                                 color: wNetRow.isActive ? Theme.accent : Theme.muted2
+                                             }
+
+                                             Text {
+                                                 Layout.fillWidth: true
+                                                 text: modelData.ssid
+                                                 font.pixelSize: 11; color: Theme.text
+                                                 elide: Text.ElideRight
+                                             }
+
+                                             Text {
+                                                 visible: modelData.security && modelData.security !== "--"
+                                                 text: "󰌆"; font.pixelSize: 10; color: Theme.muted2
+                                             }
+
+                                             Text {
+                                                 text: modelData.signal + "%"
+                                                 font.pixelSize: 9; color: Theme.muted2; width: 28
+                                                 horizontalAlignment: Text.AlignRight
+                                             }
+
+                                             // Connect / Disconnect button
+                                             Rectangle {
+                                                 height: 22; radius: 6
+                                                 width: wNetRow.isActive ? 78 : 64
+                                                 color: wNetRow.isActive ? Theme.error
+                                                      : (root._wifiSelectedIdx === index ? Theme.accent : Theme.surface3)
+                                                 Behavior on color { ColorAnimation { duration: 100 } }
+                                                 Text {
+                                                     anchors.centerIn: parent
+                                                     text: wNetRow.isActive ? "Desconectar" : "Conectar"
+                                                     font.pixelSize: 9; color: "white"
+                                                 }
+                                                 MouseArea {
+                                                     anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                                     onClicked: {
+                                                         if (wNetRow.isActive) {
+                                                             root.wifiDisconnect()
+                                                         } else {
+                                                             var needsPw = modelData.security && modelData.security !== "--"
+                                                             if (root._wifiSelectedIdx !== index) {
+                                                                 root._wifiSelectedIdx = index
+                                                                 root._wifiPasswordByIndex[index] = ""
+                                                                 wNetRow.showPwText = false
+                                                             } else {
+                                                                 var pw = root._wifiPasswordByIndex[index] || ""
+                                                                 if (needsPw && pw === "") {
+                                                                     if (wNetRow.isSaved) {
+                                                                         root._wifiWorking = true
+                                                                         wSavedPwProc.ssid = modelData.ssid
+                                                                         wSavedPwProc.idx  = index
+                                                                         wSavedPwProc.command = ["bash", "-c",
+                                                                             "nmcli -s -g 802-11-wireless-security.psk connection show " + JSON.stringify(modelData.ssid) + " 2>/dev/null"]
+                                                                         wSavedPwProc.running = true
+                                                                     } else {
+                                                                         root._wifiStatusMsg = "✗ Ingresa una contraseña"
+                                                                     }
+                                                                 } else {
+                                                                     root.wifiConnectTo(modelData.ssid, pw)
+                                                                 }
+                                                             }
+                                                         }
+                                                     }
+                                                 }
+                                             }
+                                         }
+
+                                         MouseArea {
+                                             id: wRowMA
+                                             anchors.fill: parent; hoverEnabled: true; z: -1
+                                             cursorShape: Qt.PointingHandCursor
+                                             onClicked: {
+                                                 if (root._wifiSelectedIdx === index) {
+                                                     root._wifiSelectedIdx = -1
+                                                 } else {
+                                                     root._wifiSelectedIdx = index
+                                                     root._wifiPasswordByIndex[index] = ""
+                                                     wNetRow.showPwText = false
+                                                 }
+                                             }
+                                         }
+                                     }
+
+                                     // ── Expanded panel per network ─────────────────
+                                     Rectangle {
+                                         visible: root._wifiSelectedIdx === index
+                                         width: parent.width
+                                         height: visible ? wExpandCol.implicitHeight + 20 : 0
+                                         radius: 8; color: Theme.surface3; clip: true
+                                         Behavior on height { NumberAnimation { duration: 150 } }
+
+                                         Rectangle {
+                                             anchors.fill: parent; radius: parent.radius; color: "transparent"
+                                             border.color: Theme.accentSurface; border.width: 1
+                                         }
+
+                                         Column {
+                                             id: wExpandCol
+                                             anchors { top: parent.top; left: parent.left; right: parent.right; margins: 10 }
+                                             spacing: 6
+
+                                             // ── Password field ─────────────────────────
+                                             RowLayout {
+                                                 visible: (modelData.security && modelData.security !== "--") && !wNetRow.isActive
+                                                 width: parent.width; spacing: 6
+
+                                                 Text { text: "󰌋"; font.pixelSize: 12; color: Theme.muted1; Layout.alignment: Qt.AlignVCenter }
+
+                                                 Item {
+                                                     Layout.fillWidth: true; height: 22
+
+                                                     Text {
+                                                         anchors.verticalCenter: parent.verticalCenter
+                                                         visible: wNetRow.isSaved && !wNetRow.showPwText
+                                                         text: "••••••••"; font.pixelSize: 12; color: Theme.muted1
+                                                     }
+                                                     Text {
+                                                         anchors.verticalCenter: parent.verticalCenter
+                                                         visible: wNetRow.isSaved && wNetRow.showPwText
+                                                         text: wNetRow.realPassword !== "" ? wNetRow.realPassword : "—"
+                                                         font.pixelSize: 11; color: Theme.text; font.family: "monospace"
+                                                     }
+                                                     TextInput {
+                                                         id: wPwInput
+                                                         anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
+                                                         visible: !wNetRow.isSaved
+                                                         text: root._wifiPasswordByIndex[index] || ""
+                                                         onTextChanged: root._wifiPasswordByIndex[index] = text
+                                                         echoMode: wNetRow.showPwText ? TextInput.Normal : TextInput.Password
+                                                         color: Theme.text; font.pixelSize: 11
+                                                         verticalAlignment: TextInput.AlignVCenter
+                                                         Keys.onReturnPressed: {
+                                                             var pw = root._wifiPasswordByIndex[index] || ""
+                                                             if (!wNetRow.isSaved && pw === "") {
+                                                                 root._wifiStatusMsg = "✗ Ingresa una contraseña"
+                                                             } else {
+                                                                 root.wifiConnectTo(modelData.ssid, pw)
+                                                             }
+                                                         }
+                                                     }
+                                                     Text {
+                                                         anchors.verticalCenter: parent.verticalCenter
+                                                         visible: !wNetRow.isSaved && wPwInput.text.length === 0
+                                                         text: "Contraseña"; font.pixelSize: 11; color: Theme.muted2
+                                                     }
+                                                 }
+
+                                                 // Eye toggle
+                                                 Rectangle {
+                                                     width: 24; height: 24; radius: 6
+                                                     color: wEyeMA.containsMouse ? Theme.surface2 : "transparent"
+                                                     Behavior on color { ColorAnimation { duration: 100 } }
+                                                     Text {
+                                                         anchors.centerIn: parent
+                                                         text: wNetRow.showPwText ? "󰈊" : "󰈉"
+                                                         font.pixelSize: 13
+                                                         color: wNetRow.showPwText ? Theme.accent : Theme.muted2
+                                                     }
+                                                     MouseArea {
+                                                         id: wEyeMA; anchors.fill: parent; hoverEnabled: true
+                                                         cursorShape: Qt.PointingHandCursor
+                                                         onClicked: wNetRow.fetchSavedPassword()
+                                                     }
+                                                 }
+
+                                                 // Copy password (saved only)
+                                                 Rectangle {
+                                                     visible: wNetRow.isSaved
+                                                     width: 24; height: 24; radius: 6
+                                                     color: wCopyPwMA.containsMouse ? Theme.surface2 : "transparent"
+                                                     Behavior on color { ColorAnimation { duration: 100 } }
+                                                     Text { anchors.centerIn: parent; text: "󰂏"; font.pixelSize: 12; color: Theme.muted1 }
+                                                     MouseArea {
+                                                         id: wCopyPwMA; anchors.fill: parent; hoverEnabled: true
+                                                         cursorShape: Qt.PointingHandCursor
+                                                         onClicked: {
+                                                             root._wifiMenuSsid = modelData.ssid
+                                                             root.wifiMenuCopyPassword()
+                                                         }
+                                                     }
+                                                 }
+                                             }
+
+                                             Rectangle {
+                                                 visible: (modelData.security && modelData.security !== "--") && !wNetRow.isActive
+                                                 width: parent.width; height: 1; color: Theme.surface2
+                                             }
+
+                                             // ── Info ───────────────────────────────────
+                                             Column {
+                                                 width: parent.width; spacing: 3
+
+                                                 Row {
+                                                     spacing: 4
+                                                     Text { text: "Señal:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
+                                                     Text { text: modelData.signal + "%"; font.pixelSize: 10; color: Theme.text }
+                                                 }
+                                                 Row {
+                                                     spacing: 4
+                                                     Text { text: "Seguridad:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
+                                                     Text {
+                                                         text: (modelData.security && modelData.security !== "--") ? modelData.security : "Abierta"
+                                                         font.pixelSize: 10; color: Theme.text
+                                                     }
+                                                 }
+                                                 Row {
+                                                     spacing: 4
+                                                     Text { text: "Estado:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
+                                                     Text {
+                                                         text: wNetRow.isActive ? "Conectada" : (wNetRow.isSaved ? "Guardada" : "No guardada")
+                                                         font.pixelSize: 10; color: Theme.text
+                                                     }
+                                                 }
+                                                 Row {
+                                                     visible: wNetRow.isActive
+                                                     spacing: 4
+                                                     Text { text: "IP:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
+                                                     Text {
+                                                         text: root._wifiIp !== "" ? root._wifiIp : "—"
+                                                         font.pixelSize: 10; color: Theme.text
+                                                         elide: Text.ElideRight; width: wExpandCol.width - 76
+                                                     }
+                                                 }
+                                                 Row {
+                                                     visible: wNetRow.isActive
+                                                     spacing: 4
+                                                     Text { text: "Gateway:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
+                                                     Text { text: root._wifiGateway !== "" ? root._wifiGateway : "—"; font.pixelSize: 10; color: Theme.text }
+                                                 }
+                                                 Row {
+                                                     visible: wNetRow.isActive
+                                                     spacing: 4
+                                                     Text { text: "DNS:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
+                                                     Text { text: root._wifiDns !== "" ? root._wifiDns : "—"; font.pixelSize: 10; color: Theme.text }
+                                                 }
+                                             }
+
+                                             // ── Forget button ──────────────────────────
+                                             Row {
+                                                 visible: wNetRow.isSaved
+                                                 width: parent.width
+
+                                                 Rectangle {
+                                                     height: 24; radius: 6
+                                                     width: wForgetText.implicitWidth + 18
+                                                     color: wForgetMA.containsMouse
+                                                         ? Qt.tint(Theme.surface2, Qt.rgba(Theme.error.r, Theme.error.g, Theme.error.b, 0.18))
+                                                         : Theme.surface2
+                                                     Behavior on color { ColorAnimation { duration: 100 } }
+                                                     Text {
+                                                         id: wForgetText
+                                                         anchors.centerIn: parent
+                                                         text: "󱑃  Olvidar red"; font.pixelSize: 10; color: Theme.error
+                                                     }
+                                                     MouseArea {
+                                                         id: wForgetMA; anchors.fill: parent; hoverEnabled: true
+                                                         cursorShape: Qt.PointingHandCursor
+                                                         onClicked: {
+                                                             root._wifiMenuSsid = modelData.ssid
+                                                             root.wifiMenuForgetNetwork()
+                                                         }
+                                                     }
+                                                 }
+                                             }
+                                         }
+                                     }
+                                 }
+                             }
+                         }
+                     }
+                 }
+
+                 // ── Bluetooth detail panel ────────────────────────────────
+                 Rectangle {
+                     width: parent.width
+                     height: root._expandedToggle === "bluetooth" ? btDetailCol.implicitHeight + 16 : 0
+                     radius: 10; color: Theme.surface2; clip: true
+                     Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+
+                     Column {
+                         id: btDetailCol
+                         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+                         spacing: 8
+
+                         // ── Header ─────────────────────────────────────────────
+                         Item {
+                             width: parent.width; height: 32
+
+                             Row {
+                                 anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                                 spacing: 8
+                                 Text {
+                                     text: "󰂯"; font.pixelSize: 16
+                                     color: root._btPwrd ? Theme.accent : Theme.muted2
+                                     anchors.verticalCenter: parent.verticalCenter
+                                 }
+                                 Column {
+                                     anchors.verticalCenter: parent.verticalCenter; spacing: 1
+                                     Text { text: "Bluetooth"; font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text }
+                                     Text {
+                                         text: !root._btAvailable ? "Sin adaptador"
+                                             : !root._btPwrd      ? "Apagado"
+                                             : root._btScanning   ? "Buscando..."
+                                             : "Encendido"
+                                         font.pixelSize: 9; color: Theme.muted1
+                                     }
+                                 }
+                             }
+
+                             Row {
+                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                 spacing: 8
+
+                                 // Scan button
+                                 Rectangle {
+                                     visible: root._btAvailable && root._btPwrd
+                                     width: 26; height: 26; radius: 7
+                                     color: btScanBtnMA.containsMouse
+                                         ? Theme.surface3
+                                         : (root._btScanning ? Theme.accentSurface : Theme.surface2)
+                                     Behavior on color { ColorAnimation { duration: 100 } }
+                                     Text {
+                                         anchors.centerIn: parent; text: "󰑓"; font.pixelSize: 13
+                                         color: root._btScanning ? Theme.accent : Theme.muted1
+                                         RotationAnimation on rotation {
+                                             running: root._btScanning; loops: Animation.Infinite
+                                             from: 0; to: 360; duration: 1200
+                                         }
+                                     }
+                                     MouseArea {
+                                         id: btScanBtnMA; anchors.fill: parent; hoverEnabled: true
+                                         cursorShape: Qt.PointingHandCursor
+                                         onClicked: root.btToggleScan()
+                                     }
+                                 }
+
+                                 // Power toggle
+                                 Rectangle {
+                                     visible: root._btAvailable
+                                     width: 40; height: 22; radius: 11
+                                     color: root._btPwrd ? Theme.accent : Theme.surface3
+                                     Behavior on color { ColorAnimation { duration: 200 } }
+                                     Rectangle {
+                                         width: 16; height: 16; radius: 8; color: "white"
+                                         anchors.verticalCenter: parent.verticalCenter
+                                         x: root._btPwrd ? parent.width - width - 3 : 3
+                                         Behavior on x { NumberAnimation { duration: 200 } }
+                                     }
+                                     MouseArea {
+                                         anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                         onClicked: root.btTogglePower()
+                                     }
+                                 }
+                             }
+                         }
+
+                         // ── Status message ─────────────────────────────────────
+                         Text {
+                             visible: root._btStatusMsg !== ""
+                             text: root._btStatusMsg; font.pixelSize: 10
+                             color: root._btStatusMsg.startsWith("✓") ? Theme.success : Theme.error
+                         }
+
+                         // ── No adapter ─────────────────────────────────────────
+                         Item {
+                             visible: !root._btAvailable
+                             width: parent.width; height: 40
+                             Text {
+                                 anchors.centerIn: parent
+                                 text: "No se encontró adaptador Bluetooth"
+                                 font.pixelSize: 11; color: Theme.muted1
+                             }
+                         }
+
+                         // ── Off message ────────────────────────────────────────
+                         Item {
+                             visible: root._btAvailable && !root._btPwrd
+                             width: parent.width; height: 36
+                             Text {
+                                 anchors.centerIn: parent
+                                 text: "Enciende el Bluetooth para ver dispositivos"
+                                 font.pixelSize: 10; color: Theme.muted1
+                             }
+                         }
+
+                         // ── Device lists ───────────────────────────────────────
+                         Column {
+                             visible: root._btAvailable && root._btPwrd
+                             width: parent.width; spacing: 4
+
+                             // Paired label
+                             Text {
+                                 visible: root._btPairedCount > 0
+                                 text: "Dispositivos emparejados"
+                                 font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.muted1
+                             }
+
+                             Repeater {
+                                 model: root._btPairedList
+
+                                 Column {
+                                     id: btPairedEntry
+                                     required property var modelData
+                                     required property int index
+                                     width: parent.width; spacing: 4
+
+                                     property string devMac:   modelData.address.toUpperCase()
+                                     property var    cInfo:    root._btCodecData[devMac] ?? null
+                                     property bool   hasCodec: modelData.connected
+                                                               && cInfo !== null
+                                                               && (cInfo.profiles?.length ?? 0) > 0
+                                     property bool   pendingForget: false
+
+                                     Timer {
+                                         id: btForgetCancelTimer
+                                         interval: 3000
+                                         onTriggered: btPairedEntry.pendingForget = false
+                                     }
+
+                                     Rectangle {
+                                         width: parent.width; height: 38; radius: 8
+                                         color: btPairedEntry.modelData.connected
+                                             ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15)
+                                             : Theme.surface3
+
+                                         Rectangle {
+                                             visible: btPairedEntry.modelData.connected
+                                             width: 3; height: 18; radius: 2
+                                             anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
+                                             color: Theme.accent
+                                         }
+
+                                         RowLayout {
+                                             anchors { fill: parent; leftMargin: 14; rightMargin: 10 }
+                                             spacing: 6
+
+                                             Text {
+                                                 text: "󰂱"; font.pixelSize: 14
+                                                 color: btPairedEntry.modelData.connected ? Theme.accent : Theme.muted2
+                                             }
+
+                                             Column {
+                                                 Layout.fillWidth: true; spacing: 1
+                                                 Text {
+                                                     text: btPairedEntry.modelData.name || btPairedEntry.modelData.deviceName
+                                                     font.pixelSize: 11; color: Theme.text
+                                                     elide: Text.ElideRight; width: parent.width
+                                                 }
+                                                 Text {
+                                                     text: btPairedEntry.modelData.address
+                                                     font.pixelSize: 8; color: Theme.muted2
+                                                 }
+                                             }
+
+                                             Rectangle {
+                                                 height: 24; radius: 6
+                                                 width: btConnBtnText.implicitWidth + 16
+                                                 color: btPairedEntry.modelData.connected ? Theme.error : Theme.accent
+                                                 Behavior on color { ColorAnimation { duration: 150 } }
+                                                 Text {
+                                                     id: btConnBtnText; anchors.centerIn: parent
+                                                     text: btPairedEntry.modelData.connected ? "Desconectar" : "Conectar"
+                                                     font.pixelSize: 9; color: "white"
+                                                 }
+                                                 MouseArea {
+                                                     anchors.fill: parent
+                                                     enabled: !root._btWorking
+                                                     cursorShape: root._btWorking ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                                     onClicked: {
+                                                         if (btPairedEntry.modelData.connected)
+                                                             root.btDisconnectDevice(btPairedEntry.modelData)
+                                                         else
+                                                             root.btConnectDevice(btPairedEntry.modelData)
+                                                     }
+                                                 }
+                                             }
+
+                                             // Forget button (2-step confirm)
+                                             Rectangle {
+                                                 id: btForgetBtn
+                                                 height: 24; radius: 6
+                                                 width: btPairedEntry.pendingForget
+                                                     ? btForgetConfirmText.implicitWidth + 14
+                                                     : 24
+                                                 Behavior on width { NumberAnimation { duration: 120 } }
+                                                 color: btPairedEntry.pendingForget
+                                                     ? Qt.rgba(Theme.error.r, Theme.error.g, Theme.error.b, 0.18)
+                                                     : (btForgetMA.containsMouse
+                                                         ? Qt.rgba(Theme.error.r, Theme.error.g, Theme.error.b, 0.14)
+                                                         : "transparent")
+                                                 Behavior on color { ColorAnimation { duration: 120 } }
+
+                                                 Text {
+                                                     anchors.centerIn: parent
+                                                     visible: !btPairedEntry.pendingForget
+                                                     text: "󰩹"; font.pixelSize: 13
+                                                     color: btForgetMA.containsMouse ? Theme.error : Theme.muted2
+                                                     Behavior on color { ColorAnimation { duration: 100 } }
+                                                 }
+                                                 Text {
+                                                     id: btForgetConfirmText; anchors.centerIn: parent
+                                                     visible: btPairedEntry.pendingForget
+                                                     text: "¿Borrar?"; font.pixelSize: 9; color: Theme.error
+                                                 }
+                                                 MouseArea {
+                                                     id: btForgetMA; anchors.fill: parent; hoverEnabled: true
+                                                     cursorShape: Qt.PointingHandCursor
+                                                     onClicked: {
+                                                         if (!btPairedEntry.pendingForget) {
+                                                             btPairedEntry.pendingForget = true
+                                                             btForgetCancelTimer.restart()
+                                                         } else {
+                                                             btForgetCancelTimer.stop()
+                                                             btPairedEntry.pendingForget = false
+                                                             root.btForgetDevice(btPairedEntry.modelData)
+                                                         }
+                                                     }
+                                                 }
+                                             }
+                                         }
+                                     }
+
+                                     // ── Codec panel ────────────────────────────────
+                                     Rectangle {
+                                         visible: btPairedEntry.hasCodec
+                                         width: parent.width; height: 34; radius: 7
+                                         color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.07)
+
+                                         RowLayout {
+                                             anchors { fill: parent; leftMargin: 10; rightMargin: 8 }
+                                             spacing: 6
+
+                                             Column {
+                                                 spacing: 1
+                                                 Text {
+                                                     text: "Codec: " + (btPairedEntry.cInfo?.codec ?? "")
+                                                     font.pixelSize: 9; font.weight: Font.DemiBold; color: Theme.accent
+                                                 }
+                                                 Text {
+                                                     text: btPairedEntry.cInfo?.bitrate ?? ""
+                                                     font.pixelSize: 8; color: Theme.muted1
+                                                     visible: (btPairedEntry.cInfo?.bitrate ?? "") !== ""
+                                                 }
+                                             }
+
+                                             Item { Layout.fillWidth: true }
+
+                                             Repeater {
+                                                 model: btPairedEntry.cInfo?.profiles ?? []
+                                                 delegate: Rectangle {
+                                                     id: btProfileBtn
+                                                     required property var modelData
+                                                     property bool isActive: (btPairedEntry.cInfo?.active ?? "") === modelData.id
+                                                     height: 20; radius: 5
+                                                     width: btProfileLabel.implicitWidth + 10
+                                                     color: isActive ? Theme.accent
+                                                          : (btProfileMA.containsMouse ? Theme.surface3 : Theme.surface2)
+                                                     Behavior on color { ColorAnimation { duration: 100 } }
+                                                     Text {
+                                                         id: btProfileLabel; anchors.centerIn: parent
+                                                         text: btProfileBtn.modelData.label
+                                                         font.pixelSize: 8
+                                                         color: btProfileBtn.isActive ? "white" : Theme.muted1
+                                                     }
+                                                     MouseArea {
+                                                         id: btProfileMA; anchors.fill: parent; hoverEnabled: true
+                                                         cursorShape: Qt.PointingHandCursor
+                                                         onClicked: root.btSetCodec(
+                                                             btPairedEntry.modelData.address,
+                                                             btProfileBtn.modelData.id
+                                                         )
+                                                     }
+                                                 }
+                                             }
+                                         }
+                                     }
+                                 }
+                             }
+
+                             Text {
+                                 visible: root._btPairedCount === 0 && !root._btWorking
+                                 text: "No hay dispositivos emparejados"
+                                 font.pixelSize: 10; color: Theme.muted1
+                             }
+
+                             // Nearby section
+                             Item { visible: root._btNearbyCount > 0; width: parent.width; height: 8 }
+
+                             Text {
+                                 visible: root._btNearbyCount > 0
+                                 text: "Dispositivos cercanos"
+                                 font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.muted1
+                             }
+
+                             Repeater {
+                                 model: root._btNearbyList
+
+                                 Rectangle {
+                                     required property var modelData
+                                     width: parent.width; height: 38; radius: 8; color: Theme.surface3
+
+                                     RowLayout {
+                                         anchors { fill: parent; leftMargin: 14; rightMargin: 10 }
+                                         spacing: 6
+
+                                         Text { text: "󰂯"; font.pixelSize: 14; color: Theme.muted2 }
+
+                                         Column {
+                                             Layout.fillWidth: true; spacing: 1
+                                             Text {
+                                                 text: modelData.name || modelData.deviceName
+                                                 font.pixelSize: 11; color: Theme.text
+                                                 elide: Text.ElideRight; width: parent.width
+                                             }
+                                             Text { text: modelData.address; font.pixelSize: 8; color: Theme.muted2 }
+                                         }
+
+                                         Rectangle {
+                                             height: 24; radius: 6; width: btPairBtnLabel.implicitWidth + 16
+                                             color: Theme.surface2
+                                             Text {
+                                                 id: btPairBtnLabel; anchors.centerIn: parent
+                                                 text: "Emparejar"; font.pixelSize: 9; color: Theme.text
+                                             }
+                                             MouseArea {
+                                                 anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                                 onClicked: root.btPairDevice(modelData)
+                                             }
+                                         }
+                                     }
+                                 }
+                             }
+                         }
+                     }
+                 }
 
                  // ── Power & Fans detail panel ─────────────────────────────
                  Rectangle {
