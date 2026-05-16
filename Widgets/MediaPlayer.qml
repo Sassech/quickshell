@@ -48,8 +48,8 @@ Row {
 
     // ── Event-driven: reacciona a cambios de players y estado de reproducción ─
     Connections {
-        target: Mpris
-        function onPlayersChanged() { root._updateCachedPlayer() }
+        target: Mpris.players
+        function onValuesChanged() { root._updateCachedPlayer() }
     }
 
     // Conecta dinámicamente al player activo para recibir sus signals

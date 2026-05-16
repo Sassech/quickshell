@@ -36,25 +36,56 @@ print('PKG_TEMP:' + str(c['temperature']))
 print('AVG_FREQ:' + str(round(c['frequency'])))
 "
 
-# Per-core temps y max freq desde sysfs (dgop no los provee)
-# Usa bash built-in reads (< file) — cero forks en el loop de temperaturas
+# Per-core temps — supports Intel (coretemp) and AMD (k10temp)
+# Uses bash built-in reads — zero forks in the temperature loop
+CPU_VENDOR=$(awk -F': ' '/vendor_id/{print $2; exit}' /proc/cpuinfo)
+
 for d in /sys/class/hwmon/hwmon*/; do
     [ -r "${d}name" ] || continue
     hwmon_name=$(< "${d}name")
-    [ "$hwmon_name" = "coretemp" ] || continue
-    ct=""
-    for f in "${d}"temp*_input; do
-        [ -r "$f" ] || continue
-        lbl_file="${f/_input/_label}"
-        [ -r "$lbl_file" ] || continue
-        label=$(< "$lbl_file")
-        [[ "$label" == Core* ]] || continue
-        raw=$(< "$f")
-        t=$(( ${raw:-0} / 1000 ))
-        ct="${ct},${t}"
-    done
-    echo "CORE_TEMPS:${ct#,}"
-    break
+
+    # Intel: coretemp exposes per-core temp*_input with label "Core N"
+    if [ "$hwmon_name" = "coretemp" ]; then
+        ct=""
+        for f in "${d}"temp*_input; do
+            [ -r "$f" ] || continue
+            lbl_file="${f/_input/_label}"
+            [ -r "$lbl_file" ] || continue
+            label=$(< "$lbl_file")
+            [[ "$label" == Core* ]] || continue
+            raw=$(< "$f")
+            ct="${ct},$(( ${raw:-0} / 1000 ))"
+        done
+        echo "CORE_TEMPS:${ct#,}"
+        echo "CPU_VENDOR:intel"
+        break
+    fi
+
+    # AMD: k10temp exposes Tdie/Tctl (temp1) and optionally Tccd cores (temp3+)
+    if [ "$hwmon_name" = "k10temp" ]; then
+        # Tdie is the package temp (already reported as PKG_TEMP by dgop)
+        # Tccd cores: temp3_input, temp5_input, ... (every 2nd starting at 3)
+        ct=""
+        for f in "${d}"temp*_input; do
+            [ -r "$f" ] || continue
+            lbl_file="${f/_input/_label}"
+            [ -r "$lbl_file" ] || continue
+            label=$(< "$lbl_file")
+            # Tccd labels look like "Tccd1", "Tccd2" — each covers a CCD
+            [[ "$label" == Tccd* ]] || continue
+            raw=$(< "$f")
+            ct="${ct},$(( ${raw:-0} / 1000 ))"
+        done
+        # If no Tccd, at least emit Tdie repeated per core count as approximation
+        if [ -z "$ct" ] && [ -r "${d}temp1_input" ]; then
+            tdie=$(( $(< "${d}temp1_input") / 1000 ))
+            ncores=$(nproc 2>/dev/null || echo 1)
+            for (( i=0; i<ncores; i++ )); do ct="${ct},${tdie}"; done
+        fi
+        echo "CORE_TEMPS:${ct#,}"
+        echo "CPU_VENDOR:amd"
+        break
+    fi
 done
 
 MAX_FREQ=""

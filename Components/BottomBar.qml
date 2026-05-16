@@ -11,7 +11,6 @@ PanelWindow {
     signal wifiClicked(var screen)
     signal bluetoothClicked(var screen)
     signal audioClicked(var screen)
-    signal fanClicked(var screen)
 
     anchors {
         bottom: true
@@ -26,7 +25,7 @@ PanelWindow {
 
     RowLayout {
         anchors.fill:    parent
-        anchors.margins: 6
+        anchors.margins: 5
         spacing:         8
 
         // ── Left section ─────────────────────────────────────────────────
@@ -62,21 +61,15 @@ PanelWindow {
 
             NetworkWidget {
                 anchors.verticalCenter: parent.verticalCenter
-                onClicked: root.wifiClicked(root.screen)
             }
 
             BluetoothWidget {
                 anchors.verticalCenter: parent.verticalCenter
-                onClicked: root.bluetoothClicked(root.screen)
             }
 
             LanguageWidget {
                 anchors.verticalCenter: parent.verticalCenter
                 onClicked: root.languageClicked(root.screen)
-            }
-            FanWidget {
-                id: fanWidget
-                onClicked: root.fanClicked(root.screen)
             }
         }
     }

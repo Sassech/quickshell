@@ -101,6 +101,12 @@ case "${1:-}" in
     set_profile)
         _set_profile "${2:-balanced}"
         ;;
+    list_profiles)
+        # Print available profile ids — one per line
+        echo "quiet"
+        echo "balanced"
+        echo "performance"
+        ;;
     set_auto)
         _set_profile "balanced"
         ;;
@@ -108,7 +114,7 @@ case "${1:-}" in
         _set_profile "custom"
         ;;
     *)
-        echo "Usage: $0 {get_rpm|get_max_rpm|get_percent|get_temp|get_pwm|set_pwm <0-255>|get_profile|set_profile <name>|set_auto|set_manual}" >&2
+        echo "Usage: $0 {get_rpm|get_max_rpm|get_percent|get_temp|get_pwm|set_pwm <0-255>|get_profile|set_profile <name>|list_profiles|set_auto|set_manual}" >&2
         exit 1
         ;;
 esac

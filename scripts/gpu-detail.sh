@@ -1,64 +1,200 @@
 #!/bin/bash
-# gpu-detail.sh — KEY:VALUE output
-# Shows both Intel UHD + NVIDIA (if driver active)
+# gpu-detail.sh — Multi-vendor GPU detection: Intel / AMD / NVIDIA
+# Outputs KEY:VALUE lines. No hardcoded device names or paths.
 set -euo pipefail
 IFS=$'\n\t'
 
-# ── Intel UHD ──────────────────────────────────────────────────
-INTEL_NAME="Intel UHD (Tiger Lake-H)"
-INTEL_FREQ_MHZ=0
-INTEL_TEMP=0
+# ── Helpers ────────────────────────────────────────────────────────────────
+read_mhz() {
+    # Read a sysfs value in Hz or MHz, always return MHz as integer
+    local file="$1" val
+    [ -r "$file" ] || { echo 0; return; }
+    val=$(< "$file")
+    # If value > 100000 it's in Hz (amdgpu freq1_input), convert to MHz
+    if [ "$val" -gt 100000 ] 2>/dev/null; then
+        echo $(( val / 1000000 ))
+    else
+        echo "${val:-0}"
+    fi
+}
 
-# Try gt_cur_freq_mhz / gt_act_freq_mhz
-for path in \
-    /sys/class/drm/card1/gt_cur_freq_mhz \
-    /sys/class/drm/card1/gt_act_freq_mhz \
-    /sys/class/drm/card1/device/gt_cur_freq_mhz; do
-    [ -f "$path" ] && INTEL_FREQ_MHZ=$(cat "$path" 2>/dev/null) && break
+read_temp_mc() {
+    # Read millicelsius file, return integer °C
+    local file="$1" val
+    [ -r "$file" ] || { echo 0; return; }
+    val=$(< "$file")
+    echo $(( ${val:-0} / 1000 ))
+}
+
+gpu_name_from_lspci() {
+    # Extract GPU name for a PCI slot (e.g. "00:02.0")
+    local slot="$1"
+    lspci -s "$slot" 2>/dev/null \
+        | sed 's/.*: //' \
+        | sed 's/ (rev [0-9a-f]*//' \
+        | sed 's/)//' \
+        | sed 's/^[[:space:]]*//' \
+        | sed 's/[[:space:]]*$//'
+}
+
+# ── Enumerate all GPU cards ────────────────────────────────────────────────
+# Process every DRM card that has a vendor file
+declare -a GPU_ENTRIES  # each: "vendor:cardpath:pci_slot"
+
+for card in /sys/class/drm/card[0-9]*/; do
+    vendor_file="${card}device/vendor"
+    [ -r "$vendor_file" ] || continue
+    vendor=$(< "$vendor_file")
+
+    # Get PCI slot from symlink target
+    pci_slot=$(readlink -f "${card}device" 2>/dev/null | grep -oE '[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-9]' | tail -1 || true)
+    [ -z "$pci_slot" ] && pci_slot=$(basename "$(readlink "${card}device" 2>/dev/null)" | grep -oE '[0-9a-f]{2}:[0-9a-f]{2}\.[0-9]' | head -1 || true)
+
+    GPU_ENTRIES+=("${vendor}:${card}:${pci_slot:-unknown}")
 done
 
-# Intel temp via hwmon with i915/xe
-for d in /sys/class/hwmon/hwmon*/; do
-    n=$(cat "$d/name" 2>/dev/null)
-    [[ "$n" == "i915" || "$n" == "xe" ]] || continue
-    t=$(cat "${d}temp1_input" 2>/dev/null)
-    INTEL_TEMP=$((${t:-0}/1000))
-    break
-done
+GPU_INDEX=0
 
-echo "INTEL_NAME:$INTEL_NAME"
-echo "INTEL_FREQ:${INTEL_FREQ_MHZ:-0}"
-echo "INTEL_TEMP:$INTEL_TEMP"
+for entry in "${GPU_ENTRIES[@]:-}"; do
+    [ -z "$entry" ] && continue
+    IFS=':' read -r vendor card pci_slot <<< "$entry"
+    IFS=$'\n\t'
+    card="${card%:*}:${entry##*:}"  # restore full card path (re-split broke it)
+    # Re-parse correctly
+    vendor="${entry%%:*}"
+    rest="${entry#*:}"
+    card="${rest%%:*}"
+    pci_short="${rest##*:}"
 
-# ── NVIDIA ─────────────────────────────────────────────────────
-NVIDIA_OUT=$(nvidia-smi \
-    --query-gpu=name,utilization.gpu,temperature.gpu,\
+    GPU_INDEX=$(( GPU_INDEX + 1 ))
+    prefix="GPU${GPU_INDEX}"
+
+    case "$vendor" in
+
+    # ── Intel ──────────────────────────────────────────────────────────────
+    0x8086)
+        # Name from lspci
+        name=""
+        if [ -n "$pci_short" ] && [ "$pci_short" != "unknown" ]; then
+            name=$(lspci -s "$pci_short" 2>/dev/null | sed 's/.*: //' | sed 's/ (rev.*)//' || true)
+        fi
+        [ -z "$name" ] && name=$(lspci 2>/dev/null | awk '/Intel.*VGA|Intel.*UHD|Intel.*Iris|Intel.*Arc/{sub(/.*: /,""); sub(/ \(rev.*/,""); print; exit}')
+        [ -z "$name" ] && name="Intel GPU"
+
+        # Frequency
+        freq=0
+        for f in "${card}gt_cur_freq_mhz" "${card}gt_act_freq_mhz" "${card}device/gt_cur_freq_mhz"; do
+            [ -f "$f" ] && freq=$(< "$f") && break
+        done
+
+        # Temperature via hwmon (i915 or xe)
+        temp=0
+        for d in /sys/class/hwmon/hwmon*/; do
+            [ -r "${d}name" ] || continue
+            n=$(< "${d}name")
+            [[ "$n" == "i915" || "$n" == "xe" ]] || continue
+            [ -r "${d}temp1_input" ] && temp=$(read_temp_mc "${d}temp1_input")
+            break
+        done
+
+        echo "${prefix}_VENDOR:intel"
+        echo "${prefix}_NAME:$name"
+        echo "${prefix}_FREQ:${freq:-0}"
+        echo "${prefix}_TEMP:$temp"
+        echo "${prefix}_UTIL:-1"
+        ;;
+
+    # ── AMD ────────────────────────────────────────────────────────────────
+    0x1002)
+        # Name
+        name=""
+        if [ -n "$pci_short" ] && [ "$pci_short" != "unknown" ]; then
+            name=$(lspci -s "$pci_short" 2>/dev/null | sed 's/.*: //' | sed 's/ (rev.*)//' || true)
+        fi
+        [ -z "$name" ] && name=$(lspci 2>/dev/null | awk '/AMD.*VGA|Radeon|RDNA/{sub(/.*: /,""); sub(/ \(rev.*/,""); print; exit}')
+        [ -z "$name" ] && name="AMD GPU"
+
+        # hwmon linked to this card
+        hwmon_dir=""
+        for d in /sys/class/hwmon/hwmon*/; do
+            [ -r "${d}name" ] || continue
+            n=$(< "${d}name")
+            [ "$n" = "amdgpu" ] || continue
+            # Verify it belongs to this card by checking symlink target
+            hw_dev=$(readlink -f "${d}device" 2>/dev/null || true)
+            card_dev=$(readlink -f "${card}device" 2>/dev/null || true)
+            [ "$hw_dev" = "$card_dev" ] && hwmon_dir="$d" && break
+        done
+
+        # Fallback: first amdgpu hwmon
+        if [ -z "$hwmon_dir" ]; then
+            for d in /sys/class/hwmon/hwmon*/; do
+                [ -r "${d}name" ] || continue
+                [ "$(< "${d}name")" = "amdgpu" ] && hwmon_dir="$d" && break
+            done
+        fi
+
+        temp_edge=0; temp_junction=0; freq=0; power=0; vram_used=0; vram_total=0; util=0
+        if [ -n "$hwmon_dir" ]; then
+            [ -r "${hwmon_dir}temp1_input" ] && temp_edge=$(read_temp_mc "${hwmon_dir}temp1_input")
+            [ -r "${hwmon_dir}temp2_input" ] && temp_junction=$(read_temp_mc "${hwmon_dir}temp2_input")
+            [ -r "${hwmon_dir}freq1_input" ] && freq=$(read_mhz "${hwmon_dir}freq1_input")
+            if [ -r "${hwmon_dir}power1_average" ]; then
+                pw=$(< "${hwmon_dir}power1_average")
+                power=$(( ${pw:-0} / 1000000 ))  # uW → W
+            fi
+        fi
+
+        # VRAM (bytes → MiB)
+        [ -r "${card}device/mem_info_vram_used"  ] && vram_used=$(( $(< "${card}device/mem_info_vram_used")  / 1048576 ))
+        [ -r "${card}device/mem_info_vram_total" ] && vram_total=$(( $(< "${card}device/mem_info_vram_total") / 1048576 ))
+
+        # Utilization
+        [ -r "${card}device/gpu_busy_percent" ] && util=$(< "${card}device/gpu_busy_percent")
+
+        echo "${prefix}_VENDOR:amd"
+        echo "${prefix}_NAME:$name"
+        echo "${prefix}_TEMP_EDGE:$temp_edge"
+        echo "${prefix}_TEMP_JUN:$temp_junction"
+        echo "${prefix}_FREQ:$freq"
+        echo "${prefix}_POWER:$power"
+        echo "${prefix}_VRAM_USED:$vram_used"
+        echo "${prefix}_VRAM_TOTAL:$vram_total"
+        echo "${prefix}_UTIL:$util"
+        ;;
+
+    # ── NVIDIA ─────────────────────────────────────────────────────────────
+    0x10de)
+        NVIDIA_OUT=$(nvidia-smi \
+            --query-gpu=name,utilization.gpu,temperature.gpu,\
 memory.used,memory.total,power.draw,power.limit,\
 clocks.current.graphics,clocks.current.memory,driver_version \
-    --format=csv,noheader,nounits 2>/dev/null)
+            --format=csv,noheader,nounits 2>/dev/null || true)
 
-if [ -z "$NVIDIA_OUT" ] || echo "$NVIDIA_OUT" | grep -qi "failed\|error"; then
-    echo "NVIDIA_STATUS:inactive"
-    echo "NVIDIA_NAME:NVIDIA GeForce RTX 3050 Mobile"
-else
-    echo "$NVIDIA_OUT" | awk -F', ' '{
-        gsub(/^ +| +$/, "", $1)
-        name=$1; gsub(/NVIDIA GeForce /, "", name)
-        util=($2+0); temp=($3+0)
-        vram_used=($4+0); vram_tot=($5+0)
-        pwr=($6+0); pwr_lim=($7+0)
-        clk_gpu=($8+0); clk_mem=($9+0)
-        driver=$10; gsub(/ /, "", driver)
-        print "NVIDIA_STATUS:active"
-        print "NVIDIA_NAME:" name
-        print "NVIDIA_UTIL:" util
-        print "NVIDIA_TEMP:" temp
-        print "NVIDIA_VRAM_USED:" vram_used
-        print "NVIDIA_VRAM_TOTAL:" vram_tot
-        print "NVIDIA_POWER:" pwr
-        print "NVIDIA_POWER_LIMIT:" pwr_lim
-        print "NVIDIA_CLOCK:" clk_gpu
-        print "NVIDIA_CLOCK_MEM:" clk_mem
-        print "NVIDIA_DRIVER:" driver
-    }'
-fi
+        if [ -z "$NVIDIA_OUT" ] || echo "$NVIDIA_OUT" | grep -qi "failed\|error"; then
+            echo "${prefix}_VENDOR:nvidia"
+            echo "${prefix}_STATUS:inactive"
+        else
+            echo "$NVIDIA_OUT" | awk -F', ' -v p="$prefix" '{
+                gsub(/^ +| +$/, "", $1)
+                print p "_VENDOR:nvidia"
+                print p "_STATUS:active"
+                print p "_NAME:" $1
+                print p "_UTIL:" ($2+0)
+                print p "_TEMP:" ($3+0)
+                print p "_VRAM_USED:" ($4+0)
+                print p "_VRAM_TOTAL:" ($5+0)
+                print p "_POWER:" $6+0
+                print p "_POWER_LIMIT:" $7+0
+                print p "_FREQ:" ($8+0)
+                print p "_FREQ_MEM:" ($9+0)
+                driver=$10; gsub(/ /, "", driver)
+                print p "_DRIVER:" driver
+            }'
+        fi
+        ;;
+    esac
+done
+
+# Total GPU count for the QML parser
+echo "GPU_COUNT:$GPU_INDEX"

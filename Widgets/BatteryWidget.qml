@@ -9,36 +9,26 @@ Rectangle {
     radius: 8
     color: Theme.surface2
 
-    signal clicked()
-
     // ── Properties ───────────────────────────────────────────
     property bool batteryAvailable: SysData.batAvailable
-    property int batteryLevel: SysData.batPercent
-    property string batteryStatus: SysData.batStatus
-    property bool isCharging: SysData.batCharging
+    property int  batteryLevel:     SysData.batPercent
+    property bool isCharging:       SysData.batCharging
 
     property string stateIcon: {
-        if (!root.batteryAvailable) return ""
-        if (root.batteryStatus === "Charging") return "󰂄"
-        if (root.batteryStatus === "Discharging") return "󰂃"
-        if (root.batteryStatus === "Full") return "󰁹"
-        if (root.batteryStatus === "Not charging") return "󰂂"
+        if (!batteryAvailable) return ""
+        if (SysData.batStatus === "Charging")     return "󰂄"
+        if (SysData.batStatus === "Discharging")  return "󰂃"
+        if (SysData.batStatus === "Full")         return "󰁹"
+        if (SysData.batStatus === "Not charging") return "󰂂"
         return "󰂑"
     }
 
     property color levelColor: {
-        if (!batteryAvailable) return Theme.muted2
-        if (isCharging) return Theme.success
-        if (batteryLevel > 50) return Theme.accent
-        if (batteryLevel > 20) return Theme.yellow
+        if (!batteryAvailable)  return Theme.muted2
+        if (isCharging)         return Theme.success
+        if (batteryLevel > 50)  return Theme.accent
+        if (batteryLevel > 20)  return Theme.yellow
         return Theme.error
-    }
-
-    // ── Hover ────────────────────────────────────────────────
-    property bool _hovered: false
-
-    Behavior on color {
-        ColorAnimation { duration: 150 }
     }
 
     // ── Content ──────────────────────────────────────────────
@@ -69,12 +59,4 @@ Rectangle {
         Item { width: 0; height: 1 }
     }
 
-    MouseArea {
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        onEntered: root._hovered = true
-        onExited: root._hovered = false
-        onClicked: root.clicked()
-    }
 }

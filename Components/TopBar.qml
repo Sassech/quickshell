@@ -9,14 +9,14 @@ PanelWindow {
     
     signal powerButtonClicked(var screen)
     signal weatherClicked(var screen)
-    signal batteryClicked(var screen)
-    signal cpuClicked(var screen)
-    signal ramClicked(var screen)
-    signal diskClicked(var screen)
-    signal gpuClicked(var screen)
+
+
+
+
     signal clipboardClicked(var screen)
     signal clockClicked(var screen)
     signal mediaClicked(var screen)
+    signal controlCenterClicked(var screen)
     
     // ── Aliases al WeatherProvider (instance lives in Weather widget) ───
     // Weather widget already has its own WeatherProvider; no duplicate here.
@@ -32,7 +32,7 @@ PanelWindow {
     
     Item {
         anchors.fill: parent
-        anchors.margins: 6
+        anchors.margins: 5
         
         // ── Left section — Workspaces ────────────────────────────────────
         Row {
@@ -110,24 +110,16 @@ PanelWindow {
             }
             spacing: 8
 
-            CpuWidget {
-                onClicked: root.cpuClicked(root.screen)
-            }
-            RamWidget {
-                onClicked: root.ramClicked(root.screen)
-            }
-            GpuWidget {
-                onClicked: root.gpuClicked(root.screen)
-            }
-            DiskWidget {
-                onClicked: root.diskClicked(root.screen)
-            }
-            BatteryWidget {
-                id: batteryWidget
-                onClicked: root.batteryClicked(root.screen)
+            CpuWidget {}
+            RamWidget {}
+            GpuWidget {}
+            DiskWidget {}
+            BatteryWidget {}
+            ControlCenterButton {
+                onClicked: root.controlCenterClicked(root.screen)
             }
             PowerButton {
-            onClicked: root.powerButtonClicked(root.screen)
+                onClicked: root.powerButtonClicked(root.screen)
             }
         }
     }

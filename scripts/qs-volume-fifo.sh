@@ -26,4 +26,15 @@ while IFS= read -r cmd <&3; do
             wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle >/dev/null 2>&1
             ;;
     esac
+
+    state=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null || true)
+    if [[ "$state" =~ Volume:[[:space:]]*([0-9.]+) ]]; then
+        vol="${BASH_REMATCH[1]}"
+        pct=$(awk -v v="$vol" 'BEGIN { printf "%d", v * 100 }')
+        muted=0
+        if [[ "$state" == *"[MUTED]"* ]]; then
+            muted=1
+        fi
+        printf "%s:%s\n" "$pct" "$muted"
+    fi
 done

@@ -9,9 +9,9 @@ Rectangle {
     implicitWidth:  labelRow.implicitWidth + 20
     implicitHeight: 24
     radius:         8
-    color: ma.containsMouse ? Theme.surface3 : Theme.surface2
+    color: Theme.surface2
 
-    signal clicked()
+    // Widget de solo estado — no emite clicks ni tiene hover
 
     property var  adapter:   Bluetooth.defaultAdapter
     property bool available: adapter !== null
@@ -94,11 +94,4 @@ Rectangle {
         }
     }
 
-    MouseArea {
-        id: ma
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        onClicked: root.clicked()
-    }
 }

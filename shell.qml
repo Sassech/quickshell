@@ -252,12 +252,11 @@ ShellRoot {
     signal broadcastCloseAll(var screen)
     signal broadcastPowerMenu(var screen)
     signal broadcastWeather(var screen)
-    signal broadcastBattery(var screen)
-    signal broadcastFan(var screen)
-    signal broadcastCpu(var screen)
-    signal broadcastRam(var screen)
-    signal broadcastDisk(var screen)
-    signal broadcastGpu(var screen)
+
+
+
+
+
     signal broadcastClipboard(var screen)
     signal broadcastSpotlight(var screen)
     signal broadcastWallpaperPicker(var screen)
@@ -272,6 +271,7 @@ ShellRoot {
     signal broadcastBrightness(int pct)
     signal broadcastVolume()
     signal broadcastClock(var screen)
+    signal broadcastControlCenter(var screen)
 
     // ── Top Bar ──────────────────────────────────────────────────────────
     Variants {
@@ -280,16 +280,16 @@ ShellRoot {
         TopBar {
             property var modelData
             screen: modelData
-            onPowerButtonClicked: screen => root.broadcastPowerMenu(screen)
-            onWeatherClicked: screen => root.broadcastWeather(screen)
-            onBatteryClicked: screen => root.broadcastBattery(screen)
-            onCpuClicked: screen => root.broadcastCpu(screen)
-            onRamClicked: screen => root.broadcastRam(screen)
-            onDiskClicked: screen => root.broadcastDisk(screen)
-            onGpuClicked: screen => root.broadcastGpu(screen)
-            onClipboardClicked: screen => root.broadcastClipboard(screen)
-            onClockClicked: screen => root.broadcastClock(screen)
-            onMediaClicked: screen => root.broadcastMedia(screen)
+            onPowerButtonClicked:    screen => root.broadcastPowerMenu(screen)
+            onWeatherClicked:        screen => root.broadcastWeather(screen)
+
+
+
+
+            onClipboardClicked:      screen => root.broadcastClipboard(screen)
+            onClockClicked:          screen => root.broadcastClock(screen)
+            onMediaClicked:          screen => root.broadcastMedia(screen)
+            onControlCenterClicked:  screen => root.broadcastControlCenter(screen)
         }
     }
 
@@ -303,7 +303,7 @@ ShellRoot {
             onWifiClicked:       screen => root.broadcastWifi(screen)
             onBluetoothClicked:  screen => root.broadcastBluetooth(screen)
             onAudioClicked:      screen => root.broadcastAudio(screen)
-            onFanClicked: screen => root.broadcastFan(screen)
+
         }
     }
 
@@ -336,6 +336,7 @@ ShellRoot {
             id: clockModalInst
             property var modelData
             screen: modelData
+            notifModel: notifHistory
             Connections {
                 target: root
                 function onBroadcastCloseAll(screen) {
@@ -368,138 +369,6 @@ ShellRoot {
                     var was = weatherModalInst.visible
                     root.broadcastCloseAll(screen)
                     weatherModalInst.visible = !was
-                }
-            }
-        }
-    }
-
-    // ── BATTERY MODAL ─────────────────────────────────────────────────────
-    Variants {
-        model: Quickshell.screens
-        BatteryModal {
-            id: batteryModalInst
-            property var modelData
-            screen: modelData
-            Connections {
-                target: root
-                function onBroadcastCloseAll(screen) {
-                    if (batteryModalInst.modelData === screen) batteryModalInst.visible = false
-                }
-                function onBroadcastBattery(screen) {
-                    if (batteryModalInst.modelData !== screen) return
-                    var was = batteryModalInst.visible
-                    root.broadcastCloseAll(screen)
-                    batteryModalInst.visible = !was
-                }
-            }
-        }
-    }
-
-    // ── FAN MODAL ─────────────────────────────────────────────────────────
-    Variants {
-        model: Quickshell.screens
-        FanModal {
-            id: fanModalInst
-            property var modelData
-            screen: modelData
-            Connections {
-                target: root
-                function onBroadcastCloseAll(screen) {
-                    if (fanModalInst.modelData === screen) fanModalInst.visible = false
-                }
-                function onBroadcastFan(screen) {
-                    if (fanModalInst.modelData !== screen) return
-                    var was = fanModalInst.visible
-                    root.broadcastCloseAll(screen)
-                    fanModalInst.visible = !was
-                }
-            }
-        }
-    }
-
-    // ── CPU MODAL ─────────────────────────────────────────────────────────
-    Variants {
-        model: Quickshell.screens
-        CpuModal {
-            id: cpuModalInst
-            property var modelData
-            screen: modelData
-            Connections {
-                target: root
-                function onBroadcastCloseAll(screen) {
-                    if (cpuModalInst.modelData === screen) cpuModalInst.visible = false
-                }
-                function onBroadcastCpu(screen) {
-                    if (cpuModalInst.modelData !== screen) return
-                    var was = cpuModalInst.visible
-                    root.broadcastCloseAll(screen)
-                    cpuModalInst.visible = !was
-                }
-            }
-        }
-    }
-
-    // ── RAM MODAL ─────────────────────────────────────────────────────────
-    Variants {
-        model: Quickshell.screens
-        RamModal {
-            id: ramModalInst
-            property var modelData
-            screen: modelData
-            Connections {
-                target: root
-                function onBroadcastCloseAll(screen) {
-                    if (ramModalInst.modelData === screen) ramModalInst.visible = false
-                }
-                function onBroadcastRam(screen) {
-                    if (ramModalInst.modelData !== screen) return
-                    var was = ramModalInst.visible
-                    root.broadcastCloseAll(screen)
-                    ramModalInst.visible = !was
-                }
-            }
-        }
-    }
-
-    // ── DISK MODAL ────────────────────────────────────────────────────────
-    Variants {
-        model: Quickshell.screens
-        DiskModal {
-            id: diskModalInst
-            property var modelData
-            screen: modelData
-            Connections {
-                target: root
-                function onBroadcastCloseAll(screen) {
-                    if (diskModalInst.modelData === screen) diskModalInst.visible = false
-                }
-                function onBroadcastDisk(screen) {
-                    if (diskModalInst.modelData !== screen) return
-                    var was = diskModalInst.visible
-                    root.broadcastCloseAll(screen)
-                    diskModalInst.visible = !was
-                }
-            }
-        }
-    }
-
-    // ── GPU MODAL ─────────────────────────────────────────────────────────
-    Variants {
-        model: Quickshell.screens
-        GpuModal {
-            id: gpuModalInst
-            property var modelData
-            screen: modelData
-            Connections {
-                target: root
-                function onBroadcastCloseAll(screen) {
-                    if (gpuModalInst.modelData === screen) gpuModalInst.visible = false
-                }
-                function onBroadcastGpu(screen) {
-                    if (gpuModalInst.modelData !== screen) return
-                    var was = gpuModalInst.visible
-                    root.broadcastCloseAll(screen)
-                    gpuModalInst.visible = !was
                 }
             }
         }
@@ -654,19 +523,34 @@ ShellRoot {
         }
     }
 
+    // ── HISTORIAL DE NOTIFICACIONES ───────────────────────────────────────
+    ListModel {
+        id: notifHistory
+    }
+
     // ── NOTIFICATION SERVER ───────────────────────────────────────────────
     NotificationServer {
         id: notifServer
         keepOnReload: true
 
         onNotification: notification => {
-            const icon   = notification.image !== "" ? notification.image : notification.appIcon
-            const urgent = notification.urgency === NotificationUrgency.Critical
-
+            const icon     = notification.image !== "" ? notification.image : notification.appIcon
+            const urgent   = notification.urgency === NotificationUrgency.Critical
             const category = root.classifyExternalNotification(notification, urgent)
+            console.log("[notif] insert", notification.summary, notification.body)
+
+            // Agregar al historial (siempre, sin filtro de modo)
+            notifHistory.insert(0, {
+                notifSummary: notification.summary ?? "",
+                notifBody:    notification.body    ?? "",
+                notifApp:     notification.appName ?? "",
+                notifIcon:    icon                 ?? "",
+                notifUrgent:  urgent
+            })
+
+            // Popup solo si aplica por política
             const mode = urgent ? "popup" : root.getCategoryMode(category, "popup")
             if (mode !== "popup") return
-
             root.broadcastNotify(notification.summary, notification.body, icon, urgent, category === "media")
         }
     }
@@ -770,6 +654,31 @@ ShellRoot {
                     var was = mediaModalInst.visible
                     root.broadcastCloseAll(screen)
                     mediaModalInst.visible = !was
+                }
+            }
+        }
+    }
+
+    // ── CONTROL CENTER ────────────────────────────────────────────────────
+    Variants {
+        model: Quickshell.screens
+        ControlCenter {
+            id: ccInst
+            property var modelData
+            screen: modelData
+            onRequestOpenWifi:      screen => { root.broadcastCloseAll(screen); root.broadcastWifi(screen) }
+            onRequestOpenBluetooth: screen => { root.broadcastCloseAll(screen); root.broadcastBluetooth(screen) }
+            onRequestOpenAudio:     screen => { root.broadcastCloseAll(screen); root.broadcastAudio(screen) }
+            Connections {
+                target: root
+                function onBroadcastCloseAll(screen) {
+                    if (ccInst.modelData === screen) ccInst.visible = false
+                }
+                function onBroadcastControlCenter(screen) {
+                    if (ccInst.modelData !== screen) return
+                    var was = ccInst.visible
+                    root.broadcastCloseAll(screen)
+                    ccInst.visible = !was
                 }
             }
         }

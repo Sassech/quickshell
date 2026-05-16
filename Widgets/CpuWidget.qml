@@ -8,9 +8,7 @@ Rectangle {
     implicitWidth: 104
     implicitHeight: 24
     radius: 8
-    color: mouseArea.containsMouse ? Theme.surface3 : Theme.surface2
-
-    signal clicked()
+    color: Theme.surface2
 
     // ── Color thresholds ─────────────────────────────────────
     property color accentColor: {
@@ -56,11 +54,4 @@ Rectangle {
         }
     }
 
-    MouseArea {
-        id: mouseArea
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        onClicked: root.clicked()
-    }
 }

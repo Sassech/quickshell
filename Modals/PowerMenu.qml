@@ -41,12 +41,12 @@ PanelWindow {
         }
     }
 
-    // ── Card principal — 4 botones ────────────────────────────────────────
+    // ── Card principal — 5 botones ────────────────────────────────────────
     Rectangle {
         id: card
         anchors.centerIn: parent
 
-        width:  4 * 90 + 3 * 10 + 32
+        width:  5 * 90 + 4 * 10 + 32
         height: 90 + 28 + 32
 
         radius: 18
@@ -74,10 +74,11 @@ PanelWindow {
 
             Repeater {
                 model: [
-                    { id: "poweroff", icon: "⏻", label: "Shutdown", cmd: ["systemctl", "poweroff"], critical: true  },
-                    { id: "logout",   icon: "󰍃", label: "Log Out",  cmd: ["hyprctl", "dispatch", "exit"], critical: false },
-                    { id: "reboot",   icon: "󰜉", label: "Reboot",   cmd: ["systemctl", "reboot"],   critical: true  },
-                    { id: "suspend",  icon: "󰒲", label: "Sleep",    cmd: ["systemctl", "suspend"],  critical: false }
+                    { id: "poweroff", icon: "⏻",  label: "Shutdown", cmd: ["systemctl", "poweroff"],               critical: true  },
+                    { id: "reboot",   icon: "󰜉",  label: "Reboot",   cmd: ["systemctl", "reboot"],                 critical: true  },
+                    { id: "lock",     icon: "󰌾",  label: "Lock",     cmd: ["loginctl", "lock-session"],            critical: false },
+                    { id: "logout",   icon: "󰍃",  label: "Log Out",  cmd: ["hyprctl", "dispatch", "exit"],         critical: false },
+                    { id: "suspend",  icon: "󰒲",  label: "Sleep",    cmd: ["systemctl", "suspend"],                critical: false }
                 ]
 
                 Column {
@@ -125,8 +126,7 @@ PanelWindow {
                                     confirmCard.visible = true
                                 } else {
                                     root.visible = false
-                                    execProc.command = modelData.cmd
-                                    execProc.running = true
+                                    execProc.runCmd(modelData.cmd)
                                 }
                             }
                         }
@@ -210,7 +210,7 @@ PanelWindow {
                 }
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: "Are you sure?"
+                    text: "¿Estás seguro?"
                     font.pixelSize: 13
                     color: Qt.rgba(1, 1, 1, 0.50)
                 }
@@ -246,7 +246,7 @@ PanelWindow {
                     }
                 }
 
-                // Yes
+                // Sí
                 Rectangle {
                     width: 100; height: 36
                     radius: 10
@@ -258,7 +258,7 @@ PanelWindow {
 
                     Text {
                         anchors.centerIn: parent
-                        text: "Yes"
+                        text: "Sí"
                         font.pixelSize: 13
                         font.weight: Font.DemiBold
                         color: Qt.rgba(1, 0.6, 0.6, 1)
@@ -269,10 +269,10 @@ PanelWindow {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
+                            const cmd = root.pendingCmd
                             confirmCard.visible = false
                             root.visible = false
-                            execProc.command = root.pendingCmd
-                            execProc.running = true
+                            execProc.runCmd(cmd)
                         }
                     }
                 }
@@ -280,9 +280,17 @@ PanelWindow {
         }
     }
 
+    // ── Proceso de ejecución ──────────────────────────────────────────────
+    // runCmd() garantiza que command esté seteado ANTES de arrancar el proceso
     Process {
         id: execProc
         running: false
+
+        function runCmd(cmd) {
+            command = cmd
+            running = true
+        }
+
         onExited: running = false
     }
 }

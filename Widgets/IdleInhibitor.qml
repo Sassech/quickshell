@@ -140,8 +140,8 @@ Rectangle {
     }
 
     Connections {
-        target: Mpris
-        function onPlayersChanged() { root._checkMediaPlaying() }
+        target: Mpris.players
+        function onValuesChanged() { root._checkMediaPlaying() }
     }
 
     // Conecta al player activo para detectar pausa/stop
