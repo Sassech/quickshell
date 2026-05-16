@@ -614,12 +614,11 @@ ShellRoot {
                 function onBroadcastWifi(screen) {
                     if (ccInst.modelData !== screen) return
                     root.broadcastCloseAll(screen)
-                    ccInst.visible = true
-                    ccInst._expandedToggle = "wifi"
-                    ccInst._wifiStatusMsg = ""
-                    ccInst._wifiSelectedIdx = -1
+                    ccInst.visible            = true
+                    ccInst._expandedToggle    = "wifi"
+                    ccInst._wifiStatusMsg     = ""
+                    ccInst._wifiSelectedIdx   = -1
                     ccInst._wifiPasswordByIndex = ({})
-                    ccInst.wifiLoadNetworks()
                 }
                 function onBroadcastBluetooth(screen) {
                     if (ccInst.modelData !== screen) return

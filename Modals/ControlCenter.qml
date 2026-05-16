@@ -7,6 +7,7 @@ import Quickshell.Io
 import Quickshell.Services.Pipewire
 import Quickshell.Services.Mpris
 import Quickshell.Bluetooth
+import Quickshell.Networking
 import "../Components"
 
 PanelWindow {
@@ -35,43 +36,51 @@ PanelWindow {
     // ── Paneles expandibles en toggles ───────────────────────────────────
     property string _expandedToggle: ""   // "wifi" | "power" | "battery" | "language" | ""
 
-    // ── WiFi inline state ─────────────────────────────────────────────────
-    property bool   _wifiRadioOn:       true
-    property bool   _wifiScanning:      false
-    property string _wifiConnectedSsid: ""
-    property string _wifiIface:         ""
-    property bool   _wifiWorking:       false
-    property string _wifiStatusMsg:     ""
-    property var    _wifiNetworks:      []
-    property var    _wifiSavedSsids:    ({})
-    property int    _wifiSelectedIdx:   -1
+    // ── WiFi inline state — Quickshell.Networking API ────────────────────
+    // Networking singleton + first WiFi device
+    property var    _nmWifiDev: {
+        var devs = Networking.devices.values
+        for (var i = 0; i < devs.length; i++) {
+            if (devs[i].type === DeviceType.Wifi) return devs[i]
+        }
+        return null
+    }
+
+    property bool   _wifiRadioOn:    Networking.wifiEnabled
+    property bool   _wifiScanning:   _nmWifiDev ? _nmWifiDev.scannerEnabled : false
+    property bool   _wifiWorking:    false
+    property string _wifiStatusMsg:  ""
+    property int    _wifiSelectedIdx: -1
     property var    _wifiPasswordByIndex: ({})
 
-    // WiFi connection info
+    // Derived: connected network (reactive)
+    property var    _wifiConnectedNet: {
+        var dev = root._nmWifiDev
+        if (!dev) return null
+        var nets = dev.networks.values
+        for (var i = 0; i < nets.length; i++) {
+            if (nets[i].connected) return nets[i]
+        }
+        return null
+    }
+    property string _wifiConnectedSsid: _wifiConnectedNet ? _wifiConnectedNet.name : ""
+
+    // IP/Gateway/DNS — still fetched via nmcli (not exposed by API)
     property string _wifiIp:      ""
     property string _wifiGateway: ""
     property string _wifiDns:     ""
 
-    // Ethernet state
+    // Ethernet state — still fetched via nmcli (not exposed by Networking API)
     property bool   _ethConnected: false
     property string _ethIp:        ""
-    property string _ethMac:       ""
     property string _ethSpeed:     ""
 
-    // Password fetch shared state
-    property string _wifiPwFetchSsid:      ""
-    property int    _wifiPwFetchIdx:       -1
+    // Password fetch shared state (for revealing saved PSK via nmcli -s)
     property string _wifiPwFetchResult:    ""
     property int    _wifiPwFetchResultIdx: -2
-
-    // Menu copy/forget shared state
-    property string _wifiMenuSsid: ""
+    property int    _wifiPwFetchIdx:       -1
 
     // Buffers
-    property string _wIfaceBuf:  ""
-    property string _wRadioBuf:  ""
-    property string _wNetBuf:    ""
-    property string _wSavedBuf:  ""
     property string _wEthBuf:    ""
 
     // ── Bluetooth inline state ────────────────────────────────────────────
@@ -907,38 +916,52 @@ PanelWindow {
     }
 
     // ── WiFi functions ────────────────────────────────────────────────────
-    function wifiSignalIcon(s) {
-        if (s >= 80) return "󰤨"
-        if (s >= 60) return "󰤥"
-        if (s >= 40) return "󰤢"
+    function wifiSignalIcon(strength) {
+        // strength es 0.0–1.0 de WifiNetwork.signalStrength
+        if (strength >= 0.80) return "󰤨"
+        if (strength >= 0.60) return "󰤥"
+        if (strength >= 0.40) return "󰤢"
         return "󰤟"
     }
 
-    function wifiLoadNetworks() {
-        root._wifiWorking = true
-        wIfaceProc.running   = true
-        wRadioProc.running   = true
-        wNetListProc.running = true
-        wSavedProc.running   = true
-        wEthProc.running     = true
+    function wifiSecurityLabel(sec) {
+        // WifiSecurityType enum → string legible
+        if (sec === WifiSecurityType.Open || sec === WifiSecurityType.Owe) return "Open"
+        if (sec === WifiSecurityType.Wpa3SuiteB192 || sec === WifiSecurityType.Sae) return "WPA3"
+        if (sec === WifiSecurityType.Wpa2Psk || sec === WifiSecurityType.Wpa2Eap) return "WPA2"
+        if (sec === WifiSecurityType.WpaPsk || sec === WifiSecurityType.WpaEap) return "WPA"
+        if (sec === WifiSecurityType.StaticWep || sec === WifiSecurityType.DynamicWep) return "WEP"
+        return ""
+    }
+
+    function wifiIsOpen(sec) {
+        return sec === WifiSecurityType.Open || sec === WifiSecurityType.Owe
     }
 
     function wifiToggleRadio() {
-        root._wifiWorking = true
-        wToggleRadioProc.command = ["bash", "-c",
-            "LANG=C nmcli radio wifi " + (root._wifiRadioOn ? "off" : "on") + " 2>/dev/null"]
-        wToggleRadioProc.running = true
+        Networking.wifiEnabled = !Networking.wifiEnabled
     }
 
     function wifiRescan() {
-        root._wifiScanning = true
-        wRescanProc.running = true
+        var dev = root._nmWifiDev
+        if (!dev) return
+        dev.scannerEnabled = true
+        // Auto-disable after 15 s if still running
+        wScanStopTimer.restart()
     }
 
-    function wifiConnectTo(ssid, password) {
+    // Conectar red conocida (native API)
+    function wifiConnectKnown(net) {
+        root._wifiWorking   = true
+        root._wifiStatusMsg = "Conectando..."
+        net.connect()
+    }
+
+    // Conectar red nueva con password (nmcli)
+    function wifiConnectNew(ssid, password) {
         root._wifiWorking   = true
         root._wifiStatusMsg = ""
-        var cmd = [
+        wConnectProc.command = [
             "bash", "-c",
             "SSID=$1; PASS=$2; IFACE=$(nmcli dev | grep wifi | grep -v p2p | awk '{print $1}' | head -1); " +
             "nmcli con delete \"$SSID\" 2>/dev/null || true; " +
@@ -947,23 +970,23 @@ PanelWindow {
             "nmcli con up \"$SSID\" ifname \"$IFACE\" 2>&1",
             "--", ssid, password
         ]
-        wConnectProc.command = cmd
         wConnectProc.running = true
     }
 
-    function wifiDisconnect() {
-        if (!root._wifiIface || root._wifiIface === "") {
-            root._wifiStatusMsg = "✗ No hay interfaz WiFi"
-            return
-        }
-        root._wifiWorking = true
-        wDisconnectProc.command = ["bash", "-c",
-            "LANG=C nmcli dev disconnect " + root._wifiIface + " 2>/dev/null"]
-        wDisconnectProc.running = true
+    function wifiDisconnect(net) {
+        if (!net) return
+        root._wifiWorking   = true
+        root._wifiStatusMsg = "Desconectando..."
+        net.disconnect()
+    }
+
+    function wifiForget(net) {
+        if (!net) return
+        net.forget()
+        root._wifiStatusMsg = "✓ Red olvidada"
     }
 
     function wifiFetchPasswordFor(ssid, idx) {
-        root._wifiPwFetchSsid      = ssid
         root._wifiPwFetchIdx       = idx
         root._wifiPwFetchResult    = ""
         root._wifiPwFetchResultIdx = -2
@@ -976,8 +999,7 @@ PanelWindow {
         wSharedPwFetchProc.running = true
     }
 
-    function wifiMenuCopyPassword() {
-        var ssid = root._wifiMenuSsid
+    function wifiCopyPassword(ssid) {
         wMenuCopyFetchProc.command = ["bash", "-c",
             "SSID=" + JSON.stringify(ssid) + "; " +
             "PASS=$(nmcli -s -g 802-11-wireless-security.psk connection show \"$SSID\" 2>/dev/null); " +
@@ -992,58 +1014,58 @@ PanelWindow {
         wMenuCopyFetchProc.running = true
     }
 
-    function wifiMenuForgetNetwork() {
-        var ssid = root._wifiMenuSsid
-        wMenuForgetProc.command = ["bash", "-c",
-            "nmcli con delete " + JSON.stringify(ssid) + " 2>/dev/null"]
-        wMenuForgetProc.running = true
-    }
-
-    // ── WiFi processes ────────────────────────────────────────────────────
-    Process {
-        id: wIfaceProc
-        command: ["bash", "-c",
-            "LANG=C nmcli -t -f DEVICE,TYPE,STATE dev 2>/dev/null "
-            + "| grep ':wifi:connected' | cut -d: -f1 | head -1; "
-            + "LANG=C nmcli -t -f active,ssid dev wifi 2>/dev/null "
-            + "| grep '^yes:' | cut -d: -f2- | head -1"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._wIfaceBuf += d + "\n" }
-        onExited: {
-            var parts = root._wIfaceBuf.trim().split("\n")
-            root._wIfaceBuf = ""
-            root._wifiIface        = (parts[0] || "").trim()
-            root._wifiConnectedSsid = (parts[1] || "").trim()
+    // ── WiFi reactivity — observe Networking state changes ────────────────
+    Connections {
+        target: Networking
+        function onWifiEnabledChanged() {
+            root._wifiWorking = false
+            // When radio turns on, start scanner automatically
+            if (Networking.wifiEnabled && root._nmWifiDev)
+                root._nmWifiDev.scannerEnabled = true
         }
     }
 
-    Process {
-        id: wRadioProc
-        command: ["bash", "-c", "LANG=C nmcli radio wifi 2>/dev/null"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._wRadioBuf += d }
-        onExited: {
-            root._wifiRadioOn = root._wRadioBuf.trim() === "enabled"
-            root._wRadioBuf = ""
-        }
-    }
-
-    Process {
-        id: wSavedProc
-        command: ["bash", "-c",
-            "LANG=C nmcli -t -f name,type con show 2>/dev/null "
-            + "| awk -F: '$2==\"802-11-wireless\"{print $1}'"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._wSavedBuf += d + "\n" }
-        onExited: {
-            var lines = root._wSavedBuf.trim().split("\n")
-            root._wSavedBuf = ""
-            var map = {}
-            for (var i = 0; i < lines.length; i++) {
-                var s = lines[i].trim()
-                if (s) map[s] = true
+    // Observe connected state on each network to detect connect/disconnect completion
+    Instantiator {
+        model: root._nmWifiDev ? root._nmWifiDev.networks : null
+        delegate: Connections {
+            required property var modelData
+            target: modelData
+            function onConnectedChanged() {
+                if (modelData.connected) {
+                    root._wifiWorking   = false
+                    root._wifiStatusMsg = "✓ Conectado"
+                    root._wifiSelectedIdx = -1
+                    root._wifiPasswordByIndex = ({})
+                    wWifiInfoProc.running = true
+                } else if (root._wifiWorking && root._wifiStatusMsg === "Desconectando...") {
+                    root._wifiWorking   = false
+                    root._wifiStatusMsg = "✓ Desconectado"
+                }
             }
-            root._wifiSavedSsids = map
+            function onStateChanged() {
+                // Detect failed connection attempt
+                if (!modelData.connected && !root._nmWifiDev?.connected
+                        && modelData.nmReason !== NMConnectionStateReason.None
+                        && modelData.nmReason !== NMConnectionStateReason.UserDisconnected
+                        && root._wifiWorking && root._wifiStatusMsg === "Conectando...") {
+                    root._wifiWorking   = false
+                    root._wifiStatusMsg = "✗ Error al conectar"
+                }
+            }
         }
     }
 
+    // Auto-stop scanner after 15 s
+    Timer {
+        id: wScanStopTimer
+        interval: 15000
+        onTriggered: {
+            if (root._nmWifiDev) root._nmWifiDev.scannerEnabled = false
+        }
+    }
+
+    // Fetch ethernet info on panel open (still needs nmcli)
     Process {
         id: wEthProc
         command: ["bash", "-c",
@@ -1051,7 +1073,6 @@ PanelWindow {
             + "if [ -n \"$ETH_IFACE\" ]; then "
             + "echo \"connected\"; "
             + "LANG=C nmcli -t -f IP4.ADDRESS dev show \"$ETH_IFACE\" 2>/dev/null | cut -d: -f2 | cut -d/ -f1; "
-            + "LANG=C nmcli -t -f DEVICE,HWADDR dev show 2>/dev/null | grep \"^$ETH_IFACE:\" | cut -d: -f2; "
             + "ethtool \"$ETH_IFACE\" 2>/dev/null | grep \"Speed:\" | awk '{print $2}'; "
             + "else echo \"disconnected\"; fi"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._wEthBuf += d + "\n" }
@@ -1060,46 +1081,34 @@ PanelWindow {
             root._wEthBuf = ""
             root._ethConnected = (lines[0] || "").trim() === "connected"
             root._ethIp    = (lines[1] || "").trim()
-            root._ethMac   = (lines[2] || "").trim()
-            root._ethSpeed = (lines[3] || "").trim()
+            root._ethSpeed = (lines[2] || "").trim()
         }
     }
 
+    // Connect new network with password
     Process {
-        id: wNetListProc
-        command: ["bash", "-c",
-            "LANG=C nmcli -t -f active,ssid,signal,security dev wifi list 2>/dev/null"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._wNetBuf += d + "\n" }
-        onExited: {
-            var lines  = root._wNetBuf.trim().split("\n")
-            root._wNetBuf = ""
-            var seen   = {}
-            var result = []
-            for (var i = 0; i < lines.length; i++) {
-                var l = lines[i].trim()
-                if (!l) continue
-                var p = l.split(":")
-                if (p.length < 3) continue
-                var active   = p[0] === "yes"
-                var security = p[p.length - 1].trim()
-                var sig      = parseInt(p[p.length - 2]) || 0
-                var ssid     = p.slice(1, p.length - 2).join(":")
-                if (!ssid) continue
-                if (seen[ssid]) continue
-                seen[ssid] = true
-                if (active) root._wifiConnectedSsid = ssid
-                result.push({ ssid: ssid, signal: sig, security: security, active: active })
+        id: wConnectProc
+        property string _buf: ""
+        command: ["bash", "-c", ""]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => wConnectProc._buf += d + "\n" }
+        onExited: function(exitCode) {
+            var output = wConnectProc._buf.trim()
+            wConnectProc._buf = ""
+            root._wifiWorking = false
+            if (exitCode === 0) {
+                root._wifiStatusMsg       = "✓ Conectado"
+                root._wifiSelectedIdx     = -1
+                root._wifiPasswordByIndex = ({})
+                wWifiInfoProc.running     = true
+            } else {
+                var errLines = output.split("\n")
+                var errMsg   = errLines.filter(l => l && !l.startsWith("DEBUG:"))[0] || "Error de conexión"
+                root._wifiStatusMsg = "✗ " + errMsg.substring(0, 40)
             }
-            result.sort((a, b) => {
-                if (a.active !== b.active) return a.active ? -1 : 1
-                return b.signal - a.signal
-            })
-            root._wifiNetworks = result
-            root._wifiWorking  = false
-            if (root._wifiIface) wWifiInfoProc.running = true
         }
     }
 
+    // Fetch IP/Gateway/DNS for connected WiFi (nmcli)
     Process {
         id: wWifiInfoProc
         property string _buf: ""
@@ -1120,65 +1129,7 @@ PanelWindow {
         }
     }
 
-    Process {
-        id: wToggleRadioProc
-        command: ["bash", "-c", ""]
-        onExited: Qt.callLater(() => { root.wifiLoadNetworks(); root._wifiWorking = false })
-    }
-
-    Process {
-        id: wRescanProc
-        command: ["bash", "-c", "LANG=C nmcli dev wifi rescan 2>/dev/null; sleep 1"]
-        onExited: { root._wifiScanning = false; root.wifiLoadNetworks() }
-    }
-
-    Process {
-        id: wConnectProc
-        property string _buf: ""
-        command: ["bash", "-c", ""]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => wConnectProc._buf += d + "\n" }
-        onExited: function(exitCode) {
-            var output = wConnectProc._buf.trim()
-            wConnectProc._buf = ""
-            root._wifiWorking = false
-            if (exitCode === 0) {
-                root._wifiStatusMsg    = "✓ Conectado"
-                root._wifiSelectedIdx  = -1
-                root._wifiPasswordByIndex = ({})
-            } else {
-                var errLines = output.split("\n")
-                var errMsg = errLines.filter(l => l && !l.startsWith("DEBUG:"))[0] || "Error de conexión"
-                root._wifiStatusMsg = "✗ " + errMsg.substring(0, 40)
-            }
-            Qt.callLater(() => root.wifiLoadNetworks())
-        }
-    }
-
-    Process {
-        id: wDisconnectProc
-        command: ["bash", "-c", ""]
-        onExited: { root._wifiWorking = false; Qt.callLater(() => root.wifiLoadNetworks()) }
-    }
-
-    Process {
-        id: wSavedPwProc
-        property string ssid:  ""
-        property int    idx:   -1
-        property string _buf:  ""
-        command: ["bash", "-c", ""]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => wSavedPwProc._buf += d }
-        onExited: function() {
-            var pw = wSavedPwProc._buf.trim()
-            wSavedPwProc._buf = ""
-            root._wifiWorking = false
-            if (pw.length > 0) {
-                root.wifiConnectTo(wSavedPwProc.ssid, pw)
-            } else {
-                root._wifiStatusMsg = "✗ No se pudo obtener contraseña guardada"
-            }
-        }
-    }
-
+    // Reveal saved PSK (nmcli -s)
     Process {
         id: wSharedPwFetchProc
         property string _buf: ""
@@ -1186,12 +1137,13 @@ PanelWindow {
         stdout: SplitParser { splitMarker: "\n"; onRead: d => wSharedPwFetchProc._buf += d }
         onExited: {
             var pw = wSharedPwFetchProc._buf.trim()
-            wSharedPwFetchProc._buf = ""
+            wSharedPwFetchProc._buf    = ""
             root._wifiPwFetchResult    = pw
             root._wifiPwFetchResultIdx = root._wifiPwFetchIdx
         }
     }
 
+    // Copy password to clipboard (nmcli -s → wl-copy)
     Process {
         id: wMenuCopyFetchProc
         property string _buf: ""
@@ -1200,11 +1152,10 @@ PanelWindow {
         onExited: {
             var output = wMenuCopyFetchProc._buf.trim()
             wMenuCopyFetchProc._buf = ""
-            var pw = ""
-            var errorMsg = ""
+            var pw = "", errorMsg = ""
             output.split("\n").forEach(function(line) {
-                if (line.startsWith("PASS:"))  { pw = line.substring(5) }
-                else if (line.startsWith("ERROR:")) { errorMsg = line.substring(6) }
+                if (line.startsWith("PASS:"))        pw       = line.substring(5)
+                else if (line.startsWith("ERROR:"))  errorMsg = line.substring(6)
             })
             if (pw !== "") {
                 wMenuCopyExecProc.command = ["bash", "-c", 'printf "%s" "$1" | wl-copy', "--", pw]
@@ -1221,22 +1172,6 @@ PanelWindow {
         onExited: (ec) => {
             root._wifiStatusMsg = ec === 0 ? "✓ Contraseña copiada" : "✗ wl-copy error " + ec
         }
-    }
-
-    Process {
-        id: wMenuForgetProc
-        command: ["bash", "-c", ""]
-        onExited: (ec) => {
-            root._wifiStatusMsg = ec === 0 ? "✓ Red olvidada" : "✗ No se pudo olvidar"
-            Qt.callLater(() => root.wifiLoadNetworks())
-        }
-    }
-
-    Timer {
-        interval: 15000
-        running: root.visible && root._expandedToggle === "wifi" && !root._wifiWorking
-        repeat: true
-        onTriggered: root.wifiLoadNetworks()
     }
 
     // ── Startup ────────────────────────────────────────────────────────────
@@ -1889,10 +1824,14 @@ PanelWindow {
                                 var next = root._expandedToggle === "wifi" ? "" : "wifi"
                                 root._expandedToggle = next
                                 if (next === "wifi") {
-                                    root._wifiStatusMsg    = ""
-                                    root._wifiSelectedIdx  = -1
+                                    root._wifiStatusMsg       = ""
+                                    root._wifiSelectedIdx     = -1
                                     root._wifiPasswordByIndex = ({})
-                                    root.wifiLoadNetworks()
+                                    wEthProc.running          = true
+                                    wWifiInfoProc.running     = root._wifiConnectedNet !== null
+                                    // Start scanner so list populates immediately
+                                    if (root._nmWifiDev && root._wifiRadioOn)
+                                        root._nmWifiDev.scannerEnabled = true
                                 }
                             }
                         }
@@ -2253,14 +2192,13 @@ PanelWindow {
                          anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
                          spacing: 6
 
-                         // ── Header: toggle radio + rescan ──────────────────────
+                         // ── Header ─────────────────────────────────────────────
                          Item {
                              width: parent.width; height: 32
 
                              Row {
                                  anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                                  spacing: 8
-
                                  Text {
                                      text: root._wifiRadioOn ? "󰤨" : "󰤮"
                                      font.pixelSize: 16
@@ -2269,10 +2207,7 @@ PanelWindow {
                                  }
                                  Column {
                                      anchors.verticalCenter: parent.verticalCenter; spacing: 1
-                                     Text {
-                                         text: "WiFi"
-                                         font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text
-                                     }
+                                     Text { text: "WiFi"; font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text }
                                      Text {
                                          text: root._wifiConnectedSsid ? root._wifiConnectedSsid
                                                : (root._wifiRadioOn ? "Desconectado" : "Radio apagada")
@@ -2295,8 +2230,7 @@ PanelWindow {
                                          anchors.centerIn: parent; text: "󰑓"; font.pixelSize: 13
                                          color: root._wifiScanning ? Theme.accent : Theme.muted1
                                          RotationAnimation on rotation {
-                                             running: root._wifiScanning
-                                             loops: Animation.Infinite
+                                             running: root._wifiScanning; loops: Animation.Infinite
                                              from: 0; to: 360; duration: 1200
                                          }
                                      }
@@ -2313,10 +2247,9 @@ PanelWindow {
                                      color: root._wifiRadioOn ? Theme.accent : Theme.surface3
                                      Behavior on color { ColorAnimation { duration: 200 } }
                                      Rectangle {
-                                         width: 16; height: 16; radius: 8
+                                         width: 16; height: 16; radius: 8; color: "white"
                                          anchors.verticalCenter: parent.verticalCenter
                                          x: root._wifiRadioOn ? parent.width - width - 3 : 3
-                                         color: "white"
                                          Behavior on x { NumberAnimation { duration: 200 } }
                                      }
                                      MouseArea {
@@ -2327,27 +2260,24 @@ PanelWindow {
                              }
                          }
 
-                         // ── Status / Working ───────────────────────────────────
+                         // ── Status message ─────────────────────────────────────
                          Text {
                              visible: root._wifiStatusMsg !== ""
-                             text: root._wifiStatusMsg
-                             font.pixelSize: 10
+                             text: root._wifiStatusMsg; font.pixelSize: 10
                              color: root._wifiStatusMsg.startsWith("✓") ? Theme.success : Theme.error
                          }
                          Text {
                              visible: root._wifiWorking
-                             text: "Cargando…"
-                             font.pixelSize: 10; color: Theme.muted1
+                             text: "Conectando…"; font.pixelSize: 10; color: Theme.muted1
                          }
 
-                         // ── Ethernet info (if connected) ───────────────────────
+                         // ── Ethernet info ──────────────────────────────────────
                          Rectangle {
                              visible: root._ethConnected
-                             width: parent.width; height: root._ethConnected ? 48 : 0
+                             width: parent.width; height: root._ethConnected ? 44 : 0
                              radius: 8; color: Theme.successSurface
                              border.color: Qt.tint(Theme.surface2, Qt.rgba(Theme.success.r, Theme.success.g, Theme.success.b, 0.30))
                              Behavior on height { NumberAnimation { duration: 150 } }
-
                              Row {
                                  anchors { fill: parent; margins: 10 }
                                  spacing: 10
@@ -2366,40 +2296,44 @@ PanelWindow {
                              }
                          }
 
-                         // ── No radio message ───────────────────────────────────
+                         // ── Radio off message ──────────────────────────────────
                          Item {
-                             visible: !root._wifiRadioOn && !root._wifiWorking
-                             width: parent.width; height: 40
-                             Text {
-                                 anchors.centerIn: parent
-                                 text: "WiFi está apagado"
-                                 font.pixelSize: 11; color: Theme.muted1
-                             }
+                             visible: !root._wifiRadioOn
+                             width: parent.width; height: 36
+                             Text { anchors.centerIn: parent; text: "WiFi está apagado"; font.pixelSize: 11; color: Theme.muted1 }
                          }
 
-                         // ── Network list ───────────────────────────────────────
+                         // ── Network list (reactive via Networking API) ──────────
                          Column {
-                             visible: root._wifiRadioOn
-                             width: parent.width
-                             spacing: 4
+                             visible: root._wifiRadioOn && root._nmWifiDev !== null
+                             width: parent.width; spacing: 4
 
                              Repeater {
-                                 model: root._wifiNetworks
+                                 // WifiNetwork objects — sorted: connected first, then by signal desc
+                                 model: {
+                                     var dev = root._nmWifiDev
+                                     if (!dev) return []
+                                     var nets = dev.networks.values.slice()
+                                     nets.sort(function(a, b) {
+                                         if (a.connected !== b.connected) return a.connected ? -1 : 1
+                                         return b.signalStrength - a.signalStrength
+                                     })
+                                     return nets
+                                 }
 
                                  Column {
                                      id: wNetRow
-                                     required property var modelData
+                                     required property var modelData   // WifiNetwork
                                      required property int index
-                                     width: parent.width
-                                     spacing: 0
+                                     width: parent.width; spacing: 0
 
-                                     property bool isSaved:    root._wifiSavedSsids[modelData.ssid] || false
-                                     property bool isActive:   root._wifiConnectedSsid === modelData.ssid
+                                     // modelData.known  → replaces old isSaved
+                                     // modelData.connected → replaces old isActive
                                      property bool showPwText:    false
                                      property string realPassword: ""
                                      property bool fetchingPw:    false
 
-                                     onIsSavedChanged: { showPwText = false; realPassword = "" }
+                                     onModelDataChanged: { showPwText = false; realPassword = "" }
 
                                      function fetchSavedPassword() {
                                          if (realPassword !== "" || fetchingPw) {
@@ -2407,32 +2341,31 @@ PanelWindow {
                                              return
                                          }
                                          fetchingPw = true
-                                         root.wifiFetchPasswordFor(modelData.ssid, index)
+                                         root.wifiFetchPasswordFor(modelData.name, index)
                                      }
 
                                      Connections {
                                          target: root
                                          function onWifiPwFetchResultIdxChanged() {
                                              if (root._wifiPwFetchResultIdx !== index) return
-                                             var pw = root._wifiPwFetchResult
-                                             wNetRow.realPassword = pw
+                                             wNetRow.realPassword = root._wifiPwFetchResult
                                              wNetRow.fetchingPw   = false
-                                             if (pw !== "") wNetRow.showPwText = true
+                                             if (root._wifiPwFetchResult !== "") wNetRow.showPwText = true
                                          }
                                      }
 
-                                     // Network row
+                                     // ── Network row ────────────────────────────────
                                      Rectangle {
                                          width: parent.width; height: 36; radius: 8
                                          color: {
-                                             if (wNetRow.isActive)                    return Theme.accentSurface
-                                             if (root._wifiSelectedIdx === index)     return Theme.surface3
+                                             if (wNetRow.modelData.connected)          return Theme.accentSurface
+                                             if (root._wifiSelectedIdx === index)      return Theme.surface3
                                              return wRowMA.containsMouse ? Theme.surface3 : Theme.surface2
                                          }
                                          Behavior on color { ColorAnimation { duration: 100 } }
 
                                          Rectangle {
-                                             visible: wNetRow.isActive
+                                             visible: wNetRow.modelData.connected
                                              width: 3; height: 18; radius: 2
                                              anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
                                              color: Theme.accent
@@ -2443,25 +2376,25 @@ PanelWindow {
                                              spacing: 6
 
                                              Text {
-                                                 text: root.wifiSignalIcon(modelData.signal)
+                                                 text: root.wifiSignalIcon(wNetRow.modelData.signalStrength)
                                                  font.pixelSize: 13
-                                                 color: wNetRow.isActive ? Theme.accent : Theme.muted2
+                                                 color: wNetRow.modelData.connected ? Theme.accent : Theme.muted2
                                              }
 
                                              Text {
                                                  Layout.fillWidth: true
-                                                 text: modelData.ssid
-                                                 font.pixelSize: 11; color: Theme.text
-                                                 elide: Text.ElideRight
+                                                 text: wNetRow.modelData.name
+                                                 font.pixelSize: 11; color: Theme.text; elide: Text.ElideRight
                                              }
 
+                                             // Lock icon if not open
                                              Text {
-                                                 visible: modelData.security && modelData.security !== "--"
+                                                 visible: !root.wifiIsOpen(wNetRow.modelData.security)
                                                  text: "󰌆"; font.pixelSize: 10; color: Theme.muted2
                                              }
 
                                              Text {
-                                                 text: modelData.signal + "%"
+                                                 text: Math.round(wNetRow.modelData.signalStrength * 100) + "%"
                                                  font.pixelSize: 9; color: Theme.muted2; width: 28
                                                  horizontalAlignment: Text.AlignRight
                                              }
@@ -2469,42 +2402,35 @@ PanelWindow {
                                              // Connect / Disconnect button
                                              Rectangle {
                                                  height: 22; radius: 6
-                                                 width: wNetRow.isActive ? 78 : 64
-                                                 color: wNetRow.isActive ? Theme.error
+                                                 width: wNetRow.modelData.connected ? 78 : 64
+                                                 color: wNetRow.modelData.connected ? Theme.error
                                                       : (root._wifiSelectedIdx === index ? Theme.accent : Theme.surface3)
                                                  Behavior on color { ColorAnimation { duration: 100 } }
                                                  Text {
                                                      anchors.centerIn: parent
-                                                     text: wNetRow.isActive ? "Desconectar" : "Conectar"
+                                                     text: wNetRow.modelData.connected ? "Desconectar" : "Conectar"
                                                      font.pixelSize: 9; color: "white"
                                                  }
                                                  MouseArea {
                                                      anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                      onClicked: {
-                                                         if (wNetRow.isActive) {
-                                                             root.wifiDisconnect()
+                                                         if (wNetRow.modelData.connected) {
+                                                             root.wifiDisconnect(wNetRow.modelData)
+                                                         } else if (root._wifiSelectedIdx !== index) {
+                                                             root._wifiSelectedIdx = index
+                                                             root._wifiPasswordByIndex[index] = ""
+                                                             wNetRow.showPwText = false
                                                          } else {
-                                                             var needsPw = modelData.security && modelData.security !== "--"
-                                                             if (root._wifiSelectedIdx !== index) {
-                                                                 root._wifiSelectedIdx = index
-                                                                 root._wifiPasswordByIndex[index] = ""
-                                                                 wNetRow.showPwText = false
+                                                             var needsPw = !root.wifiIsOpen(wNetRow.modelData.security)
+                                                             var pw = root._wifiPasswordByIndex[index] || ""
+                                                             if (!needsPw || wNetRow.modelData.known) {
+                                                                 // Open or known → native connect()
+                                                                 root.wifiConnectKnown(wNetRow.modelData)
+                                                             } else if (pw !== "") {
+                                                                 // New network with password → nmcli
+                                                                 root.wifiConnectNew(wNetRow.modelData.name, pw)
                                                              } else {
-                                                                 var pw = root._wifiPasswordByIndex[index] || ""
-                                                                 if (needsPw && pw === "") {
-                                                                     if (wNetRow.isSaved) {
-                                                                         root._wifiWorking = true
-                                                                         wSavedPwProc.ssid = modelData.ssid
-                                                                         wSavedPwProc.idx  = index
-                                                                         wSavedPwProc.command = ["bash", "-c",
-                                                                             "nmcli -s -g 802-11-wireless-security.psk connection show " + JSON.stringify(modelData.ssid) + " 2>/dev/null"]
-                                                                         wSavedPwProc.running = true
-                                                                     } else {
-                                                                         root._wifiStatusMsg = "✗ Ingresa una contraseña"
-                                                                     }
-                                                                 } else {
-                                                                     root.wifiConnectTo(modelData.ssid, pw)
-                                                                 }
+                                                                 root._wifiStatusMsg = "✗ Ingresa una contraseña"
                                                              }
                                                          }
                                                      }
@@ -2517,18 +2443,17 @@ PanelWindow {
                                              anchors.fill: parent; hoverEnabled: true; z: -1
                                              cursorShape: Qt.PointingHandCursor
                                              onClicked: {
+                                                 root._wifiSelectedIdx = (root._wifiSelectedIdx === index) ? -1 : index
                                                  if (root._wifiSelectedIdx === index) {
-                                                     root._wifiSelectedIdx = -1
-                                                 } else {
-                                                     root._wifiSelectedIdx = index
                                                      root._wifiPasswordByIndex[index] = ""
                                                      wNetRow.showPwText = false
+                                                     if (wNetRow.modelData.connected) wWifiInfoProc.running = true
                                                  }
                                              }
                                          }
                                      }
 
-                                     // ── Expanded panel per network ─────────────────
+                                     // ── Expanded panel ─────────────────────────────
                                      Rectangle {
                                          visible: root._wifiSelectedIdx === index
                                          width: parent.width
@@ -2546,9 +2471,9 @@ PanelWindow {
                                              anchors { top: parent.top; left: parent.left; right: parent.right; margins: 10 }
                                              spacing: 6
 
-                                             // ── Password field ─────────────────────────
+                                             // ── Password field (new/unknown networks only) ──
                                              RowLayout {
-                                                 visible: (modelData.security && modelData.security !== "--") && !wNetRow.isActive
+                                                 visible: !root.wifiIsOpen(wNetRow.modelData.security) && !wNetRow.modelData.connected
                                                  width: parent.width; spacing: 6
 
                                                  Text { text: "󰌋"; font.pixelSize: 12; color: Theme.muted1; Layout.alignment: Qt.AlignVCenter }
@@ -2556,21 +2481,23 @@ PanelWindow {
                                                  Item {
                                                      Layout.fillWidth: true; height: 22
 
+                                                     // Known network: show masked PSK
                                                      Text {
                                                          anchors.verticalCenter: parent.verticalCenter
-                                                         visible: wNetRow.isSaved && !wNetRow.showPwText
+                                                         visible: wNetRow.modelData.known && !wNetRow.showPwText
                                                          text: "••••••••"; font.pixelSize: 12; color: Theme.muted1
                                                      }
                                                      Text {
                                                          anchors.verticalCenter: parent.verticalCenter
-                                                         visible: wNetRow.isSaved && wNetRow.showPwText
+                                                         visible: wNetRow.modelData.known && wNetRow.showPwText
                                                          text: wNetRow.realPassword !== "" ? wNetRow.realPassword : "—"
                                                          font.pixelSize: 11; color: Theme.text; font.family: "monospace"
                                                      }
+                                                     // Unknown network: text input
                                                      TextInput {
                                                          id: wPwInput
                                                          anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
-                                                         visible: !wNetRow.isSaved
+                                                         visible: !wNetRow.modelData.known
                                                          text: root._wifiPasswordByIndex[index] || ""
                                                          onTextChanged: root._wifiPasswordByIndex[index] = text
                                                          echoMode: wNetRow.showPwText ? TextInput.Normal : TextInput.Password
@@ -2578,16 +2505,13 @@ PanelWindow {
                                                          verticalAlignment: TextInput.AlignVCenter
                                                          Keys.onReturnPressed: {
                                                              var pw = root._wifiPasswordByIndex[index] || ""
-                                                             if (!wNetRow.isSaved && pw === "") {
-                                                                 root._wifiStatusMsg = "✗ Ingresa una contraseña"
-                                                             } else {
-                                                                 root.wifiConnectTo(modelData.ssid, pw)
-                                                             }
+                                                             if (pw === "") root._wifiStatusMsg = "✗ Ingresa una contraseña"
+                                                             else root.wifiConnectNew(wNetRow.modelData.name, pw)
                                                          }
                                                      }
                                                      Text {
                                                          anchors.verticalCenter: parent.verticalCenter
-                                                         visible: !wNetRow.isSaved && wPwInput.text.length === 0
+                                                         visible: !wNetRow.modelData.known && wPwInput.text.length === 0
                                                          text: "Contraseña"; font.pixelSize: 11; color: Theme.muted2
                                                      }
                                                  }
@@ -2610,9 +2534,9 @@ PanelWindow {
                                                      }
                                                  }
 
-                                                 // Copy password (saved only)
+                                                 // Copy PSK (known networks only)
                                                  Rectangle {
-                                                     visible: wNetRow.isSaved
+                                                     visible: wNetRow.modelData.known
                                                      width: 24; height: 24; radius: 6
                                                      color: wCopyPwMA.containsMouse ? Theme.surface2 : "transparent"
                                                      Behavior on color { ColorAnimation { duration: 100 } }
@@ -2620,16 +2544,13 @@ PanelWindow {
                                                      MouseArea {
                                                          id: wCopyPwMA; anchors.fill: parent; hoverEnabled: true
                                                          cursorShape: Qt.PointingHandCursor
-                                                         onClicked: {
-                                                             root._wifiMenuSsid = modelData.ssid
-                                                             root.wifiMenuCopyPassword()
-                                                         }
+                                                         onClicked: root.wifiCopyPassword(wNetRow.modelData.name)
                                                      }
                                                  }
                                              }
 
                                              Rectangle {
-                                                 visible: (modelData.security && modelData.security !== "--") && !wNetRow.isActive
+                                                 visible: !root.wifiIsOpen(wNetRow.modelData.security) && !wNetRow.modelData.connected
                                                  width: parent.width; height: 1; color: Theme.surface2
                                              }
 
@@ -2640,13 +2561,16 @@ PanelWindow {
                                                  Row {
                                                      spacing: 4
                                                      Text { text: "Señal:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
-                                                     Text { text: modelData.signal + "%"; font.pixelSize: 10; color: Theme.text }
+                                                     Text {
+                                                         text: Math.round(wNetRow.modelData.signalStrength * 100) + "%"
+                                                         font.pixelSize: 10; color: Theme.text
+                                                     }
                                                  }
                                                  Row {
                                                      spacing: 4
                                                      Text { text: "Seguridad:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
                                                      Text {
-                                                         text: (modelData.security && modelData.security !== "--") ? modelData.security : "Abierta"
+                                                         text: root.wifiSecurityLabel(wNetRow.modelData.security)
                                                          font.pixelSize: 10; color: Theme.text
                                                      }
                                                  }
@@ -2654,12 +2578,13 @@ PanelWindow {
                                                      spacing: 4
                                                      Text { text: "Estado:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
                                                      Text {
-                                                         text: wNetRow.isActive ? "Conectada" : (wNetRow.isSaved ? "Guardada" : "No guardada")
+                                                         text: wNetRow.modelData.connected ? "Conectada"
+                                                             : (wNetRow.modelData.known ? "Guardada" : "No guardada")
                                                          font.pixelSize: 10; color: Theme.text
                                                      }
                                                  }
                                                  Row {
-                                                     visible: wNetRow.isActive
+                                                     visible: wNetRow.modelData.connected
                                                      spacing: 4
                                                      Text { text: "IP:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
                                                      Text {
@@ -2669,24 +2594,23 @@ PanelWindow {
                                                      }
                                                  }
                                                  Row {
-                                                     visible: wNetRow.isActive
+                                                     visible: wNetRow.modelData.connected
                                                      spacing: 4
                                                      Text { text: "Gateway:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
                                                      Text { text: root._wifiGateway !== "" ? root._wifiGateway : "—"; font.pixelSize: 10; color: Theme.text }
                                                  }
                                                  Row {
-                                                     visible: wNetRow.isActive
+                                                     visible: wNetRow.modelData.connected
                                                      spacing: 4
                                                      Text { text: "DNS:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
                                                      Text { text: root._wifiDns !== "" ? root._wifiDns : "—"; font.pixelSize: 10; color: Theme.text }
                                                  }
                                              }
 
-                                             // ── Forget button ──────────────────────────
+                                             // ── Forget button (known networks) ──────────
                                              Row {
-                                                 visible: wNetRow.isSaved
+                                                 visible: wNetRow.modelData.known
                                                  width: parent.width
-
                                                  Rectangle {
                                                      height: 24; radius: 6
                                                      width: wForgetText.implicitWidth + 18
@@ -2695,17 +2619,13 @@ PanelWindow {
                                                          : Theme.surface2
                                                      Behavior on color { ColorAnimation { duration: 100 } }
                                                      Text {
-                                                         id: wForgetText
-                                                         anchors.centerIn: parent
+                                                         id: wForgetText; anchors.centerIn: parent
                                                          text: "󱑃  Olvidar red"; font.pixelSize: 10; color: Theme.error
                                                      }
                                                      MouseArea {
                                                          id: wForgetMA; anchors.fill: parent; hoverEnabled: true
                                                          cursorShape: Qt.PointingHandCursor
-                                                         onClicked: {
-                                                             root._wifiMenuSsid = modelData.ssid
-                                                             root.wifiMenuForgetNetwork()
-                                                         }
+                                                         onClicked: root.wifiForget(wNetRow.modelData)
                                                      }
                                                  }
                                              }
