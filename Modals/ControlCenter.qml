@@ -8,6 +8,7 @@ import Quickshell.Services.Pipewire
 import Quickshell.Services.Mpris
 import Quickshell.Bluetooth
 import Quickshell.Networking
+import Quickshell.Services.UPower
 import "../Components"
 
 PanelWindow {
@@ -115,12 +116,20 @@ PanelWindow {
     property var    _fanProfiles:  []     // [{id, label}] from fan-control.sh list
     property string _fanBuf:       ""
 
-    // Battery detail
-    property int    _batHealth:    0
-    property real   _batCapWh:     0
-    property int    _batCycles:    0
-    property string _batEpp:       ""
-    property string _batBuf:       ""
+    // ── Battery — UPower API ──────────────────────────────────────────────
+    property var    _upowerDev:    UPower.displayDevice
+    // Derived properties — reactive, no polling needed
+    property bool   _batAvailableUP: _upowerDev ? _upowerDev.isPresent && _upowerDev.isLaptopBattery : false
+    property real   _batPctUP:       _upowerDev ? _upowerDev.percentage       : 0
+    property bool   _batChargingUP:  _upowerDev ? (_upowerDev.state === UPowerDeviceState.Charging ||
+                                                    _upowerDev.state === UPowerDeviceState.PendingCharge) : false
+    property bool   _batFullUP:      _upowerDev ? _upowerDev.state === UPowerDeviceState.FullyCharged : false
+    property real   _batHealthUP:    _upowerDev ? (_upowerDev.healthSupported ? _upowerDev.healthPercentage : 0) : 0
+    property real   _batCapWhUP:     _upowerDev ? _upowerDev.energyCapacity    : 0
+    property real   _batEnergyUP:    _upowerDev ? _upowerDev.energy            : 0
+    property real   _batChangeRate:  _upowerDev ? _upowerDev.changeRate        : 0
+    property real   _batTimeEmpty:   _upowerDev ? _upowerDev.timeToEmpty       : 0
+    property real   _batTimeFull:    _upowerDev ? _upowerDev.timeToFull        : 0
 
     // Language detail
     property string _langLayout:   "—"
@@ -263,10 +272,9 @@ PanelWindow {
         return out
     }
 
-    // ── Perfil de energía — dinámico via powerprofilesctl ────────────────
-    property string powerProfile:  ""          // id del perfil activo
-    property var    powerProfiles: []          // [{id, label}] leídos del sistema
-    property string _powerBuf:     ""
+    // ── Perfil de energía — UPower PowerProfiles API ─────────────────────
+    // PowerProfiles.profile es read/write (PowerProfile enum)
+    // PowerProfiles.hasPerformanceProfile indica si el perfil performance está disponible
 
     // ── Bluetooth resumen ─────────────────────────────────────────────────
     property var  btAdapter: Bluetooth.defaultAdapter
@@ -399,67 +407,11 @@ PanelWindow {
         }
     }
 
-    // Leer perfiles disponibles + activo via powerprofilesctl
-    // Salida de `powerprofilesctl list`:
-    //   * balanced:     (active)
-    //     power-saver:
-    //     performance:
-    Process {
-        id: getPowerProc
-        command: ["bash", "-c",
-            "powerprofilesctl list 2>/dev/null | grep -E '^[* ] [a-z]' || " +
-            "echo 'FALLBACK:' $(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_governor 2>/dev/null)"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._powerBuf += d + "\n" }
-        onExited: {
-            var raw  = root._powerBuf
-            root._powerBuf = ""
-
-            // Intentar parsear salida de powerprofilesctl list
-            var lines  = raw.trim().split("\n")
-            var parsed = []
-            var active = ""
-
-            for (var i = 0; i < lines.length; i++) {
-                var line = lines[i].trim()
-                if (line.length === 0) continue
-
-                // Línea de fallback
-                if (line.startsWith("FALLBACK:")) {
-                    var fb = line.replace("FALLBACK:", "").trim()
-                    if (fb.length > 0) {
-                        parsed = [{ id: fb, label: _powerLabel(fb) }]
-                        active = fb
-                    }
-                    break
-                }
-
-                // Formato: "* balanced:" (activo) o "  power-saver:" (inactivo)
-                var isActive  = line.charAt(0) === "*"
-                // quitar el marcador de actividad y los dos puntos finales
-                var profileId = line.replace(/^[* ]\s*/, "").replace(/:.*$/, "").trim()
-                if (profileId.length === 0) continue
-
-                parsed.push({ id: profileId, label: _powerLabel(profileId) })
-                if (isActive) active = profileId
-            }
-
-            if (parsed.length > 0) root.powerProfiles = parsed
-            if (active.length > 0) root.powerProfile  = active
-        }
-    }
-
     // Aplicar brillo
     Process {
         id: setBrightnessProc
         property int targetPct: 50
         command: ["bash", "-c", "brightnessctl set " + targetPct + "% 2>/dev/null"]
-    }
-
-    // Aplicar perfil de energía
-    Process {
-        id: setPowerProc
-        property string targetProfile: "balanced"
-        command: ["bash", "-c", "powerprofilesctl set " + targetProfile + " 2>/dev/null || sudo " + Paths.scripts + "/set-power-mode.sh " + targetProfile + " 2>/dev/null"]
     }
 
     // Mutear/desmutear master
@@ -523,30 +475,30 @@ PanelWindow {
         if (!setBrightnessProc.running) setBrightnessProc.running = true
     }
 
-    // Convierte el id raw del sistema a label legible
-    function _powerLabel(id) {
-        var s = (id || "").toLowerCase()
-        if (s === "balanced")    return "Balanced"
-        if (s === "powersave" || s === "power-saver" || s === "power_saver") return "Power saver"
-        if (s === "performance") return "Performance"
-        // capitalizar palabras con guiones → "Ultra Performance"
-        return s.split(/[-_]/).map(function(w) {
-            return w.charAt(0).toUpperCase() + w.slice(1)
-        }).join(" ")
+    // ── Power profile helpers — UPower enum ──────────────────────────────
+    function _powerLabel(profile) {
+        if (profile === PowerProfile.Performance) return "Performance"
+        if (profile === PowerProfile.PowerSaver)  return "Power saver"
+        return "Balanced"
     }
 
-    // Icono Nerd-font por perfil (sin emojis)
-    function _powerIcon(id) {
-        var s = (id || "").toLowerCase()
-        if (s === "performance")              return "󰓅"
-        if (s.includes("powersave") || s.includes("power-saver") || s.includes("power_saver")) return "󰁹"
+    function _powerIcon(profile) {
+        if (profile === PowerProfile.Performance) return "󰓅"
+        if (profile === PowerProfile.PowerSaver)  return "󰁹"
         return "󱐌"
     }
 
-    function setPower(profileId) {
-        root.powerProfile = profileId
-        setPowerProc.targetProfile = profileId
-        if (!setPowerProc.running) setPowerProc.running = true
+    function setPower(profile) {
+        PowerProfiles.profile = profile
+    }
+
+    // ── Battery time formatting ────────────────────────────────────────────
+    function _fmtTime(seconds) {
+        if (!seconds || seconds <= 0) return ""
+        var h = Math.floor(seconds / 3600)
+        var m = Math.floor((seconds % 3600) / 60)
+        if (h > 0) return h + "h " + m + "m"
+        return m + "m"
     }
 
     function _fmtSpeed(bps) {
@@ -1178,13 +1130,11 @@ PanelWindow {
     onVisibleChanged: {
         if (visible) {
             root._buf      = ""
-            root._powerBuf = ""
             root._diskBuf  = ""
             root._cpuLoaded = false
             root._gpuLoaded = false
             getBrightnessProc.running = true
             getVolProc.running        = true
-            getPowerProc.running      = true
             diskDetailProc.running    = true
             root._syncPlayerPos()
             root._pwRev++
@@ -1959,12 +1909,11 @@ PanelWindow {
                             spacing: 8
 
                             Text {
-                                text: root._powerIcon(root.powerProfile)
+                                text: root._powerIcon(PowerProfiles.profile)
                                 font.pixelSize: 18
                                 color: {
-                                    var s = (root.powerProfile || "").toLowerCase()
-                                    if (s === "performance") return "#ff7b72"
-                                    if (s.includes("powersave") || s.includes("power-saver") || s.includes("power_saver")) return "#79c0ff"
+                                    if (PowerProfiles.profile === PowerProfile.Performance) return "#ff7b72"
+                                    if (PowerProfiles.profile === PowerProfile.PowerSaver)  return "#79c0ff"
                                     return Theme.accent
                                 }
                             }
@@ -1976,7 +1925,7 @@ PanelWindow {
                                 Text {
                                     width: parent.width
                                     text: {
-                                        var p = root._powerLabel(root.powerProfile) || "—"
+                                        var p = root._powerLabel(PowerProfiles.profile)
                                         if (SysData.fanAvailable && SysData.fan1Rpm > 0)
                                             p += " · " + SysData.fan1Rpm + " rpm"
                                         return p
@@ -2043,7 +1992,7 @@ PanelWindow {
                         }
                     }
 
-                    // ── Battery ───────────────────────────────────────────
+                    // ── Battery — UPower ──────────────────────────────────
                     Rectangle {
                         id: batCard
                         property bool hov: false
@@ -2067,20 +2016,22 @@ PanelWindow {
 
                             Text {
                                 text: {
-                                    if (!SysData.batAvailable) return "󰂑"
-                                    if (SysData.batCharging)   return "󰂄"
-                                    if (SysData.batPercent > 80) return "󰁹"
-                                    if (SysData.batPercent > 60) return "󰂁"
-                                    if (SysData.batPercent > 40) return "󰁿"
-                                    if (SysData.batPercent > 20) return "󰁽"
+                                    if (!root._batAvailableUP) return "󰂑"
+                                    if (root._batFullUP)       return "󰁹"
+                                    if (root._batChargingUP)   return "󰂄"
+                                    var p = root._batPctUP
+                                    if (p > 80) return "󰁹"
+                                    if (p > 60) return "󰂁"
+                                    if (p > 40) return "󰁿"
+                                    if (p > 20) return "󰁽"
                                     return "󰂃"
                                 }
                                 font.pixelSize: 18
                                 color: {
-                                    if (!SysData.batAvailable) return Theme.muted2
-                                    if (SysData.batCharging)   return Theme.success
-                                    if (SysData.batPercent > 50) return Theme.accent
-                                    if (SysData.batPercent > 20) return Theme.yellow
+                                    if (!root._batAvailableUP)  return Theme.muted2
+                                    if (root._batChargingUP || root._batFullUP) return Theme.success
+                                    if (root._batPctUP > 50)    return Theme.accent
+                                    if (root._batPctUP > 20)    return Theme.yellow
                                     return Theme.error
                                 }
                             }
@@ -2090,12 +2041,19 @@ PanelWindow {
                                 spacing: 2
                                 Text { text: "Battery"; font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text }
                                 Text {
-                                    text: !SysData.batAvailable ? "Not available"
-                                        : SysData.batCharging   ? SysData.batPercent + "% · Charging"
-                                        : SysData.batStatus === "Full" ? "Full"
-                                        : SysData.batPercent + "% · " + SysData.batStatus
+                                    text: {
+                                        if (!root._batAvailableUP) return "Not available"
+                                        var pct = Math.round(root._batPctUP) + "%"
+                                        if (root._batFullUP)     return "Full"
+                                        if (root._batChargingUP) {
+                                            var tf = root._fmtTime(root._batTimeFull)
+                                            return pct + " · Charging" + (tf ? " · " + tf : "")
+                                        }
+                                        var te = root._fmtTime(root._batTimeEmpty)
+                                        return pct + (te ? " · " + te : "")
+                                    }
                                     font.pixelSize: 9
-                                    color: SysData.batPercent <= 20 && !SysData.batCharging ? Theme.error : Theme.muted1
+                                    color: root._batPctUP <= 20 && !root._batChargingUP ? Theme.error : Theme.muted1
                                     elide: Text.ElideRight; width: parent.width
                                 }
                             }
@@ -2110,12 +2068,7 @@ PanelWindow {
                             anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onEntered: batCard.hov = true
                             onExited:  batCard.hov = false
-                            onClicked: {
-                                var next = root._expandedToggle === "battery" ? "" : "battery"
-                                root._expandedToggle = next
-                                if (next === "battery")
-                                    batDetailProc.running = true
-                            }
+                            onClicked: root._expandedToggle = root._expandedToggle === "battery" ? "" : "battery"
                         }
                     }
 
@@ -3013,7 +2966,7 @@ PanelWindow {
                         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
                         spacing: 10
 
-                        // ── CPU power profiles ─────────────────────────────
+                        // ── CPU power profiles — UPower PowerProfiles ──────
                         Text {
                             text: "CPU Power Profile"
                             font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.muted1
@@ -3024,14 +2977,28 @@ PanelWindow {
                             spacing: 6
 
                             Repeater {
-                                model: root.powerProfiles
+                                // Fixed 3 profiles: PowerSaver, Balanced, Performance
+                                // Hide Performance if not available on this hardware
+                                model: {
+                                    var profiles = [
+                                        PowerProfile.PowerSaver,
+                                        PowerProfile.Balanced
+                                    ]
+                                    if (PowerProfiles.hasPerformanceProfile)
+                                        profiles.push(PowerProfile.Performance)
+                                    return profiles
+                                }
 
                                 Rectangle {
                                     id: pBtn
-                                    required property var modelData
-                                    property bool active: root.powerProfile === modelData.id
+                                    required property var modelData   // PowerProfile enum value
+                                    required property int index
+                                    property bool active: PowerProfiles.profile === modelData
 
-                                    width: (powerDetailCol.width - 6 * Math.max(1, root.powerProfiles.length - 1)) / Math.max(1, root.powerProfiles.length)
+                                    width: {
+                                        var n = PowerProfiles.hasPerformanceProfile ? 3 : 2
+                                        return (powerDetailCol.width - 6 * (n - 1)) / n
+                                    }
                                     height: 36; radius: 8
                                     color: active
                                         ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.22)
@@ -3043,13 +3010,13 @@ PanelWindow {
                                         anchors.centerIn: parent; spacing: 2
                                         Text {
                                             anchors.horizontalCenter: parent.horizontalCenter
-                                            text: root._powerIcon(pBtn.modelData.id)
+                                            text: root._powerIcon(pBtn.modelData)
                                             font.pixelSize: 13
                                             color: pBtn.active ? Theme.accent : Theme.muted1
                                         }
                                         Text {
                                             anchors.horizontalCenter: parent.horizontalCenter
-                                            text: pBtn.modelData.label
+                                            text: root._powerLabel(pBtn.modelData)
                                             font.pixelSize: 8
                                             color: pBtn.active ? Theme.accent : Theme.muted2
                                         }
@@ -3058,7 +3025,7 @@ PanelWindow {
                                     MouseArea {
                                         id: pBtnHov; anchors.fill: parent; hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: root.setPower(pBtn.modelData.id)
+                                        onClicked: root.setPower(pBtn.modelData)
                                     }
                                 }
                             }
@@ -3186,96 +3153,131 @@ PanelWindow {
                     }
                 }
 
-                 // ── Battery detail panel ───────────────────────────────────
+                 // ── Battery detail panel — UPower ─────────────────────────
                  Rectangle {
                      width: parent.width
-                      height: root._expandedToggle === "battery" ? batDetailCol.implicitHeight + 16 : 0
-                      radius: 10; color: Theme.surface2; clip: true
-                      Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                     height: root._expandedToggle === "battery" ? batDetailCol.implicitHeight + 16 : 0
+                     radius: 10; color: Theme.surface2; clip: true
+                     Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
-                    Column {
-                        id: batDetailCol
-                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
-                        spacing: 6
+                     Column {
+                         id: batDetailCol
+                         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+                         spacing: 6
 
-                        // Charge bar
-                        Item {
-                            width: parent.width; height: 6
-                            Rectangle { anchors.fill: parent; radius: 3; color: Theme.surface3 }
-                            Rectangle {
-                                anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                                width: Math.max(4, SysData.batPercent / 100 * parent.width)
-                                radius: 3
-                                color: SysData.batCharging ? Theme.success
-                                     : SysData.batPercent > 50 ? Theme.accent
-                                     : SysData.batPercent > 20 ? Theme.yellow
-                                     : Theme.error
-                                Behavior on width { NumberAnimation { duration: 300 } }
-                            }
-                        }
+                         // Charge bar
+                         Item {
+                             width: parent.width; height: 6
+                             Rectangle { anchors.fill: parent; radius: 3; color: Theme.surface3 }
+                             Rectangle {
+                                 anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                                 width: Math.max(4, root._batPctUP / 100 * parent.width)
+                                 radius: 3
+                                 color: root._batChargingUP ? Theme.success
+                                      : root._batPctUP > 50 ? Theme.accent
+                                      : root._batPctUP > 20 ? Theme.yellow
+                                      : Theme.error
+                                 Behavior on width { NumberAnimation { duration: 300 } }
+                             }
+                         }
 
-                        Row {
-                            spacing: 16
-                            Text { text: SysData.batPercent + "%"; font.pixelSize: 13; font.weight: Font.DemiBold; color: Theme.text }
-                            Text {
-                                text: SysData.batCharging ? "Charging" : SysData.batStatus
-                                font.pixelSize: 11; color: Theme.muted1
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                        }
+                         Row {
+                             spacing: 16
+                             Text {
+                                 text: Math.round(root._batPctUP) + "%"
+                                 font.pixelSize: 13; font.weight: Font.DemiBold; color: Theme.text
+                             }
+                             Text {
+                                 text: {
+                                     if (root._batFullUP)     return "Full"
+                                     if (root._batChargingUP) return "Charging"
+                                     return "Discharging"
+                                 }
+                                 font.pixelSize: 11; color: Theme.muted1
+                                 anchors.verticalCenter: parent.verticalCenter
+                             }
+                             Text {
+                                 visible: root._batChangeRate > 0
+                                 text: root._batChangeRate.toFixed(1) + " W"
+                                 font.pixelSize: 11; color: Theme.muted2
+                                 anchors.verticalCenter: parent.verticalCenter
+                             }
+                         }
 
-                        // Health / capacity / cycles — cards
-                        Row {
-                            width: parent.width
-                            spacing: 6
-                            visible: root._batHealth > 0 || root._batCapWh > 0 || root._batCycles > 0
+                         // Health / Capacity / Energy — mini cards (UPower native)
+                         Row {
+                             width: parent.width; spacing: 6
+                             visible: root._batAvailableUP
 
-                            Repeater {
-                                model: [
-                                    {
-                                        value: root._batHealth > 0 ? root._batHealth.toFixed(1) + "%" : "—",
-                                        label: "Health",
-                                        color: root._batHealth >= 80 ? Theme.accent
-                                             : root._batHealth >= 60 ? Theme.yellow
-                                             : root._batHealth > 0 ? Theme.error : Theme.muted2
-                                    },
-                                    {
-                                        value: root._batCapWh > 0 ? root._batCapWh.toFixed(1) + " Wh" : "—",
-                                        label: "Capacity",
-                                        color: Theme.text
-                                    },
-                                    {
-                                        value: root._batCycles > 0 ? String(root._batCycles) : "—",
-                                        label: "Cycles",
-                                        color: Theme.muted1
-                                    }
-                                ]
+                             Repeater {
+                                 model: [
+                                     {
+                                         value: root._batHealthUP > 0
+                                             ? root._batHealthUP.toFixed(1) + "%"
+                                             : "—",
+                                         label: "Health",
+                                         color: root._batHealthUP >= 80 ? Theme.accent
+                                              : root._batHealthUP >= 60 ? Theme.yellow
+                                              : root._batHealthUP > 0   ? Theme.error
+                                              : Theme.muted2
+                                     },
+                                     {
+                                         value: root._batCapWhUP > 0
+                                             ? root._batCapWhUP.toFixed(1) + " Wh"
+                                             : "—",
+                                         label: "Capacity",
+                                         color: Theme.text
+                                     },
+                                     {
+                                         value: root._batEnergyUP > 0
+                                             ? root._batEnergyUP.toFixed(1) + " Wh"
+                                             : "—",
+                                         label: "Now",
+                                         color: Theme.muted1
+                                     }
+                                 ]
 
-                                Rectangle {
-                                    required property var modelData
-                                    width: (parent.width - 12) / 3
-                                    height: 48; radius: 8; color: Theme.surface3
+                                 Rectangle {
+                                     required property var modelData
+                                     width: (parent.width - 12) / 3
+                                     height: 48; radius: 8; color: Theme.surface3
+                                     Column {
+                                         anchors.centerIn: parent; spacing: 3
+                                         Text {
+                                             anchors.horizontalCenter: parent.horizontalCenter
+                                             text: modelData.value
+                                             font.pixelSize: 12; font.weight: Font.DemiBold
+                                             color: modelData.color
+                                         }
+                                         Text {
+                                             anchors.horizontalCenter: parent.horizontalCenter
+                                             text: modelData.label
+                                             font.pixelSize: 9; color: Theme.muted2
+                                         }
+                                     }
+                                 }
+                             }
+                         }
 
-                                    Column {
-                                        anchors.centerIn: parent
-                                        spacing: 3
-                                        Text {
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                            text: modelData.value
-                                            font.pixelSize: 12; font.weight: Font.DemiBold
-                                            color: modelData.color
-                                        }
-                                        Text {
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                            text: modelData.label
-                                            font.pixelSize: 9; color: Theme.muted2
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                         // Time remaining
+                         Row {
+                             spacing: 8
+                             visible: !root._batFullUP && root._batAvailableUP
+
+                             Text {
+                                 text: root._batChargingUP ? "Full in:" : "Empty in:"
+                                 font.pixelSize: 10; color: Theme.muted2
+                             }
+                             Text {
+                                 text: {
+                                     var t = root._batChargingUP ? root._batTimeFull : root._batTimeEmpty
+                                     return root._fmtTime(t) || "—"
+                                 }
+                                 font.pixelSize: 10; color: Theme.text
+                             }
+                         }
+                     }
+                 }
 
                  // ── Language detail panel ──────────────────────────────────
                  Rectangle {
@@ -4282,24 +4284,6 @@ PanelWindow {
         id: fanApplyProc
         running: false
         onExited: running = false
-    }
-
-    // ── Battery detail process ────────────────────────────────────────────
-    Process {
-        id: batDetailProc
-        command: ["bash", Paths.scripts + "/battery-detail.sh"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._batBuf += d + "\n" }
-        onExited: {
-            root._batBuf.trim().split("\n").forEach(function(line) {
-                var idx = line.indexOf(":")
-                if (idx < 1) return
-                var k = line.substring(0, idx), v = line.substring(idx + 1)
-                if (k === "HEALTH") root._batHealth = parseFloat(v) || 0
-                if (k === "CAP_WH") root._batCapWh  = parseFloat(v) || 0
-                if (k === "CYCLES") root._batCycles  = parseInt(v)  || 0
-            })
-            root._batBuf = ""
-        }
     }
 
     // ── Language processes ────────────────────────────────────────────────

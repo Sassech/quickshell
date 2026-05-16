@@ -13,6 +13,8 @@ Types emitted:
   net    — Network radio, connection, SSID, signal, down/up speeds
   fan    — Fan RPMs, percents, temps, thermal profile
 
+Note: Battery ("bat") is NOT emitted — handled reactively via UPower in QML.
+
 Usage: python3 quickshell_backend.py
 """
 
@@ -33,7 +35,6 @@ POLL_GPU     = 4
 POLL_DISK    = 30
 POLL_NET     = 3
 POLL_FAN     = 5
-POLL_BAT     = 15
 
 # ── Fan sysfs paths (Alienware) — detectados dinámicamente en main() ─────────
 HWMON_SMM  = ""
@@ -45,7 +46,6 @@ _stop_event = threading.Event()
 _cpu_cursor = ""
 
 # ── Cache de paths que no cambian en runtime ──────────────────────────────────
-_bat_path: str = ""       # /sys/class/power_supply/BAT0
 _gpu_card_path: str = ""  # /sys/class/drm/cardX
 
 
@@ -58,17 +58,6 @@ def _find_hwmon(name: str) -> str:
                 nm = nm_file.read_text().strip()
                 if nm == name:
                     return str(h)
-    except Exception:
-        pass
-    return ""
-
-
-def _detect_bat_path() -> str:
-    """Detecta el primer BAT disponible. Retorna path completo o ''."""
-    try:
-        bats = sorted(d for d in os.listdir("/sys/class/power_supply") if d.startswith("BAT"))
-        if bats:
-            return f"/sys/class/power_supply/{bats[0]}"
     except Exception:
         pass
     return ""
@@ -127,31 +116,6 @@ def _run_cmd(cmd: list[str], timeout: int = 5) -> tuple[int, str]:
 # ══════════════════════════════════════════════════════════════════════════════
 # DATA FETCHERS
 # ══════════════════════════════════════════════════════════════════════════════
-
-def fetch_battery() -> dict:
-    """Read basic battery level + status from sysfs (path cacheado en main)."""
-    if not _bat_path:
-        return {"t": "bat", "a": False, "p": 0, "s": "Unknown"}
-
-    base = _bat_path
-    raw_cap = _read_sys(f"{base}/capacity")
-    raw_sts = _read_sys(f"{base}/status")
-
-    pct = 0
-    try:
-        pct = int(raw_cap)
-    except ValueError:
-        pass
-
-    status = raw_sts or "Unknown"
-
-    return {
-        "t": "bat",
-        "a": True,
-        "p": pct,
-        "s": status,
-    }
-
 
 def fetch_cpu() -> dict:
     global _cpu_cursor
@@ -459,7 +423,7 @@ def _signal_handler(signum, frame) -> None:
 
 
 def main() -> None:
-    global _cpu_cursor, _running, HWMON_SMM, HWMON_AWCC, _bat_path, _gpu_card_path
+    global _cpu_cursor, _running, HWMON_SMM, HWMON_AWCC, _gpu_card_path
 
     _log("Starting system data backend...")
 
@@ -477,12 +441,6 @@ def main() -> None:
         _log(f"hwmon AWCC → {HWMON_AWCC}")
     else:
         _log("hwmon AWCC no encontrado (temps AWCC no disponibles)")
-
-    _bat_path = _detect_bat_path()
-    if _bat_path:
-        _log(f"Battery    → {_bat_path}")
-    else:
-        _log("Battery    no encontrada")
 
     _gpu_card_path = _detect_gpu_card()
     if _gpu_card_path:
@@ -506,7 +464,6 @@ def main() -> None:
         threading.Thread(target=_poll, args=(fetch_disk, POLL_DISK), daemon=True),
         threading.Thread(target=_poll_network, daemon=True),
         threading.Thread(target=_poll, args=(fetch_fan, POLL_FAN), daemon=True),
-        threading.Thread(target=_poll, args=(fetch_battery, POLL_BAT), daemon=True),
     ]
 
     for t in threads:

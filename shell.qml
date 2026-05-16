@@ -5,6 +5,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Notifications
+import Quickshell.Services.UPower
 import "Components"
 import "Modals"
 
@@ -722,71 +723,104 @@ ShellRoot {
         }
     }
 
-    // ── BATTERY NOTIFICATIONS FIFO ────────────────────────────────────────
-    Process {
-        id: batteryFifo
-        running: true
-        command: ["bash", root._scriptsPath + "/qs-battery-fifo.sh"]
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: line => {
-                if (!root.shouldEmitInternal("battery", "popup", "popup")) return
+    // ── BATTERY NOTIFICATIONS — UPower reactive ───────────────────────────
+    property var _upBatDev:       UPower.displayDevice
+    // Track last notified state to avoid duplicate notifications on startup/ráfagas
+    property int _upBatLastState: -1
+    // Track last notified low-battery threshold (0 = none, 40 / 30 / 20)
+    property int _upBatLastLow:   0
 
-                const parts = line.trim().split(":")
-                const event = parts[0]
+    // Debounce timer — state changes can fire in bursts (HW quirk)
+    Timer {
+        id: _batStateDebounce
+        interval: 1500
+        onTriggered: root._handleBatStateChange()
+    }
 
-                if (event === "low") {
-                    const pct = parts[1] || "?"
-                    root.broadcastNotify(
-                        "󰂃 Batería baja",
-                        "Queda " + pct + "% de batería",
-                        "battery-low",
-                        true,
-                        false
-                    )
-                } else if (event === "state") {
-                    const status = parts[1] || ""
-                    const pct = parts[2] || "?"
-                    if (status === "Charging") {
-                        root.broadcastNotify(
-                            "󰂄 Cargando",
-                            "Cargador conectado — " + pct + "%",
-                            "battery-good",
-                            false,
-                            false
-                        )
-                    } else if (status === "Discharging") {
-                        root.broadcastNotify(
-                            "󰂃 Desconectado",
-                            "Cargador desconectado — " + pct + "%",
-                            "battery",
-                            false,
-                            false
-                        )
-                    }
-                } else if (event === "full") {
-                    const pct = parts[1] || "100"
-                    root.broadcastNotify(
-                        "󰁹 Carga completa",
-                        "Batería al " + pct + "%",
-                        "battery-full",
-                        false,
-                        false
-                    )
-                }
-            }
+    function _handleBatStateChange() {
+        if (!root.shouldEmitInternal("battery", "popup", "popup")) return
+        const dev = root._upBatDev
+        if (!dev || !dev.ready) return
+        const s   = dev.state
+        const pct = Math.round(dev.percentage)
+
+        // Skip if same state as last notification (avoids startup false-positives)
+        if (s === root._upBatLastState) return
+        root._upBatLastState = s
+
+        if (s === UPowerDeviceState.Charging || s === UPowerDeviceState.PendingCharge) {
+            root._upBatLastLow = 0   // reset threshold tracking on plug-in
+            root.broadcastNotify(
+                "󰂄 Cargando",
+                "Cargador conectado — " + pct + "%",
+                "battery-good", false, false
+            )
+        } else if (s === UPowerDeviceState.Discharging || s === UPowerDeviceState.PendingDischarge) {
+            root.broadcastNotify(
+                "󰂃 Desconectado",
+                "Cargador desconectado — " + pct + "%",
+                "battery", false, false
+            )
+        } else if (s === UPowerDeviceState.FullyCharged) {
+            root.broadcastNotify(
+                "󰁹 Carga completa",
+                "Batería al " + pct + "%",
+                "battery-full", false, false
+            )
         }
     }
 
-    // ── Default power mode on startup ─────────────────────────────────────
-    Process {
-        id: defaultPowerMode
-        command: ["sudo", root._scriptsPath + "/set-power-mode.sh", "balanced"]
-        onExited: function(ec) {
-            if (ec === 0) {
-                console.log("Power mode: balanced")
-            } else {
-                console.log("Power mode set failed (non-root?)")
+    Connections {
+        target: root._upBatDev ?? null
+
+        function onReadyChanged() {
+            // Capture initial state silently — no notification on startup
+            if (root._upBatDev && root._upBatDev.ready)
+                root._upBatLastState = root._upBatDev.state
+        }
+
+        function onStateChanged() {
+            // Debounce: restart timer, actual handling runs after 1.5 s of silence
+            _batStateDebounce.restart()
+        }
+
+        function onPercentageChanged() {
+            if (!root.shouldEmitInternal("battery", "popup", "popup")) return
+            const dev = root._upBatDev
+            if (!dev) return
+            const s = dev.state
+            // Only alert while discharging
+            if (s !== UPowerDeviceState.Discharging && s !== UPowerDeviceState.PendingDischarge) return
+            const pct = Math.round(dev.percentage)
+
+            // Notify once per threshold crossing, reset when charging
+            // Each threshold fires only once until the battery recharges past it
+            if (pct <= 20 && root._upBatLastLow < 20) {
+                root._upBatLastLow = 20
+                root.broadcastNotify(
+                    "󰂃 Batería crítica",
+                    "Solo queda " + pct + "% — conectá el cargador",
+                    "battery-caution", true, false
+                )
+            } else if (pct <= 30 && root._upBatLastLow < 30) {
+                root._upBatLastLow = 30
+                root.broadcastNotify(
+                    "󰁽 Batería baja",
+                    "Queda " + pct + "% de batería",
+                    "battery-low", false, false
+                )
+            } else if (pct <= 40 && root._upBatLastLow < 40) {
+                root._upBatLastLow = 40
+                root.broadcastNotify(
+                    "󰁿 Batería baja",
+                    "Queda " + pct + "% de batería",
+                    "battery-low", false, false
+                )
+            }
+            // Reset threshold tracker when battery recovers above 45%
+            // (gives margin so it doesn't re-notify immediately after plugging in briefly)
+            if (pct > 45 && root._upBatLastLow > 0) {
+                root._upBatLastLow = 0
             }
         }
     }
@@ -794,8 +828,7 @@ ShellRoot {
     Component.onCompleted: {
         loadNotificationConfig()
         console.log("Quickshell loaded")
-        console.log("✅ Backend | Workspaces | Power Menu | Weather | Notifications")
-        defaultPowerMode.running = true
+        console.log("✅ Backend | Workspaces | Power Menu | Weather | Notifications | UPower")
     }
 
     Component.onDestruction: {
@@ -806,7 +839,5 @@ ShellRoot {
         spotlightFifo.running = false
         volumeFifo.running = false
         brightnessFifo.running = false
-        batteryFifo.running = false
-        defaultPowerMode.running = false
     }
 }

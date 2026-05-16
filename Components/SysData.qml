@@ -1,13 +1,17 @@
 pragma Singleton
 import QtQuick
+import Quickshell.Services.UPower
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SysData — Centralized system data provider
-// Populated by the Python backend running via shell.qml's backendProcess.
-// Widgets read from here instead of spawning individual shell processes.
+// CPU/RAM/GPU/Disk/Net/Fan populated by Python backend via shell.qml.
+// Battery populated reactively from UPower (no polling).
 // ─────────────────────────────────────────────────────────────────────────────
 QtObject {
     id: data
+
+    // ── UPower battery (reactive, replaces backend polling) ────────────────
+    property var _upDev: UPower.displayDevice
 
     // ── CPU ────────────────────────────────────────────────────────────────
     property int cpuPercent: 0
@@ -53,11 +57,22 @@ QtObject {
     property string fanProfile: ""
     property bool fanAvailable: false
 
-    // ── Battery ───────────────────────────────────────────────────────────
-    property int batPercent: 0
-    property string batStatus: "Unknown"
-    property bool batCharging: false
-    property bool batAvailable: false
+    // ── Battery — reactivo via UPower ─────────────────────────────────────
+    property int    batPercent:   _upDev ? Math.round(_upDev.percentage) : 0
+    property bool   batAvailable: _upDev ? _upDev.isPresent && _upDev.isLaptopBattery : false
+    property bool   batCharging:  _upDev ? (_upDev.state === UPowerDeviceState.Charging ||
+                                             _upDev.state === UPowerDeviceState.PendingCharge) : false
+    property string batStatus: {
+        if (!_upDev) return "Unknown"
+        var s = _upDev.state
+        if (s === UPowerDeviceState.Charging)         return "Charging"
+        if (s === UPowerDeviceState.FullyCharged)     return "Full"
+        if (s === UPowerDeviceState.Discharging)      return "Discharging"
+        if (s === UPowerDeviceState.PendingCharge)    return "Charging"
+        if (s === UPowerDeviceState.PendingDischarge) return "Discharging"
+        if (s === UPowerDeviceState.Empty)            return "Empty"
+        return "Unknown"
+    }
 
     // ── Dispatch — called from shell.qml backend parser ───────────────────
     function dispatch(msg) {
@@ -107,12 +122,7 @@ QtObject {
             data.fanProfile = msg.pr
             data.fanAvailable = msg.a
             break
-        case "bat":
-            data.batAvailable = msg.a
-            data.batPercent = msg.p
-            data.batStatus = msg.s
-            data.batCharging = (msg.s === "Charging")
-            break
         }
+        // Note: "bat" case removed — battery is now reactive via UPower in SysData directly
     }
 }
