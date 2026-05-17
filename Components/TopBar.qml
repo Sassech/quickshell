@@ -14,7 +14,6 @@ PanelWindow {
 
     signal clipboardClicked(var screen)
     signal clockClicked(var screen)
-    signal mediaClicked(var screen)
     signal controlCenterClicked(var screen)
     
     // ── Aliases al WeatherProvider (instance lives in Weather widget) ───
@@ -59,14 +58,6 @@ PanelWindow {
                 MediaPlayer {
                     id: mediaPlayerContent
                     anchors.centerIn: parent
-                }
-
-                // Click en zona vacía del contenedor → abrir MediaModal
-                MouseArea {
-                    anchors.fill: parent
-                    z: -1
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.mediaClicked(root.screen)
                 }
             }
         }

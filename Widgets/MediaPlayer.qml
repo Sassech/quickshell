@@ -7,8 +7,6 @@ Row {
     id: root
     spacing: 8
 
-    signal clicked()
-
     // ── Player state ──────────────────────────────────────────────────────────
     property MprisPlayer _cachedPlayer: null
 
