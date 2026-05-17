@@ -124,9 +124,11 @@ Rectangle {
     // ── Detección de reproducción via Mpris nativo (event-driven, sin forks) ──
     function _checkMediaPlaying() {
         var playing = false
-        var players = Mpris.players.values || []
+        var players = (Mpris.players && Mpris.players.values) ? Mpris.players.values : []
         for (var i = 0; i < players.length; i++) {
-            if (players[i].playbackState === MprisPlaybackState.Playing) {
+            const player = players[i]
+            if (!player) continue
+            if (player.playbackState === MprisPlaybackState.Playing) {
                 playing = true
                 break
             }
@@ -134,7 +136,7 @@ Rectangle {
         root.mediaPlaying = playing
         if (root.mediaPlaying && !root.inhibiting) {
             root.inhibiting = true
-            root.inhibitProc.running = true
+            if (root.inhibitProc) root.inhibitProc.running = true
             saveState({ inhibiting: true })
         }
     }

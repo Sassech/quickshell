@@ -5,6 +5,7 @@ import os
 import subprocess
 import json
 import shutil
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_FILE = "/tmp/qs-clipboard.log"
@@ -38,8 +39,9 @@ def main() -> None:
             print("[]")
             return
 
-        entries = []
+        entries: list[dict] = []
         imagemagick = has_imagemagick()
+        thumb_tasks: list[tuple[int, str]] = []  # (index, entry_id)
 
         for line in result.stdout.splitlines():
             if "\t" not in line:
@@ -49,17 +51,30 @@ def main() -> None:
             entry_id = parts[0]
             preview = parts[1] if len(parts) > 1 else ""
             is_binary = preview.startswith("[[ binary")
-            thumb = ""
-
-            if is_binary and "png" in preview.lower() and imagemagick:
-                thumb = generate_thumbnail(entry_id)
 
             entries.append({
                 "id": entry_id,
                 "preview": preview,
                 "isBinary": is_binary,
-                "thumb": thumb
+                "thumb": ""
             })
+
+            if is_binary and "png" in preview.lower() and imagemagick:
+                thumb_tasks.append((len(entries) - 1, entry_id))
+
+        # Generar thumbnails en paralelo
+        if thumb_tasks:
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                futures = {
+                    pool.submit(generate_thumbnail, eid): idx
+                    for idx, eid in thumb_tasks
+                }
+                for future in as_completed(futures):
+                    idx = futures[future]
+                    try:
+                        entries[idx]["thumb"] = future.result()
+                    except Exception as e:
+                        log("[thumb] Error en future para idx %d: %s" % (idx, e))
 
         print(json.dumps(entries))
 

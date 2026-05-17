@@ -35,20 +35,13 @@ PanelWindow {
         }
     }
 
-    // Pre-carga al inicio y mantiene datos frescos
+    // Pre-carga al inicio para que la primera apertura sea instantánea
     Component.onCompleted: loadEntries()
-    Timer {
-        interval: 60000
-        running: true; repeat: true
-        onTriggered: if (!root.visible) loadEntries()
-    }
 
     property string _listBuf: ""
-    property bool   _loading: false
 
     function loadEntries() {
-        if (_loading) return
-        _loading = true
+        if (isLoading) return
         isLoading = true
         _listBuf = ""
         listProc.running = true
@@ -61,6 +54,13 @@ PanelWindow {
             return e.preview.toLowerCase().indexOf(q) >= 0
         }) : allEntries
         for (var i = 0; i < src.length; i++) displayModel.append(src[i])
+    }
+
+    // ── Debounce búsqueda ────────────────────────────────────────────────
+    Timer {
+        id: searchDebounce
+        interval: 150
+        onTriggered: root.updateDisplay()
     }
 
     // ── Carga la lista ──────────────────────────────────────────────────
@@ -89,7 +89,6 @@ PanelWindow {
                 root.allEntries = []
             }
 
-            root._loading = false
             root.isLoading = false
             root.entryCount = root.allEntries.length
             root.countChanged(root.entryCount)
@@ -129,11 +128,6 @@ PanelWindow {
         id: delayClose
         interval: 100
         onTriggered: root.visible = false
-    }
-
-    // Recargar manualmente con boton o al abrir
-    function refresh() {
-        loadEntries()
     }
 
     // ── Limpia todo ─────────────────────────────────────────────────────
@@ -259,7 +253,6 @@ PanelWindow {
                     anchors.fill: parent
                     leftPadding: 40
                     rightPadding: 12
-                    anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: 16
                     color: Theme.text
                     selectionColor: Theme.accent
@@ -276,8 +269,16 @@ PanelWindow {
                         verticalAlignment: Text.AlignVCenter
                     }
 
-                    onTextChanged: root.updateDisplay()
+                    onTextChanged: searchDebounce.restart()
                     Keys.onEscapePressed: root.visible = false
+                    Keys.onReturnPressed: {
+                        if (displayModel.count > 0)
+                            copyProc.copyEntry(displayModel.get(0).id)
+                    }
+                    Keys.onDownPressed: {
+                        listView.focus = true
+                        listView.currentIndex = 0
+                    }
                 }
             }
 
@@ -312,6 +313,9 @@ PanelWindow {
                     model: displayModel
                     spacing: 2
                     clip: true
+                    focus: false
+                    keyNavigationEnabled: true
+                    highlightFollowsCurrentItem: true
                     ScrollBar.vertical: ScrollBar {
                         policy: ScrollBar.AsNeeded
                         contentItem: Rectangle {
@@ -320,6 +324,23 @@ PanelWindow {
                             color: Theme.surface3
                         }
                     }
+
+                    // Resaltado de navegación por teclado
+                    highlight: Rectangle {
+                        radius: 8
+                        color: Qt.rgba(1, 1, 1, 0.08)
+                        Behavior on y { NumberAnimation { duration: 100 } }
+                    }
+
+                    Keys.onReturnPressed: {
+                        if (currentIndex >= 0 && currentIndex < displayModel.count)
+                            copyProc.copyEntry(displayModel.get(currentIndex).id)
+                    }
+                    Keys.onEnterPressed: {
+                        if (currentIndex >= 0 && currentIndex < displayModel.count)
+                            copyProc.copyEntry(displayModel.get(currentIndex).id)
+                    }
+                    Keys.onEscapePressed: root.visible = false
 
                     delegate: Rectangle {
                         id: row

@@ -78,7 +78,7 @@ PanelWindow {
 
     // Password fetch shared state (for revealing saved PSK via nmcli -s)
     property string _wifiPwFetchResult:    ""
-    property int    _wifiPwFetchResultIdx: -2
+    property int    wifiPwFetchResultIdx: -2
     property int    _wifiPwFetchIdx:       -1
 
     // Buffers
@@ -527,20 +527,20 @@ PanelWindow {
         return players.length > 0 ? players[0] : null
     }
 
-    property real playerPos: 0
+    property real playerPos: 0   // en segundos (igual que el API)
     property int  _posSync: 0
 
     function _syncPlayerPos() {
-        if (root.mprisPlayer && root.mprisPlayer.position !== undefined)
+        if (root.mprisPlayer && root.mprisPlayer.positionSupported)
             root.playerPos = root.mprisPlayer.position
     }
 
     Timer {
         interval: 1000
         repeat: true
-        running: root.visible && root.mprisPlayer?.playbackState === MprisPlaybackState.Playing
+        running: root.visible && root.mprisPlayer?.isPlaying
         onTriggered: {
-            root.playerPos += 1000
+            root.playerPos += 1   // 1 segundo
             root._posSync++
             if (root._posSync >= 10) { root._posSync = 0; root._syncPlayerPos() }
         }
@@ -548,7 +548,7 @@ PanelWindow {
 
     Connections {
         target: root.mprisPlayer ?? null
-        function onTrackTitleChanged() { root._syncPlayerPos(); root._posSync = 0 }
+        function onTrackChanged() { root._syncPlayerPos(); root._posSync = 0 }
     }
 
     // ── Procesos auxiliares ───────────────────────────────────────────────
@@ -1068,7 +1068,7 @@ PanelWindow {
     function wifiFetchPasswordFor(ssid, idx) {
         root._wifiPwFetchIdx       = idx
         root._wifiPwFetchResult    = ""
-        root._wifiPwFetchResultIdx = -2
+        root.wifiPwFetchResultIdx = -2
         wSharedPwFetchProc._buf    = ""
         wSharedPwFetchProc.command = [
             "bash", "-c",
@@ -1218,7 +1218,7 @@ PanelWindow {
             var pw = wSharedPwFetchProc._buf.trim()
             wSharedPwFetchProc._buf    = ""
             root._wifiPwFetchResult    = pw
-            root._wifiPwFetchResultIdx = root._wifiPwFetchIdx
+            root.wifiPwFetchResultIdx = root._wifiPwFetchIdx
         }
     }
 
@@ -1262,7 +1262,7 @@ PanelWindow {
             root._gpuLoaded = false
             getBrightnessProc.running = true
             diskDetailProc.running    = true
-            root._syncPlayerPos()
+            Qt.callLater(root._syncPlayerPos)
             root._pwRev++
             root._btRev++
             Qt.callLater(function() { ccCard.forceActiveFocus() })
@@ -2431,15 +2431,15 @@ PanelWindow {
                                          root.wifiFetchPasswordFor(modelData.name, index)
                                      }
 
-                                     Connections {
-                                         target: root
-                                         function onWifiPwFetchResultIdxChanged() {
-                                             if (root._wifiPwFetchResultIdx !== index) return
-                                             wNetRow.realPassword = root._wifiPwFetchResult
-                                             wNetRow.fetchingPw   = false
-                                             if (root._wifiPwFetchResult !== "") wNetRow.showPwText = true
-                                         }
-                                     }
+                                    Connections {
+                                        target: root
+                                        function onWifiPwFetchResultIdxChanged() {
+                                            if (root.wifiPwFetchResultIdx !== index) return
+                                            wNetRow.realPassword = root._wifiPwFetchResult
+                                            wNetRow.fetchingPw   = false
+                                            if (root._wifiPwFetchResult !== "") wNetRow.showPwText = true
+                                        }
+                                    }
 
                                      // ── Network row ────────────────────────────────
                                      Rectangle {
@@ -4296,17 +4296,27 @@ PanelWindow {
                     Rectangle {
                         id: innerPlayer
                         anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: 8 }
-                        height: 80; radius: 10; color: Theme.surface2
+                        height: 90; radius: 10; color: Theme.surface2
+
+                        // ── Helper: formatear segundos → m:ss ─────────────
+                        function fmtSec(sec) {
+                            if (!sec || sec <= 0) return "0:00"
+                            const s = Math.floor(sec)
+                            const m = Math.floor(s / 60)
+                            return m + ":" + String(s % 60).padStart(2, "0")
+                        }
 
                         RowLayout {
                             anchors { fill: parent; margins: 10 }
                             spacing: 10
 
-                            // Album art
+                            // ── Artwork ───────────────────────────────────
                             Rectangle {
-                                Layout.preferredWidth: 52; Layout.preferredHeight: 52
+                                Layout.preferredWidth: 56; Layout.preferredHeight: 56
+                                Layout.alignment: Qt.AlignVCenter
                                 radius: 8; color: Theme.surface3; clip: true
                                 Image {
+                                    id: ccArtwork
                                     anchors.fill: parent
                                     source: root.mprisPlayer?.trackArtUrl ?? ""
                                     fillMode: Image.PreserveAspectCrop
@@ -4314,56 +4324,118 @@ PanelWindow {
                                 }
                                 Text {
                                     anchors.centerIn: parent
-                                    visible: (root.mprisPlayer?.trackArtUrl ?? "") === "" ||
-                                             parent.children[1]?.status !== Image.Ready
-                                    text: "󰝚"; font.pixelSize: 20; color: Theme.muted2
+                                    visible: !ccArtwork.visible
+                                    text: "󰝚"; font.pixelSize: 22; color: Theme.muted2
                                 }
                             }
 
-                            // Info + controls
-                            Column {
+                            // ── Info + barra + controles ──────────────────
+                            ColumnLayout {
                                 Layout.fillWidth: true
+                                Layout.fillHeight: true
                                 spacing: 4
 
-                                Text {
-                                    width: parent.width
-                                    text: root.mprisPlayer?.trackTitle ?? "Nothing playing"
-                                    font.pixelSize: 12; font.weight: Font.DemiBold
-                                    color: Theme.text; elide: Text.ElideRight
-                                }
-                                Text {
-                                    width: parent.width
-                                    text: root.mprisPlayer?.trackArtist ?? ""
-                                    font.pixelSize: 10; color: Theme.muted1; elide: Text.ElideRight
+                                // Título + ícono de app
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+
+                                    Column {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+                                        Text {
+                                            width: parent.width
+                                            text: root.mprisPlayer?.trackTitle ?? "Sin reproductor"
+                                            font.pixelSize: 12; font.weight: Font.DemiBold
+                                            color: Theme.text; elide: Text.ElideRight
+                                        }
+                                        Text {
+                                            width: parent.width
+                                            text: root.mprisPlayer?.trackArtist ?? ""
+                                            font.pixelSize: 10; color: Theme.muted1; elide: Text.ElideRight
+                                        }
+                                    }
+
+                                    Text {
+                                        text: "󰓇"
+                                        font.pixelSize: 14
+                                        color: Theme.muted2
+                                        visible: root.mprisPlayer !== null
+                                    }
                                 }
 
-                                Row {
-                                    spacing: 4
-                                    Repeater {
-                                        model: [
-                                            { icon: "󰒮", action: "prev" },
-                                            { icon: root.mprisPlayer?.playbackState === MprisPlaybackState.Playing ? "󰏤" : "󰐊", action: "play" },
-                                            { icon: "󰒭", action: "next" }
-                                        ]
-                                        Rectangle {
-                                            required property var modelData
-                                            width: 26; height: 26; radius: 7
-                                            color: pCtrlHov.containsMouse ? Theme.surface3 : "transparent"
-                                            Behavior on color { ColorAnimation { duration: 80 } }
-                                            Text { anchors.centerIn: parent; text: modelData.icon; font.pixelSize: 14; color: Theme.text }
-                                            MouseArea {
-                                                id: pCtrlHov; anchors.fill: parent; hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: {
-                                                    var p = root.mprisPlayer
-                                                    if (!p) return
-                                                    if (modelData.action === "prev")       p.previous()
-                                                    else if (modelData.action === "next")  p.next()
-                                                    else if (p.playbackState === MprisPlaybackState.Playing) p.pause()
-                                                    else p.play()
+                                // Barra de progreso (solo visual)
+                                Item {
+                                    Layout.fillWidth: true
+                                    height: 3
+
+                                    property real progress: {
+                                        const p = root.mprisPlayer
+                                        if (!p || !p.lengthSupported || p.length <= 0) return 0
+                                        return Math.max(0, Math.min(1, root.playerPos / p.length))
+                                    }
+
+                                    Rectangle {
+                                        anchors.fill: parent; radius: 2
+                                        color: Theme.surface3
+                                    }
+                                    Rectangle {
+                                        width: parent.width * parent.progress
+                                        height: parent.height; radius: 2
+                                        color: Theme.accent
+                                    }
+                                }
+
+                                // Tiempo | controles | duración
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 0
+
+                                    Text {
+                                        text: innerPlayer.fmtSec(root.playerPos)
+                                        font.pixelSize: 9; color: Theme.muted2
+                                    }
+
+                                    Item { Layout.fillWidth: true }
+
+                                    // Controles
+                                    Row {
+                                        spacing: 2
+                                        Repeater {
+                                            model: [
+                                                { icon: "󰒮", action: "prev" },
+                                                { icon: root.mprisPlayer?.isPlaying ? "󰏤" : "󰐊", action: "play" },
+                                                { icon: "󰒭", action: "next" }
+                                            ]
+                                            Rectangle {
+                                                required property var modelData
+                                                width: 24; height: 24; radius: 6
+                                                color: pCtrlHov.containsMouse ? Theme.surface3 : "transparent"
+                                                Behavior on color { ColorAnimation { duration: 80 } }
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: modelData.icon; font.pixelSize: 13; color: Theme.text
+                                                }
+                                                MouseArea {
+                                                    id: pCtrlHov; anchors.fill: parent; hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        const p = root.mprisPlayer
+                                                        if (!p) return
+                                                        if      (modelData.action === "prev") p.previous()
+                                                        else if (modelData.action === "next") p.next()
+                                                        else p.togglePlaying()
+                                                    }
                                                 }
                                             }
                                         }
+                                    }
+
+                                    Item { Layout.fillWidth: true }
+
+                                    Text {
+                                        text: innerPlayer.fmtSec(root.mprisPlayer?.length ?? 0)
+                                        font.pixelSize: 9; color: Theme.muted2
                                     }
                                 }
                             }
