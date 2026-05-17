@@ -58,7 +58,7 @@ QtObject {
     property bool fanAvailable: false
 
     // ── Battery — reactivo via UPower ─────────────────────────────────────
-    property int    batPercent:   _upDev ? Math.round(_upDev.percentage) : 0
+    property int    batPercent:   _upDev ? Math.round(_upDev.percentage * 100) : 0
     property bool   batAvailable: _upDev ? _upDev.isPresent && _upDev.isLaptopBattery : false
     property bool   batCharging:  _upDev ? (_upDev.state === UPowerDeviceState.Charging ||
                                              _upDev.state === UPowerDeviceState.PendingCharge) : false

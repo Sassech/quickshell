@@ -24,7 +24,6 @@ PanelWindow {
     anchors.left: true; anchors.right: true
 
     // ── Señales hacia el orquestador (shell.qml) ──────────────────────────
-    signal requestOpenAudio(var screen)
 
     // ── Power confirm state ───────────────────────────────────────────────
     property bool   _showConfirm:  false
@@ -35,7 +34,8 @@ PanelWindow {
     property int  _btRev: 0
 
     // ── Paneles expandibles en toggles ───────────────────────────────────
-    property string _expandedToggle: ""   // "wifi" | "power" | "battery" | "language" | ""
+    property string _expandedToggle: ""   // "wifi" | "audio" | "power" | "battery" | "language" | ""
+    property bool   _audioShowSources: true
 
     // ── WiFi inline state — Quickshell.Networking API ────────────────────
     // Networking singleton + first WiFi device
@@ -120,7 +120,7 @@ PanelWindow {
     property var    _upowerDev:    UPower.displayDevice
     // Derived properties — reactive, no polling needed
     property bool   _batAvailableUP: _upowerDev ? _upowerDev.isPresent && _upowerDev.isLaptopBattery : false
-    property real   _batPctUP:       _upowerDev ? _upowerDev.percentage       : 0
+    property real   _batPctUP:       _upowerDev ? _upowerDev.percentage * 100 : 0
     property bool   _batChargingUP:  _upowerDev ? (_upowerDev.state === UPowerDeviceState.Charging ||
                                                     _upowerDev.state === UPowerDeviceState.PendingCharge) : false
     property bool   _batFullUP:      _upowerDev ? _upowerDev.state === UPowerDeviceState.FullyCharged : false
@@ -196,40 +196,24 @@ PanelWindow {
     property int    _homeTotal:    0
     property string _diskBuf:      ""
 
-    // ── Audio — sink/source default ───────────────────────────────────────
+    // ── Audio — Pipewire API nativa ───────────────────────────────────────
     property var defaultSink:   Pipewire.defaultAudioSink
     property var defaultSource: Pipewire.defaultAudioSource
 
     PwObjectTracker { objects: [root.defaultSink, root.defaultSource] }
 
-    property real masterVolume: 0.75
-    property bool masterMuted:  false
-    property real micVolume:    0.75
-    property bool micMuted:     false
+    // masterVolume / masterMuted / micVolume / micMuted se enlazan reactivamente
+    // desde el audio del sink/source default — sin procesos externos
+    property real masterVolume: defaultSink?.audio?.volume  ?? 0.75
+    property bool masterMuted:  defaultSink?.audio?.muted   ?? false
+    property real micVolume:    defaultSource?.audio?.volume ?? 0.75
+    property bool micMuted:     defaultSource?.audio?.muted  ?? false
 
-    // ── Brillo ────────────────────────────────────────────────────────────
-    property int brightness: 50
-    property bool _brightnessReady: false
-
-    // ── Apps de audio (sink-inputs de Pipewire) ───────────────────────────
-    property bool appsExpanded: false
-    property int  _pwRev: 0
-
-    // Tracker para todos los stream nodes
-    Instantiator {
-        model: Pipewire.nodes
-        delegate: Connections {
-            required property var modelData
-            target: modelData.audio
-            function onVolumesChanged() { root._pwRev++ }
-            function onMutedChanged()   { root._pwRev++ }
-        }
-    }
-
+    // Mantener sincronizados cuando cambia el sink/source default
     Connections {
         target: Pipewire
-        function onDefaultAudioSinkChanged()   { root._pwRev++; root._syncSink() }
-        function onDefaultAudioSourceChanged() { root._pwRev++; root._syncSource() }
+        function onDefaultAudioSinkChanged()   { root._pwRev++ }
+        function onDefaultAudioSourceChanged() { root._pwRev++ }
     }
 
     Connections {
@@ -256,6 +240,25 @@ PanelWindow {
         }
     }
 
+    // ── Brillo ────────────────────────────────────────────────────────────
+    property int brightness: 50
+    property bool _brightnessReady: false
+
+    // ── Apps de audio (sink-inputs de Pipewire) ───────────────────────────
+    property bool appsExpanded: false
+    property int  _pwRev: 0
+
+    // Tracker para todos los stream nodes (reactivo — sin polling)
+    Instantiator {
+        model: Pipewire.nodes
+        delegate: Connections {
+            required property var modelData
+            target: modelData.audio
+            function onVolumesChanged() { root._pwRev++ }
+            function onMutedChanged()   { root._pwRev++ }
+        }
+    }
+
     // ── Streams activos (aplicaciones) ────────────────────────────────────
     property var audioStreams: {
         _pwRev
@@ -270,6 +273,181 @@ PanelWindow {
             out.push({ name: name, label: desc, node: node })
         }
         return out
+    }
+
+    // ── Audio device lists (sinks / sources) ──────────────────────────────
+    // Puerto de disponibilidad — sigue necesitando pactl (no expuesto por API)
+    property var    _audioSinkAvail:   ({})   // { nodeName: bool }
+    property var    _audioSourceAvail: ({})
+    property string _audioSinkBuf:     ""
+    property string _audioSourceBuf:   ""
+
+    // Computed — se recalcula cuando cambia _pwRev o los mapas de disponibilidad
+    property var audioSinks: {
+        _pwRev; _audioSinkAvail
+        var activeName = root.defaultSink?.name ?? ""
+        var out = []
+        var all = Pipewire.nodes.values
+        for (var i = 0; i < all.length; i++) {
+            var node = all[i]
+            if (!node || !node.isSink || node.isStream) continue
+            var name = node.name ?? ""
+            if (!name || name.endsWith(".monitor")) continue
+            if (root._audioSinkAvail[name] !== true) continue
+            out.push({
+                id: name,
+                label: _audioFormatDesc(node.description, name),
+                icon:  _audioSinkIcon(name),
+                active: name === activeName,
+                node:  node
+            })
+        }
+        return out
+    }
+
+    property var audioSources: {
+        _pwRev; _audioSourceAvail
+        var activeName = root.defaultSource?.name ?? ""
+        var out = []
+        var all = Pipewire.nodes.values
+        for (var i = 0; i < all.length; i++) {
+            var node = all[i]
+            if (!node || node.isSink || node.isStream) continue
+            var name = node.name ?? ""
+            if (!name || name.endsWith(".monitor")) continue
+            if (root._audioSourceAvail[name] !== true) continue
+            out.push({
+                id: name,
+                label: _audioFormatDesc(node.description, name),
+                icon:  _audioSourceIcon(name),
+                active: name === activeName,
+                node:  node
+            })
+        }
+        return out
+    }
+
+    function _audioSinkIcon(name) {
+        const n = name.toLowerCase()
+        if (n.includes("hdmi") || n.includes("displayport") || n.includes("iec958")) return "󰡁"
+        if (n.includes("bluez") || n.includes("bluetooth")) return "󰋋"
+        if (n.includes("usb")) return "󱊣"
+        if (n.includes("headphone") || n.includes("headset")) return "󰋋"
+        return "󰕾"
+    }
+
+    function _audioSourceIcon(name) {
+        const n = name.toLowerCase()
+        if (n.includes("bluez") || n.includes("bluetooth")) return "󰋋"
+        if (n.includes("usb")) return "󱊣"
+        if (n.includes("webcam") || n.includes("camera")) return "󰄀"
+        return "󰍹"
+    }
+
+    function _audioFormatDesc(desc, name) {
+        if (desc && desc !== "" && desc !== "(null)") return desc
+        var n = (name || "")
+            .replace(/^alsa_(output|input)\./, "")
+            .replace(/^bluez_(output|input)\.[0-9A-Fa-f:_]+$/, "Bluetooth")
+            .replace(/^bluez_(output|input)\./, "Bluetooth: ")
+            .replace(/pci-[0-9a-f]{4}_[0-9a-f]{2}_[0-9a-f]{2}\.\d+\./, "")
+            .replace(/usb-[^.]+\./, "USB: ")
+            .replace(/[-_.]+/g, " ").trim()
+        return n.replace(/\b\w/g, function(c) { return c.toUpperCase() })
+    }
+
+    function setDefaultSink(entry) {
+        if (!entry.node) return
+        // API nativa para cambiar el sink default
+        Pipewire.preferredDefaultAudioSink = entry.node
+        // Mover streams activos al nuevo sink (no expuesto por API)
+        var safe = entry.id.replace(/'/g, "'\\''")
+        _audioMoveSinkProc.command = ["bash", "-c",
+            "pactl list short sink-inputs | awk '{print $1}' | " +
+            "xargs -r -I{} pactl move-sink-input {} '" + safe + "' 2>/dev/null"]
+        _audioMoveSinkProc.running = true
+    }
+
+    function setDefaultSource(entry) {
+        if (!entry.node) return
+        Pipewire.preferredDefaultAudioSource = entry.node
+        var safe = entry.id.replace(/'/g, "'\\''")
+        _audioMoveSourceProc.command = ["bash", "-c",
+            "pactl list short source-outputs | awk '{print $1}' | " +
+            "xargs -r -I{} pactl move-source-output {} '" + safe + "' 2>/dev/null"]
+        _audioMoveSourceProc.running = true
+    }
+
+    function loadAudioDevices() {
+        _audioSinkBuf   = ""
+        _audioSourceBuf = ""
+        _audioSinkAvailProc.running   = true
+        _audioSourceAvailProc.running = true
+    }
+
+    // Fetch port availability (pactl — no expuesto por Pipewire API)
+    Process {
+        id: _audioSinkAvailProc
+        command: ["bash", "-c", "pactl --format=json list sinks 2>/dev/null"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._audioSinkBuf += d + "\n" }
+        onExited: {
+            try {
+                var data = JSON.parse(root._audioSinkBuf)
+                var map = ({})
+                for (var i = 0; i < data.length; i++) {
+                    var s = data[i]; var name = s.name || ""; if (!name) continue
+                    var ports = s.ports || []
+                    if (ports.length === 0) { map[name] = true; continue }
+                    var ok = false
+                    for (var p = 0; p < ports.length; p++) {
+                        var av = (ports[p].availability || "").toString().toLowerCase()
+                        if (av !== "no disponible" && av !== "not available") { ok = true; break }
+                    }
+                    map[name] = ok
+                }
+                root._audioSinkAvail = map
+                root._pwRev++
+            } catch(e) {}
+            root._audioSinkBuf = ""
+        }
+    }
+
+    Process {
+        id: _audioSourceAvailProc
+        command: ["bash", "-c", "pactl --format=json list sources 2>/dev/null"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._audioSourceBuf += d + "\n" }
+        onExited: {
+            try {
+                var data = JSON.parse(root._audioSourceBuf)
+                var map = ({})
+                for (var i = 0; i < data.length; i++) {
+                    var s = data[i]; var name = s.name || ""
+                    if (!name || name.endsWith(".monitor")) continue
+                    var ports = s.ports || []
+                    if (ports.length === 0) { map[name] = true; continue }
+                    var ok = false
+                    for (var p = 0; p < ports.length; p++) {
+                        var av = (ports[p].availability || "").toString().toLowerCase()
+                        if (av !== "no disponible" && av !== "not available") { ok = true; break }
+                    }
+                    map[name] = ok
+                }
+                root._audioSourceAvail = map
+                root._pwRev++
+            } catch(e) {}
+            root._audioSourceBuf = ""
+        }
+    }
+
+    // Mover streams al nuevo sink/source (pactl — necesario, no expuesto por API)
+    Process { id: _audioMoveSinkProc;   command: ["bash", "-c", ""] }
+    Process { id: _audioMoveSourceProc; command: ["bash", "-c", ""] }
+
+    // Refresh cada 5 s mientras el panel esté abierto
+    Timer {
+        interval: 5000; repeat: true
+        running: root.visible && root._expandedToggle === "audio"
+        onTriggered: root.loadAudioDevices()
     }
 
     // ── Perfil de energía — UPower PowerProfiles API ─────────────────────
@@ -388,25 +566,6 @@ PanelWindow {
         }
     }
 
-    // Leer volumen master via wpctl
-    Process {
-        id: getVolProc
-        command: ["bash", "-c", "wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null; wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._buf += d + "\n" }
-        onExited: {
-            var lines = root._buf.trim().split("\n")
-            root._buf = ""
-            for (var i = 0; i < lines.length; i++) {
-                var m = lines[i].match(/Volume:\s*([\d.]+)(\s*\[MUTED\])?/)
-                if (!m) continue
-                var v = parseFloat(m[1])
-                if (isNaN(v)) continue
-                if (i === 0) { root.masterVolume = v; root.masterMuted = !!m[2] }
-                if (i === 1) { root.micVolume = v; root.micMuted = !!m[2] }
-            }
-        }
-    }
-
     // Aplicar brillo
     Process {
         id: setBrightnessProc
@@ -414,59 +573,27 @@ PanelWindow {
         command: ["bash", "-c", "brightnessctl set " + targetPct + "% 2>/dev/null"]
     }
 
-    // Mutear/desmutear master
-    Process {
-        id: toggleMasterMuteProc
-        command: ["bash", "-c", "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"]
-        onExited: { root._buf = ""; getVolProc.running = true }
-    }
-
-    // Mutear/desmutear mic
-    Process {
-        id: toggleMicMuteProc
-        command: ["bash", "-c", "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"]
-        onExited: { root._buf = ""; getVolProc.running = true }
-    }
-
-    // Setear volumen master
-    Process {
-        id: setMasterVolProc
-        property real targetVol: 0.75
-        command: ["bash", "-c", "wpctl set-volume @DEFAULT_AUDIO_SINK@ " + targetVol.toFixed(2)]
-    }
-
-    // Setear volumen mic
-    Process {
-        id: setMicVolProc
-        property real targetVol: 0.75
-        command: ["bash", "-c", "wpctl set-volume @DEFAULT_AUDIO_SOURCE@ " + targetVol.toFixed(2)]
-    }
-
-    // ── Funciones internas ────────────────────────────────────────────────
-    function _syncSink() {
-        var v = root.defaultSink?.audio?.volume
-        if (v !== undefined && !isNaN(v)) root.masterVolume = v
-        var m = root.defaultSink?.audio?.muted
-        if (m !== undefined) root.masterMuted = m
-    }
-
-    function _syncSource() {
-        var v = root.defaultSource?.audio?.volume
-        if (v !== undefined && !isNaN(v)) root.micVolume = v
-        var m = root.defaultSource?.audio?.muted
-        if (m !== undefined) root.micMuted = m
-    }
-
+    // ── Funciones de audio — Pipewire API nativa ──────────────────────────
     function setMasterVolume(v) {
         root.masterVolume = v
-        setMasterVolProc.targetVol = v
-        if (!setMasterVolProc.running) setMasterVolProc.running = true
+        if (root.defaultSink?.audio) root.defaultSink.audio.volume = v
     }
 
     function setMicVol(v) {
         root.micVolume = v
-        setMicVolProc.targetVol = v
-        if (!setMicVolProc.running) setMicVolProc.running = true
+        if (root.defaultSource?.audio) root.defaultSource.audio.volume = v
+    }
+
+    function toggleMasterMute() {
+        if (root.defaultSink?.audio) {
+            root.defaultSink.audio.muted = !root.defaultSink.audio.muted
+        }
+    }
+
+    function toggleMicMute() {
+        if (root.defaultSource?.audio) {
+            root.defaultSource.audio.muted = !root.defaultSource.audio.muted
+        }
     }
 
     function setBrightness(pct) {
@@ -1134,7 +1261,6 @@ PanelWindow {
             root._cpuLoaded = false
             root._gpuLoaded = false
             getBrightnessProc.running = true
-            getVolProc.running        = true
             diskDetailProc.running    = true
             root._syncPlayerPos()
             root._pwRev++
@@ -1209,7 +1335,7 @@ PanelWindow {
                             model: [
                                 { icon: "⏻",  label: "Shut down",  cmd: ["systemctl", "poweroff"],        color: "#ff7b72", critical: true  },
                                 { icon: "󰜉",  label: "Reboot",     cmd: ["systemctl", "reboot"],          color: "#e3b341", critical: true  },
-                                { icon: "󰌾",  label: "Lock",       cmd: ["loginctl", "lock-session"],     color: "#79c0ff", critical: false },
+                                { icon: "󰌾",  label: "Lock",       cmd: ["hyprlock"],                     color: "#79c0ff", critical: false },
                                 { icon: "󰍃",  label: "Log out",    cmd: ["hyprctl", "dispatch", "exit"],  color: "#d2a8ff", critical: false },
                                 { icon: "󰒲",  label: "Sleep",      cmd: ["systemctl", "suspend"],         color: "#7ee787", critical: false }
                             ]
@@ -1308,7 +1434,7 @@ PanelWindow {
                             MouseArea {
                                 id: muteHov; anchors.fill: parent; hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: { if (!toggleMasterMuteProc.running) toggleMasterMuteProc.running = true }
+                                onClicked: root.toggleMasterMute()
                             }
                         }
                     }
@@ -1388,7 +1514,7 @@ PanelWindow {
                             MouseArea {
                                 id: micHov; anchors.fill: parent; hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: { if (!toggleMicMuteProc.running) toggleMicMuteProc.running = true }
+                                onClicked: root.toggleMicMute()
                             }
                         }
                     }
@@ -1593,14 +1719,9 @@ PanelWindow {
                                 MouseArea {
                                     id: streamMutHov; anchors.fill: parent; hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
+                                     onClicked: {
                                         var n = streamRow.modelData.node
-                                        if (n && n.audio) {
-                                            var safe = (streamRow.modelData.name || "").replace(/'/g, "'\\''")
-                                            streamMuteProc.command = ["bash", "-c",
-                                                "pactl set-sink-input-mute " + n.id + " toggle 2>/dev/null"]
-                                            streamMuteProc.running = true
-                                        }
+                                        if (n && n.audio) n.audio.muted = !n.audio.muted
                                     }
                                 }
                             }
@@ -1642,22 +1763,12 @@ PanelWindow {
                                     anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                     onPositionChanged: mouse => {
                                         if (!(mouse.buttons & Qt.LeftButton)) return
-                                        var v = Math.max(0, Math.min(1.5, mouse.x / stTrack.width))
                                         var n = streamRow.modelData.node
-                                        if (n && n.id !== undefined) {
-                                            streamVolProc.command = ["bash", "-c",
-                                                "pactl set-sink-input-volume " + n.id + " " + v.toFixed(2) + " 2>/dev/null"]
-                                            if (!streamVolProc.running) streamVolProc.running = true
-                                        }
+                                        if (n?.audio) n.audio.volume = Math.max(0, Math.min(1.5, mouse.x / stTrack.width))
                                     }
                                     onClicked: mouse => {
-                                        var v = Math.max(0, Math.min(1.5, mouse.x / stTrack.width))
                                         var n = streamRow.modelData.node
-                                        if (n && n.id !== undefined) {
-                                            streamVolProc.command = ["bash", "-c",
-                                                "pactl set-sink-input-volume " + n.id + " " + v.toFixed(2) + " 2>/dev/null"]
-                                            if (!streamVolProc.running) streamVolProc.running = true
-                                        }
+                                        if (n?.audio) n.audio.volume = Math.max(0, Math.min(1.5, mouse.x / stTrack.width))
                                     }
                                 }
                             }
@@ -1954,16 +2065,30 @@ PanelWindow {
                         }
                     }
 
-                    // ── Audio avanzado ────────────────────────────────────
+                    // ── Audio — dispositivos ──────────────────────────────
                     Rectangle {
                         id: audioCard2
                         property bool hov: false
                         width: (parent.width - 6) / 2; height: 52; radius: 10
-                        color: hov ? Theme.surface3 : Theme.surface2
+                        color: hov ? Theme.surface3
+                             : (root._expandedToggle === "audio"
+                                    ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                                    : Theme.surface2)
                         Behavior on color { ColorAnimation { duration: 100 } }
 
+                        Rectangle {
+                            visible: root._expandedToggle === "audio"
+                            width: 3; height: 24; radius: 2
+                            anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
+                            color: Theme.accent
+                        }
+
                         RowLayout {
-                            anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                            anchors {
+                                fill: parent
+                                leftMargin: root._expandedToggle === "audio" ? 14 : 10
+                                rightMargin: 10
+                            }
                             spacing: 8
 
                             Text { text: "󰕾"; font.pixelSize: 18; color: Theme.accent }
@@ -1971,24 +2096,33 @@ PanelWindow {
                             Column {
                                 Layout.fillWidth: true
                                 spacing: 2
+                                Text { text: "Audio"; font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text }
                                 Text {
-                                    text: "Audio"
-                                    font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text
-                                }
-                                Text {
-                                    text: "Outputs &amp; inputs"
-                                    font.pixelSize: 9; color: Theme.muted1
+                                    width: parent.width
+                                    text: {
+                                        var sink = root.defaultSink
+                                        if (!sink) return "No output"
+                                        return root._audioFormatDesc(sink.description, sink.name ?? "")
+                                    }
+                                    font.pixelSize: 9; color: Theme.muted1; elide: Text.ElideRight
                                 }
                             }
 
-                            Text { text: "󰅂"; font.pixelSize: 11; color: Theme.muted2 }
+                            Text {
+                                text: root._expandedToggle === "audio" ? "󰅃" : "󰅀"
+                                font.pixelSize: 11; color: Theme.muted2
+                            }
                         }
 
                         MouseArea {
                             anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onEntered: audioCard2.hov = true
                             onExited:  audioCard2.hov = false
-                            onClicked: { root.visible = false; root.requestOpenAudio(root.screen) }
+                            onClicked: {
+                                var next = root._expandedToggle === "audio" ? "" : "audio"
+                                root._expandedToggle = next
+                                if (next === "audio") root.loadAudioDevices()
+                            }
                         }
                     }
 
@@ -2949,6 +3083,169 @@ PanelWindow {
                                          }
                                      }
                                  }
+                             }
+                         }
+                     }
+                 }
+
+                 // ── Audio device panel ────────────────────────────────────
+                 Rectangle {
+                     width: parent.width
+                     height: root._expandedToggle === "audio" ? audioDevCol.implicitHeight + 16 : 0
+                     radius: 10; color: Theme.surface2; clip: true
+                     Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+
+                     Column {
+                         id: audioDevCol
+                         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+                         spacing: 8
+
+                         // ── Salidas ────────────────────────────────────────────
+                         Text {
+                             text: "Salidas de audio"
+                             font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.muted1
+                         }
+
+                         Column {
+                             width: parent.width; spacing: 4
+
+                             Repeater {
+                                 model: root.audioSinks
+
+                                 Rectangle {
+                                     id: sinkRow
+                                     required property var modelData
+                                     property bool hov: false
+                                     width: parent.width; height: 38; radius: 8
+                                     color: modelData.active
+                                         ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                                         : (hov ? Theme.surface3 : Theme.surface3)
+                                     Behavior on color { ColorAnimation { duration: 100 } }
+
+                                     Rectangle {
+                                         visible: sinkRow.modelData.active
+                                         width: 3; height: 18; radius: 2
+                                         anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
+                                         color: Theme.accent
+                                     }
+
+                                     RowLayout {
+                                         anchors { fill: parent; leftMargin: 14; rightMargin: 10 }
+                                         spacing: 8
+                                         Text {
+                                             text: sinkRow.modelData.icon; font.pixelSize: 14
+                                             color: sinkRow.modelData.active ? Theme.accent : Theme.muted2
+                                         }
+                                         Text {
+                                             Layout.fillWidth: true
+                                             text: sinkRow.modelData.label
+                                             font.pixelSize: 11; color: Theme.text; elide: Text.ElideRight
+                                         }
+                                         Text {
+                                             visible: sinkRow.modelData.active
+                                             text: "Activa"; font.pixelSize: 9; color: Theme.accent
+                                         }
+                                     }
+
+                                     MouseArea {
+                                         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                         onEntered: sinkRow.hov = true
+                                         onExited:  sinkRow.hov = false
+                                         onClicked: { if (!sinkRow.modelData.active) root.setDefaultSink(sinkRow.modelData) }
+                                     }
+                                 }
+                             }
+
+                             Text {
+                                 visible: root.audioSinks.length === 0
+                                 text: "No hay salidas disponibles"
+                                 font.pixelSize: 10; color: Theme.muted2
+                             }
+                         }
+
+                         // ── Entradas ───────────────────────────────────────────
+                         Item {
+                             width: parent.width; height: 24
+
+                             Text {
+                                 anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                                 text: "Entradas de audio"
+                                 font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.muted1
+                             }
+
+                             Rectangle {
+                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                 width: 22; height: 22; radius: 6
+                                 color: srcTogMA.containsMouse ? Theme.surface3 : Theme.surface2
+                                 Behavior on color { ColorAnimation { duration: 100 } }
+                                 Text {
+                                     anchors.centerIn: parent
+                                     text: root._audioShowSources ? "󰅃" : "󰅀"
+                                     font.pixelSize: 11; color: Theme.muted1
+                                 }
+                                 MouseArea {
+                                     id: srcTogMA; anchors.fill: parent; hoverEnabled: true
+                                     cursorShape: Qt.PointingHandCursor
+                                     onClicked: root._audioShowSources = !root._audioShowSources
+                                 }
+                             }
+                         }
+
+                         Column {
+                             visible: root._audioShowSources
+                             width: parent.width; spacing: 4
+
+                             Repeater {
+                                 model: root.audioSources
+
+                                 Rectangle {
+                                     id: sourceRow
+                                     required property var modelData
+                                     property bool hov: false
+                                     width: parent.width; height: 38; radius: 8
+                                     color: modelData.active
+                                         ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                                         : (hov ? Theme.surface3 : Theme.surface3)
+                                     Behavior on color { ColorAnimation { duration: 100 } }
+
+                                     Rectangle {
+                                         visible: sourceRow.modelData.active
+                                         width: 3; height: 18; radius: 2
+                                         anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
+                                         color: Theme.accent
+                                     }
+
+                                     RowLayout {
+                                         anchors { fill: parent; leftMargin: 14; rightMargin: 10 }
+                                         spacing: 8
+                                         Text {
+                                             text: sourceRow.modelData.icon; font.pixelSize: 14
+                                             color: sourceRow.modelData.active ? Theme.accent : Theme.muted2
+                                         }
+                                         Text {
+                                             Layout.fillWidth: true
+                                             text: sourceRow.modelData.label
+                                             font.pixelSize: 11; color: Theme.text; elide: Text.ElideRight
+                                         }
+                                         Text {
+                                             visible: sourceRow.modelData.active
+                                             text: "Activa"; font.pixelSize: 9; color: Theme.accent
+                                         }
+                                     }
+
+                                     MouseArea {
+                                         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                         onEntered: sourceRow.hov = true
+                                         onExited:  sourceRow.hov = false
+                                         onClicked: { if (!sourceRow.modelData.active) root.setDefaultSource(sourceRow.modelData) }
+                                     }
+                                 }
+                             }
+
+                             Text {
+                                 visible: root.audioSources.length === 0
+                                 text: "No hay entradas disponibles"
+                                 font.pixelSize: 10; color: Theme.muted2
                              }
                          }
                      }
@@ -4168,18 +4465,6 @@ PanelWindow {
         running: false
         function runCmd(cmd) { command = cmd; running = true }
         onExited: running = false
-    }
-
-    // ── Procesos globales para stream control ─────────────────────────────
-    Process {
-        id: streamMuteProc
-        command: ["bash", "-c", ""]
-        onExited: root._pwRev++
-    }
-
-    Process {
-        id: streamVolProc
-        command: ["bash", "-c", ""]
     }
 
     // ── CPU detail process ────────────────────────────────────────────────

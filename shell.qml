@@ -600,7 +600,6 @@ ShellRoot {
             id: ccInst
             property var modelData
             screen: modelData
-            onRequestOpenAudio:     screen => { root.broadcastCloseAll(screen); root.broadcastAudio(screen) }
             Connections {
                 target: root
                 function onBroadcastCloseAll(screen) {
@@ -634,27 +633,12 @@ ShellRoot {
                         ccInst.btAutoConnectTrusted()
                     }
                 }
-            }
-        }
-    }
-
-    // ── AUDIO MODAL ───────────────────────────────────────────────────────
-    Variants {
-        model: Quickshell.screens
-        AudioModal {
-            id: audioModalInst
-            property var modelData
-            screen: modelData
-            Connections {
-                target: root
-                function onBroadcastCloseAll(screen) {
-                    if (audioModalInst.modelData === screen) audioModalInst.visible = false
-                }
                 function onBroadcastAudio(screen) {
-                    if (audioModalInst.modelData !== screen) return
-                    var was = audioModalInst.visible
+                    if (ccInst.modelData !== screen) return
                     root.broadcastCloseAll(screen)
-                    audioModalInst.visible = !was
+                    ccInst.visible = true
+                    ccInst._expandedToggle = "audio"
+                    ccInst.loadAudioDevices()
                 }
             }
         }
@@ -742,7 +726,7 @@ ShellRoot {
         const dev = root._upBatDev
         if (!dev || !dev.ready) return
         const s   = dev.state
-        const pct = Math.round(dev.percentage)
+        const pct = Math.round(dev.percentage * 100)
 
         // Skip if same state as last notification (avoids startup false-positives)
         if (s === root._upBatLastState) return
@@ -791,7 +775,7 @@ ShellRoot {
             const s = dev.state
             // Only alert while discharging
             if (s !== UPowerDeviceState.Discharging && s !== UPowerDeviceState.PendingDischarge) return
-            const pct = Math.round(dev.percentage)
+            const pct = Math.round(dev.percentage * 100)
 
             // Notify once per threshold crossing, reset when charging
             // Each threshold fires only once until the battery recharges past it
