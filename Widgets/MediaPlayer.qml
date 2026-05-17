@@ -11,16 +11,16 @@ Row {
     property MprisPlayer _cachedPlayer: null
 
     function _updateCachedPlayer() {
-        var players = Mpris.players.values || []
-        var playingOther = null
-        var playingMpd   = null
-        var first        = null
+        const players = Mpris.players.values ?? []
+        let playingOther = null
+        let playingMpd   = null
+        let first        = null
 
-        for (var i = 0; i < players.length; i++) {
-            var p = players[i]
+        for (let i = 0; i < players.length; i++) {
+            const p = players[i]
             if (!first) first = p
-            var isMpd = (p.identity ?? "").toLowerCase().includes("music player daemon")
-            if (p.playbackState === MprisPlaybackState.Playing) {
+            const isMpd = (p.identity ?? "").toLowerCase().includes("music player daemon")
+            if (p.isPlaying) {
                 if (isMpd) { if (!playingMpd) playingMpd = p }
                 else       { if (!playingOther) playingOther = p }
             }
@@ -28,41 +28,39 @@ Row {
         _cachedPlayer = playingOther ?? playingMpd ?? first ?? null
     }
 
-    // ── Bindings ─────────────────────────────────────────────────────────────
-    property MprisPlayer player: _cachedPlayer
-    property bool hasPlayer:  _cachedPlayer !== null
-    property bool isPlaying:  hasPlayer && _cachedPlayer.playbackState === MprisPlaybackState.Playing
-    
+    // ── Bindings ──────────────────────────────────────────────────────────────
+    property bool hasPlayer: _cachedPlayer !== null
+    property bool isPlaying: _cachedPlayer?.isPlaying ?? false
+
     property string mediaInfo: {
         if (!hasPlayer) return "No media"
-        var artist = _cachedPlayer.trackArtist ?? ""
-        var title  = _cachedPlayer.trackTitle  ?? ""
+        const artist = _cachedPlayer.trackArtist ?? ""
+        const title  = _cachedPlayer.trackTitle  ?? ""
         if (artist && title) return artist + " - " + title
         return title || artist || "No media"
     }
 
-    // ── Inicialización: leer players existentes al arrancar ──────────────────
+    // ── Inicialización ────────────────────────────────────────────────────────
     Component.onCompleted: Qt.callLater(root._updateCachedPlayer)
 
-    // ── Event-driven: reacciona a cambios de players y estado de reproducción ─
+    // ── Reacciona a cambios en la lista de players ────────────────────────────
     Connections {
         target: Mpris.players
         function onValuesChanged() { root._updateCachedPlayer() }
     }
 
-    // Conecta dinámicamente al player activo para recibir sus signals
+    // ── Reacciona a cambios del player activo ─────────────────────────────────
     Connections {
         target: root._cachedPlayer ?? null
-        function onPlaybackStateChanged() { root._updateCachedPlayer() }
-        function onTrackTitleChanged()    { root._updateCachedPlayer() }
-        function onTrackArtistChanged()   { root._updateCachedPlayer() }
+        function onIsPlayingChanged() { root._updateCachedPlayer() }
+        function onTrackChanged()     { root._updateCachedPlayer() }
     }
 
     visible: true
 
     Item { width: 1; height: 1 }
 
-    // ── Fade al cambiar de canción ─────────────────────────────────────────
+    // ── Fade al cambiar de canción ────────────────────────────────────────────
     onMediaInfoChanged: songChangeAnim.restart()
 
     SequentialAnimation {
@@ -89,7 +87,7 @@ Row {
 
     Item { width: 1; height: 1 }
 
-    // ── Contenedor de texto con scroll ────────────────────────────────────
+    // ── Contenedor de texto con scroll ────────────────────────────────────────
     Item {
         id: textContainer
         width: 120
@@ -137,7 +135,7 @@ Row {
         }
     }
 
-    // ── Botón anterior ───────────────────────────────────────────────────
+    // ── Botón anterior ────────────────────────────────────────────────────────
     MouseArea {
         width: 20
         height: 20
@@ -154,7 +152,7 @@ Row {
         }
     }
 
-    // ── Botón play/pause ─────────────────────────────────────────────────
+    // ── Botón play/pause ──────────────────────────────────────────────────────
     MouseArea {
         width: 24
         height: 24
@@ -188,7 +186,7 @@ Row {
         }
     }
 
-    // ── Botón siguiente ───────────────────────────────────────────────────
+    // ── Botón siguiente ───────────────────────────────────────────────────────
     MouseArea {
         width: 20
         height: 20

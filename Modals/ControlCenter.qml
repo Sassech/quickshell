@@ -4287,13 +4287,11 @@ PanelWindow {
                 Item { width: parent.width; height: 10 }
                 Rectangle {
                     width: parent.width; height: 1; color: Theme.surface2
-                    visible: root.mprisPlayer !== null
                 }
 
                 Item {
                     width: parent.width
-                    height: root.mprisPlayer !== null ? (innerPlayer.implicitHeight + 16) : 0
-                    visible: root.mprisPlayer !== null
+                    height: innerPlayer.height + 16
 
                     Rectangle {
                         id: innerPlayer
