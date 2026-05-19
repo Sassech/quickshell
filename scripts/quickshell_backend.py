@@ -432,7 +432,7 @@ def main() -> None:
 
     # ── Detectar paths de hardware una sola vez ───────────────────────────────
     HWMON_SMM  = _find_hwmon("dell_smm")
-    HWMON_AWCC = _find_hwmon("awcc")
+    HWMON_AWCC = _find_hwmon("awcc") or _find_hwmon("alienware_wmi")
     if HWMON_SMM:
         _log(f"hwmon SMM  → {HWMON_SMM}")
     else:

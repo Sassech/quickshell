@@ -10,6 +10,7 @@ import Quickshell.Bluetooth
 import Quickshell.Networking
 import Quickshell.Services.UPower
 import "../Components"
+import "./cc"
 
 PanelWindow {
     id: root
@@ -34,7 +35,7 @@ PanelWindow {
     property int  _btRev: 0
 
     // ── Paneles expandibles en toggles ───────────────────────────────────
-    property string _expandedToggle: ""   // "wifi" | "audio" | "power" | "battery" | "language" | ""
+    property string _activePanel: ""   // "wifi" | "bluetooth" | "audio" | "power" | "battery" | "language" | ""
     property bool   _audioShowSources: true
 
     // ── WiFi inline state — Quickshell.Networking API ────────────────────
@@ -446,7 +447,7 @@ PanelWindow {
     // Refresh cada 5 s mientras el panel esté abierto
     Timer {
         interval: 5000; repeat: true
-        running: root.visible && root._expandedToggle === "audio"
+        running: root.visible && root._activePanel === "audio"
         onTriggered: root.loadAudioDevices()
     }
 
@@ -852,7 +853,7 @@ PanelWindow {
     Timer {
         id: btCodecRefreshTimer
         interval: 12000; repeat: true
-        running: root.visible && root._expandedToggle === "bluetooth"
+        running: root.visible && root._activePanel === "bluetooth"
         onTriggered: {
             if (btCodecProc.running || btSetCodecProc.running) return
             var q = []
@@ -1269,6 +1270,7 @@ PanelWindow {
         } else {
             root._expandedMetric = ""
             root._showConfirm    = false
+            root._activePanel    = ""
         }
     }
 
@@ -1812,8 +1814,8 @@ PanelWindow {
                         id: wifiCard
                         property bool hov: false
                         width: (parent.width - 6) / 2; height: 52; radius: 10
-                        color: hov ? Theme.surface3
-                             : (root._expandedToggle === "wifi"
+                         color: hov ? Theme.surface3
+                             : (root._activePanel === "wifi"
                                     ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
                                     : (SysData.netConnected
                                            ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
@@ -1822,7 +1824,7 @@ PanelWindow {
 
                         // Barra lateral activo
                         Rectangle {
-                            visible: SysData.netConnected || root._expandedToggle === "wifi"
+                            visible: SysData.netConnected || root._activePanel === "wifi"
                             width: 3; height: 24; radius: 2
                             anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
                             color: Theme.accent
@@ -1831,7 +1833,7 @@ PanelWindow {
                         RowLayout {
                             anchors {
                                 fill: parent
-                                leftMargin: (SysData.netConnected || root._expandedToggle === "wifi") ? 14 : 10
+                                leftMargin: (SysData.netConnected || root._activePanel === "wifi") ? 14 : 10
                                 rightMargin: 10
                             }
                             spacing: 8
@@ -1871,10 +1873,6 @@ PanelWindow {
                                 }
                             }
 
-                            Text {
-                                text: root._expandedToggle === "wifi" ? "󰅃" : "󰅀"
-                                font.pixelSize: 11; color: Theme.muted2
-                            }
                         }
 
                         MouseArea {
@@ -1882,18 +1880,14 @@ PanelWindow {
                             onEntered: wifiCard.hov = true
                             onExited:  wifiCard.hov = false
                             onClicked: {
-                                var next = root._expandedToggle === "wifi" ? "" : "wifi"
-                                root._expandedToggle = next
-                                if (next === "wifi") {
-                                    root._wifiStatusMsg       = ""
-                                    root._wifiSelectedIdx     = -1
-                                    root._wifiPasswordByIndex = ({})
-                                    wEthProc.running          = true
-                                    wWifiInfoProc.running     = root._wifiConnectedNet !== null
-                                    // Start scanner so list populates immediately
-                                    if (root._nmWifiDev && root._wifiRadioOn)
-                                        root._nmWifiDev.scannerEnabled = true
-                                }
+                                root._activePanel         = "wifi"
+                                root._wifiStatusMsg       = ""
+                                root._wifiSelectedIdx     = -1
+                                root._wifiPasswordByIndex = ({})
+                                wEthProc.running          = true
+                                wWifiInfoProc.running     = root._wifiConnectedNet !== null
+                                if (root._nmWifiDev && root._wifiRadioOn)
+                                    root._nmWifiDev.scannerEnabled = true
                             }
                         }
                     }
@@ -1904,7 +1898,7 @@ PanelWindow {
                         property bool hov: false
                         width: (parent.width - 6) / 2; height: 52; radius: 10
                         color: hov ? Theme.surface3
-                             : (root._expandedToggle === "bluetooth"
+                             : (root._activePanel === "bluetooth"
                                     ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
                                     : (root.btConnectedCount > 0
                                            ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
@@ -1912,7 +1906,7 @@ PanelWindow {
                         Behavior on color { ColorAnimation { duration: 100 } }
 
                         Rectangle {
-                            visible: root.btConnectedCount > 0 || root._expandedToggle === "bluetooth"
+                            visible: root.btConnectedCount > 0 || root._activePanel === "bluetooth"
                             width: 3; height: 24; radius: 2
                             anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
                             color: Theme.accent
@@ -1921,7 +1915,7 @@ PanelWindow {
                         RowLayout {
                             anchors {
                                 fill: parent
-                                leftMargin: (root.btConnectedCount > 0 || root._expandedToggle === "bluetooth") ? 14 : 10
+                                leftMargin: (root.btConnectedCount > 0 || root._activePanel === "bluetooth") ? 14 : 10
                                 rightMargin: 10
                             }
                             spacing: 8
@@ -1960,10 +1954,6 @@ PanelWindow {
                                 }
                             }
 
-                            Text {
-                                text: root._expandedToggle === "bluetooth" ? "󰅃" : "󰅀"
-                                font.pixelSize: 11; color: Theme.muted2
-                            }
                         }
 
                         MouseArea {
@@ -1971,27 +1961,13 @@ PanelWindow {
                             onEntered: btCard.hov = true
                             onExited:  btCard.hov = false
                             onClicked: {
-                                var next = root._expandedToggle === "bluetooth" ? "" : "bluetooth"
-                                root._expandedToggle = next
-                                if (next === "bluetooth") {
-                                    root._btStatusMsg = ""
-                                    root.btRefreshDeviceLists()
-                                    if (root._btPwrd && root._btAdapter) {
-                                        root._btAdapter.discoverable = true
-                                        root._btAdapter.pairable     = true
-                                        root.btAutoConnectTrusted()
-                                    }
-                                } else {
-                                    if (root._btAdapter) {
-                                        root._btAdapter.discovering  = false
-                                        root._btAdapter.discoverable = false
-                                        root._btAdapter.pairable     = false
-                                    }
-                                    root._btScanning = false
-                                    btScanTimer.stop()
-                                    btActionTimeout.stop()
-                                    btAutoConnTimer.stop()
-                                    btConnectRetryTimer.stop()
+                                root._activePanel = "bluetooth"
+                                root._btStatusMsg = ""
+                                root.btRefreshDeviceLists()
+                                if (root._btPwrd && root._btAdapter) {
+                                    root._btAdapter.discoverable = true
+                                    root._btAdapter.pairable     = true
+                                    root.btAutoConnectTrusted()
                                 }
                             }
                         }
@@ -2003,20 +1979,20 @@ PanelWindow {
                         property bool hov: false
                         width: (parent.width - 6) / 2; height: 52; radius: 10
                         color: hov ? Theme.surface3
-                             : (root._expandedToggle === "power"
+                             : (root._activePanel === "power"
                                     ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
                                     : Theme.surface2)
                         Behavior on color { ColorAnimation { duration: 100 } }
 
                         Rectangle {
-                            visible: root._expandedToggle === "power"
+                            visible: root._activePanel === "power"
                             width: 3; height: 24; radius: 2
                             anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
                             color: Theme.accent
                         }
 
                         RowLayout {
-                            anchors { fill: parent; leftMargin: root._expandedToggle === "power" ? 14 : 10; rightMargin: 10 }
+                            anchors { fill: parent; leftMargin: root._activePanel === "power" ? 14 : 10; rightMargin: 10 }
                             spacing: 8
 
                             Text {
@@ -2046,10 +2022,6 @@ PanelWindow {
                                 }
                             }
 
-                            Text {
-                                text: root._expandedToggle === "power" ? "󰅃" : "󰅀"
-                                font.pixelSize: 11; color: Theme.muted2
-                            }
                         }
 
                         MouseArea {
@@ -2057,9 +2029,8 @@ PanelWindow {
                             onEntered: powerCard.hov = true
                             onExited:  powerCard.hov = false
                             onClicked: {
-                                var next = root._expandedToggle === "power" ? "" : "power"
-                                root._expandedToggle = next
-                                if (next === "power" && root._fanProfiles.length === 0)
+                                root._activePanel = "power"
+                                if (root._fanProfiles.length === 0)
                                     fanProfilesProc.running = true
                             }
                         }
@@ -2071,13 +2042,13 @@ PanelWindow {
                         property bool hov: false
                         width: (parent.width - 6) / 2; height: 52; radius: 10
                         color: hov ? Theme.surface3
-                             : (root._expandedToggle === "audio"
+                             : (root._activePanel === "audio"
                                     ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
                                     : Theme.surface2)
                         Behavior on color { ColorAnimation { duration: 100 } }
 
                         Rectangle {
-                            visible: root._expandedToggle === "audio"
+                            visible: root._activePanel === "audio"
                             width: 3; height: 24; radius: 2
                             anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
                             color: Theme.accent
@@ -2086,7 +2057,7 @@ PanelWindow {
                         RowLayout {
                             anchors {
                                 fill: parent
-                                leftMargin: root._expandedToggle === "audio" ? 14 : 10
+                                leftMargin: root._activePanel === "audio" ? 14 : 10
                                 rightMargin: 10
                             }
                             spacing: 8
@@ -2108,10 +2079,6 @@ PanelWindow {
                                 }
                             }
 
-                            Text {
-                                text: root._expandedToggle === "audio" ? "󰅃" : "󰅀"
-                                font.pixelSize: 11; color: Theme.muted2
-                            }
                         }
 
                         MouseArea {
@@ -2119,9 +2086,8 @@ PanelWindow {
                             onEntered: audioCard2.hov = true
                             onExited:  audioCard2.hov = false
                             onClicked: {
-                                var next = root._expandedToggle === "audio" ? "" : "audio"
-                                root._expandedToggle = next
-                                if (next === "audio") root.loadAudioDevices()
+                                root._activePanel = "audio"
+                                root.loadAudioDevices()
                             }
                         }
                     }
@@ -2132,20 +2098,20 @@ PanelWindow {
                         property bool hov: false
                         width: (parent.width - 6) / 2; height: 52; radius: 10
                         color: hov ? Theme.surface3
-                             : (root._expandedToggle === "battery"
+                             : (root._activePanel === "battery"
                                     ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
                                     : Theme.surface2)
                         Behavior on color { ColorAnimation { duration: 100 } }
 
                         Rectangle {
-                            visible: root._expandedToggle === "battery"
+                            visible: root._activePanel === "battery"
                             width: 3; height: 24; radius: 2
                             anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
                             color: Theme.accent
                         }
 
                         RowLayout {
-                            anchors { fill: parent; leftMargin: root._expandedToggle === "battery" ? 14 : 10; rightMargin: 10 }
+                            anchors { fill: parent; leftMargin: root._activePanel === "battery" ? 14 : 10; rightMargin: 10 }
                             spacing: 8
 
                             Text {
@@ -2192,17 +2158,13 @@ PanelWindow {
                                 }
                             }
 
-                            Text {
-                                text: root._expandedToggle === "battery" ? "󰅃" : "󰅀"
-                                font.pixelSize: 11; color: Theme.muted2
-                            }
                         }
 
                         MouseArea {
                             anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onEntered: batCard.hov = true
                             onExited:  batCard.hov = false
-                            onClicked: root._expandedToggle = root._expandedToggle === "battery" ? "" : "battery"
+                            onClicked: root._activePanel = "battery"
                         }
                     }
 
@@ -2212,20 +2174,20 @@ PanelWindow {
                         property bool hov: false
                         width: (parent.width - 6) / 2; height: 52; radius: 10
                         color: hov ? Theme.surface3
-                             : (root._expandedToggle === "language"
+                             : (root._activePanel === "language"
                                     ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
                                     : Theme.surface2)
                         Behavior on color { ColorAnimation { duration: 100 } }
 
                         Rectangle {
-                            visible: root._expandedToggle === "language"
+                            visible: root._activePanel === "language"
                             width: 3; height: 24; radius: 2
                             anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
                             color: Theme.accent
                         }
 
                         RowLayout {
-                            anchors { fill: parent; leftMargin: root._expandedToggle === "language" ? 14 : 10; rightMargin: 10 }
+                            anchors { fill: parent; leftMargin: root._activePanel === "language" ? 14 : 10; rightMargin: 10 }
                             spacing: 8
 
                             Text { text: "󰌌"; font.pixelSize: 18; color: Theme.accent }
@@ -2241,10 +2203,6 @@ PanelWindow {
                                 }
                             }
 
-                            Text {
-                                text: root._expandedToggle === "language" ? "󰅃" : "󰅀"
-                                font.pixelSize: 11; color: Theme.muted2
-                            }
                         }
 
                         MouseArea {
@@ -2252,1556 +2210,18 @@ PanelWindow {
                             onEntered: langCard.hov = true
                             onExited:  langCard.hov = false
                             onClicked: {
-                                var next = root._expandedToggle === "language" ? "" : "language"
-                                root._expandedToggle = next
-                                if (next === "language") {
-                                    root._langSearch = ""
-                                    root._langTab    = "keyboard"
-                                    langLayoutProc.running     = true
-                                    langCurrentProc.running    = true
-                                    langLocaleProc.running     = true
-                                    langLocaleListProc.running = true
-                                }
+                                root._activePanel  = "language"
+                                root._langSearch   = ""
+                                root._langTab      = "keyboard"
+                                langLayoutProc.running     = true
+                                langCurrentProc.running    = true
+                                langLocaleProc.running     = true
+                                langLocaleListProc.running = true
                             }
                         }
                     }
                 }
 
-                 // ── WiFi detail panel ─────────────────────────────────────
-                 Rectangle {
-                     width: parent.width
-                     height: root._expandedToggle === "wifi" ? wifiDetailCol.implicitHeight + 16 : 0
-                     radius: 10; color: Theme.surface2; clip: true
-                     Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-
-                     Column {
-                         id: wifiDetailCol
-                         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
-                         spacing: 6
-
-                         // ── Header ─────────────────────────────────────────────
-                         Item {
-                             width: parent.width; height: 32
-
-                             Row {
-                                 anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                                 spacing: 8
-                                 Text {
-                                     text: root._wifiRadioOn ? "󰤨" : "󰤮"
-                                     font.pixelSize: 16
-                                     color: root._wifiRadioOn ? Theme.accent : Theme.muted2
-                                     anchors.verticalCenter: parent.verticalCenter
-                                 }
-                                 Column {
-                                     anchors.verticalCenter: parent.verticalCenter; spacing: 1
-                                     Text { text: "WiFi"; font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text }
-                                     Text {
-                                         text: root._wifiConnectedSsid ? root._wifiConnectedSsid
-                                               : (root._wifiRadioOn ? "Desconectado" : "Radio apagada")
-                                         font.pixelSize: 9; color: Theme.muted1
-                                     }
-                                 }
-                             }
-
-                             Row {
-                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                 spacing: 8
-
-                                 // Rescan button
-                                 Rectangle {
-                                     visible: root._wifiRadioOn
-                                     width: 26; height: 26; radius: 7
-                                     color: wRescanBtnMA.containsMouse ? Theme.surface3 : Theme.surface2
-                                     Behavior on color { ColorAnimation { duration: 100 } }
-                                     Text {
-                                         anchors.centerIn: parent; text: "󰑓"; font.pixelSize: 13
-                                         color: root._wifiScanning ? Theme.accent : Theme.muted1
-                                         RotationAnimation on rotation {
-                                             running: root._wifiScanning; loops: Animation.Infinite
-                                             from: 0; to: 360; duration: 1200
-                                         }
-                                     }
-                                     MouseArea {
-                                         id: wRescanBtnMA; anchors.fill: parent; hoverEnabled: true
-                                         cursorShape: Qt.PointingHandCursor
-                                         onClicked: root.wifiRescan()
-                                     }
-                                 }
-
-                                 // Toggle radio
-                                 Rectangle {
-                                     width: 40; height: 22; radius: 11
-                                     color: root._wifiRadioOn ? Theme.accent : Theme.surface3
-                                     Behavior on color { ColorAnimation { duration: 200 } }
-                                     Rectangle {
-                                         width: 16; height: 16; radius: 8; color: "white"
-                                         anchors.verticalCenter: parent.verticalCenter
-                                         x: root._wifiRadioOn ? parent.width - width - 3 : 3
-                                         Behavior on x { NumberAnimation { duration: 200 } }
-                                     }
-                                     MouseArea {
-                                         anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                         onClicked: root.wifiToggleRadio()
-                                     }
-                                 }
-                             }
-                         }
-
-                         // ── Status message ─────────────────────────────────────
-                         Text {
-                             visible: root._wifiStatusMsg !== ""
-                             text: root._wifiStatusMsg; font.pixelSize: 10
-                             color: root._wifiStatusMsg.startsWith("✓") ? Theme.success : Theme.error
-                         }
-                         Text {
-                             visible: root._wifiWorking
-                             text: "Conectando…"; font.pixelSize: 10; color: Theme.muted1
-                         }
-
-                         // ── Ethernet info ──────────────────────────────────────
-                         Rectangle {
-                             visible: root._ethConnected
-                             width: parent.width; height: root._ethConnected ? 44 : 0
-                             radius: 8; color: Theme.successSurface
-                             border.color: Qt.tint(Theme.surface2, Qt.rgba(Theme.success.r, Theme.success.g, Theme.success.b, 0.30))
-                             Behavior on height { NumberAnimation { duration: 150 } }
-                             Row {
-                                 anchors { fill: parent; margins: 10 }
-                                 spacing: 10
-                                 Text { text: "󰈀"; font.pixelSize: 16; color: Theme.success; anchors.verticalCenter: parent.verticalCenter }
-                                 Column {
-                                     spacing: 1; anchors.verticalCenter: parent.verticalCenter
-                                     Text { text: "Ethernet"; font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text }
-                                     Text { text: root._ethIp || "Sin IP"; font.pixelSize: 9; color: Theme.muted1 }
-                                 }
-                                 Item { width: 1 }
-                                 Text {
-                                     visible: root._ethSpeed !== ""
-                                     text: root._ethSpeed; font.pixelSize: 9; color: Theme.muted1
-                                     anchors.verticalCenter: parent.verticalCenter
-                                 }
-                             }
-                         }
-
-                         // ── Radio off message ──────────────────────────────────
-                         Item {
-                             visible: !root._wifiRadioOn
-                             width: parent.width; height: 36
-                             Text { anchors.centerIn: parent; text: "WiFi está apagado"; font.pixelSize: 11; color: Theme.muted1 }
-                         }
-
-                         // ── Network list (reactive via Networking API) ──────────
-                         Column {
-                             visible: root._wifiRadioOn && root._nmWifiDev !== null
-                             width: parent.width; spacing: 4
-
-                             Repeater {
-                                 // WifiNetwork objects — sorted: connected first, then by signal desc
-                                 model: {
-                                     var dev = root._nmWifiDev
-                                     if (!dev) return []
-                                     var nets = dev.networks.values.slice()
-                                     nets.sort(function(a, b) {
-                                         if (a.connected !== b.connected) return a.connected ? -1 : 1
-                                         return b.signalStrength - a.signalStrength
-                                     })
-                                     return nets
-                                 }
-
-                                 Column {
-                                     id: wNetRow
-                                     required property var modelData   // WifiNetwork
-                                     required property int index
-                                     width: parent.width; spacing: 0
-
-                                     // modelData.known  → replaces old isSaved
-                                     // modelData.connected → replaces old isActive
-                                     property bool showPwText:    false
-                                     property string realPassword: ""
-                                     property bool fetchingPw:    false
-
-                                     onModelDataChanged: { showPwText = false; realPassword = "" }
-
-                                     function fetchSavedPassword() {
-                                         if (realPassword !== "" || fetchingPw) {
-                                             showPwText = !showPwText
-                                             return
-                                         }
-                                         fetchingPw = true
-                                         root.wifiFetchPasswordFor(modelData.name, index)
-                                     }
-
-                                    Connections {
-                                        target: root
-                                        function onWifiPwFetchResultIdxChanged() {
-                                            if (root.wifiPwFetchResultIdx !== index) return
-                                            wNetRow.realPassword = root._wifiPwFetchResult
-                                            wNetRow.fetchingPw   = false
-                                            if (root._wifiPwFetchResult !== "") wNetRow.showPwText = true
-                                        }
-                                    }
-
-                                     // ── Network row ────────────────────────────────
-                                     Rectangle {
-                                         width: parent.width; height: 36; radius: 8
-                                         color: {
-                                             if (wNetRow.modelData.connected)          return Theme.accentSurface
-                                             if (root._wifiSelectedIdx === index)      return Theme.surface3
-                                             return wRowMA.containsMouse ? Theme.surface3 : Theme.surface2
-                                         }
-                                         Behavior on color { ColorAnimation { duration: 100 } }
-
-                                         Rectangle {
-                                             visible: wNetRow.modelData.connected
-                                             width: 3; height: 18; radius: 2
-                                             anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
-                                             color: Theme.accent
-                                         }
-
-                                         RowLayout {
-                                             anchors { fill: parent; leftMargin: 14; rightMargin: 10 }
-                                             spacing: 6
-
-                                             Text {
-                                                 text: root.wifiSignalIcon(wNetRow.modelData.signalStrength)
-                                                 font.pixelSize: 13
-                                                 color: wNetRow.modelData.connected ? Theme.accent : Theme.muted2
-                                             }
-
-                                             Text {
-                                                 Layout.fillWidth: true
-                                                 text: wNetRow.modelData.name
-                                                 font.pixelSize: 11; color: Theme.text; elide: Text.ElideRight
-                                             }
-
-                                             // Lock icon if not open
-                                             Text {
-                                                 visible: !root.wifiIsOpen(wNetRow.modelData.security)
-                                                 text: "󰌆"; font.pixelSize: 10; color: Theme.muted2
-                                             }
-
-                                             Text {
-                                                 text: Math.round(wNetRow.modelData.signalStrength * 100) + "%"
-                                                 font.pixelSize: 9; color: Theme.muted2; width: 28
-                                                 horizontalAlignment: Text.AlignRight
-                                             }
-
-                                             // Connect / Disconnect button
-                                             Rectangle {
-                                                 height: 22; radius: 6
-                                                 width: wNetRow.modelData.connected ? 78 : 64
-                                                 color: wNetRow.modelData.connected ? Theme.error
-                                                      : (root._wifiSelectedIdx === index ? Theme.accent : Theme.surface3)
-                                                 Behavior on color { ColorAnimation { duration: 100 } }
-                                                 Text {
-                                                     anchors.centerIn: parent
-                                                     text: wNetRow.modelData.connected ? "Desconectar" : "Conectar"
-                                                     font.pixelSize: 9; color: "white"
-                                                 }
-                                                 MouseArea {
-                                                     anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                     onClicked: {
-                                                         if (wNetRow.modelData.connected) {
-                                                             root.wifiDisconnect(wNetRow.modelData)
-                                                         } else if (root._wifiSelectedIdx !== index) {
-                                                             root._wifiSelectedIdx = index
-                                                             root._wifiPasswordByIndex[index] = ""
-                                                             wNetRow.showPwText = false
-                                                         } else {
-                                                             var needsPw = !root.wifiIsOpen(wNetRow.modelData.security)
-                                                             var pw = root._wifiPasswordByIndex[index] || ""
-                                                             if (!needsPw || wNetRow.modelData.known) {
-                                                                 // Open or known → native connect()
-                                                                 root.wifiConnectKnown(wNetRow.modelData)
-                                                             } else if (pw !== "") {
-                                                                 // New network with password → nmcli
-                                                                 root.wifiConnectNew(wNetRow.modelData.name, pw)
-                                                             } else {
-                                                                 root._wifiStatusMsg = "✗ Ingresa una contraseña"
-                                                             }
-                                                         }
-                                                     }
-                                                 }
-                                             }
-                                         }
-
-                                         MouseArea {
-                                             id: wRowMA
-                                             anchors.fill: parent; hoverEnabled: true; z: -1
-                                             cursorShape: Qt.PointingHandCursor
-                                             onClicked: {
-                                                 root._wifiSelectedIdx = (root._wifiSelectedIdx === index) ? -1 : index
-                                                 if (root._wifiSelectedIdx === index) {
-                                                     root._wifiPasswordByIndex[index] = ""
-                                                     wNetRow.showPwText = false
-                                                     if (wNetRow.modelData.connected) wWifiInfoProc.running = true
-                                                 }
-                                             }
-                                         }
-                                     }
-
-                                     // ── Expanded panel ─────────────────────────────
-                                     Rectangle {
-                                         visible: root._wifiSelectedIdx === index
-                                         width: parent.width
-                                         height: visible ? wExpandCol.implicitHeight + 20 : 0
-                                         radius: 8; color: Theme.surface3; clip: true
-                                         Behavior on height { NumberAnimation { duration: 150 } }
-
-                                         Rectangle {
-                                             anchors.fill: parent; radius: parent.radius; color: "transparent"
-                                             border.color: Theme.accentSurface; border.width: 1
-                                         }
-
-                                         Column {
-                                             id: wExpandCol
-                                             anchors { top: parent.top; left: parent.left; right: parent.right; margins: 10 }
-                                             spacing: 6
-
-                                             // ── Password field (new/unknown networks only) ──
-                                             RowLayout {
-                                                 visible: !root.wifiIsOpen(wNetRow.modelData.security) && !wNetRow.modelData.connected
-                                                 width: parent.width; spacing: 6
-
-                                                 Text { text: "󰌋"; font.pixelSize: 12; color: Theme.muted1; Layout.alignment: Qt.AlignVCenter }
-
-                                                 Item {
-                                                     Layout.fillWidth: true; height: 22
-
-                                                     // Known network: show masked PSK
-                                                     Text {
-                                                         anchors.verticalCenter: parent.verticalCenter
-                                                         visible: wNetRow.modelData.known && !wNetRow.showPwText
-                                                         text: "••••••••"; font.pixelSize: 12; color: Theme.muted1
-                                                     }
-                                                     Text {
-                                                         anchors.verticalCenter: parent.verticalCenter
-                                                         visible: wNetRow.modelData.known && wNetRow.showPwText
-                                                         text: wNetRow.realPassword !== "" ? wNetRow.realPassword : "—"
-                                                         font.pixelSize: 11; color: Theme.text; font.family: "monospace"
-                                                     }
-                                                     // Unknown network: text input
-                                                     TextInput {
-                                                         id: wPwInput
-                                                         anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
-                                                         visible: !wNetRow.modelData.known
-                                                         text: root._wifiPasswordByIndex[index] || ""
-                                                         onTextChanged: root._wifiPasswordByIndex[index] = text
-                                                         echoMode: wNetRow.showPwText ? TextInput.Normal : TextInput.Password
-                                                         color: Theme.text; font.pixelSize: 11
-                                                         verticalAlignment: TextInput.AlignVCenter
-                                                         Keys.onReturnPressed: {
-                                                             var pw = root._wifiPasswordByIndex[index] || ""
-                                                             if (pw === "") root._wifiStatusMsg = "✗ Ingresa una contraseña"
-                                                             else root.wifiConnectNew(wNetRow.modelData.name, pw)
-                                                         }
-                                                     }
-                                                     Text {
-                                                         anchors.verticalCenter: parent.verticalCenter
-                                                         visible: !wNetRow.modelData.known && wPwInput.text.length === 0
-                                                         text: "Contraseña"; font.pixelSize: 11; color: Theme.muted2
-                                                     }
-                                                 }
-
-                                                 // Eye toggle
-                                                 Rectangle {
-                                                     width: 24; height: 24; radius: 6
-                                                     color: wEyeMA.containsMouse ? Theme.surface2 : "transparent"
-                                                     Behavior on color { ColorAnimation { duration: 100 } }
-                                                     Text {
-                                                         anchors.centerIn: parent
-                                                         text: wNetRow.showPwText ? "󰈊" : "󰈉"
-                                                         font.pixelSize: 13
-                                                         color: wNetRow.showPwText ? Theme.accent : Theme.muted2
-                                                     }
-                                                     MouseArea {
-                                                         id: wEyeMA; anchors.fill: parent; hoverEnabled: true
-                                                         cursorShape: Qt.PointingHandCursor
-                                                         onClicked: wNetRow.fetchSavedPassword()
-                                                     }
-                                                 }
-
-                                                 // Copy PSK (known networks only)
-                                                 Rectangle {
-                                                     visible: wNetRow.modelData.known
-                                                     width: 24; height: 24; radius: 6
-                                                     color: wCopyPwMA.containsMouse ? Theme.surface2 : "transparent"
-                                                     Behavior on color { ColorAnimation { duration: 100 } }
-                                                     Text { anchors.centerIn: parent; text: "󰂏"; font.pixelSize: 12; color: Theme.muted1 }
-                                                     MouseArea {
-                                                         id: wCopyPwMA; anchors.fill: parent; hoverEnabled: true
-                                                         cursorShape: Qt.PointingHandCursor
-                                                         onClicked: root.wifiCopyPassword(wNetRow.modelData.name)
-                                                     }
-                                                 }
-                                             }
-
-                                             Rectangle {
-                                                 visible: !root.wifiIsOpen(wNetRow.modelData.security) && !wNetRow.modelData.connected
-                                                 width: parent.width; height: 1; color: Theme.surface2
-                                             }
-
-                                             // ── Info ───────────────────────────────────
-                                             Column {
-                                                 width: parent.width; spacing: 3
-
-                                                 Row {
-                                                     spacing: 4
-                                                     Text { text: "Señal:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
-                                                     Text {
-                                                         text: Math.round(wNetRow.modelData.signalStrength * 100) + "%"
-                                                         font.pixelSize: 10; color: Theme.text
-                                                     }
-                                                 }
-                                                 Row {
-                                                     spacing: 4
-                                                     Text { text: "Seguridad:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
-                                                     Text {
-                                                         text: root.wifiSecurityLabel(wNetRow.modelData.security)
-                                                         font.pixelSize: 10; color: Theme.text
-                                                     }
-                                                 }
-                                                 Row {
-                                                     spacing: 4
-                                                     Text { text: "Estado:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
-                                                     Text {
-                                                         text: wNetRow.modelData.connected ? "Conectada"
-                                                             : (wNetRow.modelData.known ? "Guardada" : "No guardada")
-                                                         font.pixelSize: 10; color: Theme.text
-                                                     }
-                                                 }
-                                                 Row {
-                                                     visible: wNetRow.modelData.connected
-                                                     spacing: 4
-                                                     Text { text: "IP:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
-                                                     Text {
-                                                         text: root._wifiIp !== "" ? root._wifiIp : "—"
-                                                         font.pixelSize: 10; color: Theme.text
-                                                         elide: Text.ElideRight; width: wExpandCol.width - 76
-                                                     }
-                                                 }
-                                                 Row {
-                                                     visible: wNetRow.modelData.connected
-                                                     spacing: 4
-                                                     Text { text: "Gateway:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
-                                                     Text { text: root._wifiGateway !== "" ? root._wifiGateway : "—"; font.pixelSize: 10; color: Theme.text }
-                                                 }
-                                                 Row {
-                                                     visible: wNetRow.modelData.connected
-                                                     spacing: 4
-                                                     Text { text: "DNS:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
-                                                     Text { text: root._wifiDns !== "" ? root._wifiDns : "—"; font.pixelSize: 10; color: Theme.text }
-                                                 }
-                                             }
-
-                                             // ── Forget button (known networks) ──────────
-                                             Row {
-                                                 visible: wNetRow.modelData.known
-                                                 width: parent.width
-                                                 Rectangle {
-                                                     height: 24; radius: 6
-                                                     width: wForgetText.implicitWidth + 18
-                                                     color: wForgetMA.containsMouse
-                                                         ? Qt.tint(Theme.surface2, Qt.rgba(Theme.error.r, Theme.error.g, Theme.error.b, 0.18))
-                                                         : Theme.surface2
-                                                     Behavior on color { ColorAnimation { duration: 100 } }
-                                                     Text {
-                                                         id: wForgetText; anchors.centerIn: parent
-                                                         text: "󱑃  Olvidar red"; font.pixelSize: 10; color: Theme.error
-                                                     }
-                                                     MouseArea {
-                                                         id: wForgetMA; anchors.fill: parent; hoverEnabled: true
-                                                         cursorShape: Qt.PointingHandCursor
-                                                         onClicked: root.wifiForget(wNetRow.modelData)
-                                                     }
-                                                 }
-                                             }
-                                         }
-                                     }
-                                 }
-                             }
-                         }
-                     }
-                 }
-
-                 // ── Bluetooth detail panel ────────────────────────────────
-                 Rectangle {
-                     width: parent.width
-                     height: root._expandedToggle === "bluetooth" ? btDetailCol.implicitHeight + 16 : 0
-                     radius: 10; color: Theme.surface2; clip: true
-                     Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-
-                     Column {
-                         id: btDetailCol
-                         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
-                         spacing: 8
-
-                         // ── Header ─────────────────────────────────────────────
-                         Item {
-                             width: parent.width; height: 32
-
-                             Row {
-                                 anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                                 spacing: 8
-                                 Text {
-                                     text: "󰂯"; font.pixelSize: 16
-                                     color: root._btPwrd ? Theme.accent : Theme.muted2
-                                     anchors.verticalCenter: parent.verticalCenter
-                                 }
-                                 Column {
-                                     anchors.verticalCenter: parent.verticalCenter; spacing: 1
-                                     Text { text: "Bluetooth"; font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text }
-                                     Text {
-                                         text: !root._btAvailable ? "Sin adaptador"
-                                             : !root._btPwrd      ? "Apagado"
-                                             : root._btScanning   ? "Buscando..."
-                                             : "Encendido"
-                                         font.pixelSize: 9; color: Theme.muted1
-                                     }
-                                 }
-                             }
-
-                             Row {
-                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                 spacing: 8
-
-                                 // Scan button
-                                 Rectangle {
-                                     visible: root._btAvailable && root._btPwrd
-                                     width: 26; height: 26; radius: 7
-                                     color: btScanBtnMA.containsMouse
-                                         ? Theme.surface3
-                                         : (root._btScanning ? Theme.accentSurface : Theme.surface2)
-                                     Behavior on color { ColorAnimation { duration: 100 } }
-                                     Text {
-                                         anchors.centerIn: parent; text: "󰑓"; font.pixelSize: 13
-                                         color: root._btScanning ? Theme.accent : Theme.muted1
-                                         RotationAnimation on rotation {
-                                             running: root._btScanning; loops: Animation.Infinite
-                                             from: 0; to: 360; duration: 1200
-                                         }
-                                     }
-                                     MouseArea {
-                                         id: btScanBtnMA; anchors.fill: parent; hoverEnabled: true
-                                         cursorShape: Qt.PointingHandCursor
-                                         onClicked: root.btToggleScan()
-                                     }
-                                 }
-
-                                 // Power toggle
-                                 Rectangle {
-                                     visible: root._btAvailable
-                                     width: 40; height: 22; radius: 11
-                                     color: root._btPwrd ? Theme.accent : Theme.surface3
-                                     Behavior on color { ColorAnimation { duration: 200 } }
-                                     Rectangle {
-                                         width: 16; height: 16; radius: 8; color: "white"
-                                         anchors.verticalCenter: parent.verticalCenter
-                                         x: root._btPwrd ? parent.width - width - 3 : 3
-                                         Behavior on x { NumberAnimation { duration: 200 } }
-                                     }
-                                     MouseArea {
-                                         anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                         onClicked: root.btTogglePower()
-                                     }
-                                 }
-                             }
-                         }
-
-                         // ── Status message ─────────────────────────────────────
-                         Text {
-                             visible: root._btStatusMsg !== ""
-                             text: root._btStatusMsg; font.pixelSize: 10
-                             color: root._btStatusMsg.startsWith("✓") ? Theme.success : Theme.error
-                         }
-
-                         // ── No adapter ─────────────────────────────────────────
-                         Item {
-                             visible: !root._btAvailable
-                             width: parent.width; height: 40
-                             Text {
-                                 anchors.centerIn: parent
-                                 text: "No se encontró adaptador Bluetooth"
-                                 font.pixelSize: 11; color: Theme.muted1
-                             }
-                         }
-
-                         // ── Off message ────────────────────────────────────────
-                         Item {
-                             visible: root._btAvailable && !root._btPwrd
-                             width: parent.width; height: 36
-                             Text {
-                                 anchors.centerIn: parent
-                                 text: "Enciende el Bluetooth para ver dispositivos"
-                                 font.pixelSize: 10; color: Theme.muted1
-                             }
-                         }
-
-                         // ── Device lists ───────────────────────────────────────
-                         Column {
-                             visible: root._btAvailable && root._btPwrd
-                             width: parent.width; spacing: 4
-
-                             // Paired label
-                             Text {
-                                 visible: root._btPairedCount > 0
-                                 text: "Dispositivos emparejados"
-                                 font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.muted1
-                             }
-
-                             Repeater {
-                                 model: root._btPairedList
-
-                                 Column {
-                                     id: btPairedEntry
-                                     required property var modelData
-                                     required property int index
-                                     width: parent.width; spacing: 4
-
-                                     property string devMac:   modelData.address.toUpperCase()
-                                     property var    cInfo:    root._btCodecData[devMac] ?? null
-                                     property bool   hasCodec: modelData.connected
-                                                               && cInfo !== null
-                                                               && (cInfo.profiles?.length ?? 0) > 0
-                                     property bool   pendingForget: false
-
-                                     Timer {
-                                         id: btForgetCancelTimer
-                                         interval: 3000
-                                         onTriggered: btPairedEntry.pendingForget = false
-                                     }
-
-                                     Rectangle {
-                                         width: parent.width; height: 38; radius: 8
-                                         color: btPairedEntry.modelData.connected
-                                             ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15)
-                                             : Theme.surface3
-
-                                         Rectangle {
-                                             visible: btPairedEntry.modelData.connected
-                                             width: 3; height: 18; radius: 2
-                                             anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
-                                             color: Theme.accent
-                                         }
-
-                                         RowLayout {
-                                             anchors { fill: parent; leftMargin: 14; rightMargin: 10 }
-                                             spacing: 6
-
-                                             Text {
-                                                 text: "󰂱"; font.pixelSize: 14
-                                                 color: btPairedEntry.modelData.connected ? Theme.accent : Theme.muted2
-                                             }
-
-                                             Column {
-                                                 Layout.fillWidth: true; spacing: 1
-                                                 Text {
-                                                     text: btPairedEntry.modelData.name || btPairedEntry.modelData.deviceName
-                                                     font.pixelSize: 11; color: Theme.text
-                                                     elide: Text.ElideRight; width: parent.width
-                                                 }
-                                                 Text {
-                                                     text: btPairedEntry.modelData.address
-                                                     font.pixelSize: 8; color: Theme.muted2
-                                                 }
-                                             }
-
-                                             Rectangle {
-                                                 height: 24; radius: 6
-                                                 width: btConnBtnText.implicitWidth + 16
-                                                 color: btPairedEntry.modelData.connected ? Theme.error : Theme.accent
-                                                 Behavior on color { ColorAnimation { duration: 150 } }
-                                                 Text {
-                                                     id: btConnBtnText; anchors.centerIn: parent
-                                                     text: btPairedEntry.modelData.connected ? "Desconectar" : "Conectar"
-                                                     font.pixelSize: 9; color: "white"
-                                                 }
-                                                 MouseArea {
-                                                     anchors.fill: parent
-                                                     enabled: !root._btWorking
-                                                     cursorShape: root._btWorking ? Qt.ArrowCursor : Qt.PointingHandCursor
-                                                     onClicked: {
-                                                         if (btPairedEntry.modelData.connected)
-                                                             root.btDisconnectDevice(btPairedEntry.modelData)
-                                                         else
-                                                             root.btConnectDevice(btPairedEntry.modelData)
-                                                     }
-                                                 }
-                                             }
-
-                                             // Forget button (2-step confirm)
-                                             Rectangle {
-                                                 id: btForgetBtn
-                                                 height: 24; radius: 6
-                                                 width: btPairedEntry.pendingForget
-                                                     ? btForgetConfirmText.implicitWidth + 14
-                                                     : 24
-                                                 Behavior on width { NumberAnimation { duration: 120 } }
-                                                 color: btPairedEntry.pendingForget
-                                                     ? Qt.rgba(Theme.error.r, Theme.error.g, Theme.error.b, 0.18)
-                                                     : (btForgetMA.containsMouse
-                                                         ? Qt.rgba(Theme.error.r, Theme.error.g, Theme.error.b, 0.14)
-                                                         : "transparent")
-                                                 Behavior on color { ColorAnimation { duration: 120 } }
-
-                                                 Text {
-                                                     anchors.centerIn: parent
-                                                     visible: !btPairedEntry.pendingForget
-                                                     text: "󰩹"; font.pixelSize: 13
-                                                     color: btForgetMA.containsMouse ? Theme.error : Theme.muted2
-                                                     Behavior on color { ColorAnimation { duration: 100 } }
-                                                 }
-                                                 Text {
-                                                     id: btForgetConfirmText; anchors.centerIn: parent
-                                                     visible: btPairedEntry.pendingForget
-                                                     text: "¿Borrar?"; font.pixelSize: 9; color: Theme.error
-                                                 }
-                                                 MouseArea {
-                                                     id: btForgetMA; anchors.fill: parent; hoverEnabled: true
-                                                     cursorShape: Qt.PointingHandCursor
-                                                     onClicked: {
-                                                         if (!btPairedEntry.pendingForget) {
-                                                             btPairedEntry.pendingForget = true
-                                                             btForgetCancelTimer.restart()
-                                                         } else {
-                                                             btForgetCancelTimer.stop()
-                                                             btPairedEntry.pendingForget = false
-                                                             root.btForgetDevice(btPairedEntry.modelData)
-                                                         }
-                                                     }
-                                                 }
-                                             }
-                                         }
-                                     }
-
-                                     // ── Codec panel ────────────────────────────────
-                                     Rectangle {
-                                         visible: btPairedEntry.hasCodec
-                                         width: parent.width; height: 34; radius: 7
-                                         color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.07)
-
-                                         RowLayout {
-                                             anchors { fill: parent; leftMargin: 10; rightMargin: 8 }
-                                             spacing: 6
-
-                                             Column {
-                                                 spacing: 1
-                                                 Text {
-                                                     text: "Codec: " + (btPairedEntry.cInfo?.codec ?? "")
-                                                     font.pixelSize: 9; font.weight: Font.DemiBold; color: Theme.accent
-                                                 }
-                                                 Text {
-                                                     text: btPairedEntry.cInfo?.bitrate ?? ""
-                                                     font.pixelSize: 8; color: Theme.muted1
-                                                     visible: (btPairedEntry.cInfo?.bitrate ?? "") !== ""
-                                                 }
-                                             }
-
-                                             Item { Layout.fillWidth: true }
-
-                                             Repeater {
-                                                 model: btPairedEntry.cInfo?.profiles ?? []
-                                                 delegate: Rectangle {
-                                                     id: btProfileBtn
-                                                     required property var modelData
-                                                     property bool isActive: (btPairedEntry.cInfo?.active ?? "") === modelData.id
-                                                     height: 20; radius: 5
-                                                     width: btProfileLabel.implicitWidth + 10
-                                                     color: isActive ? Theme.accent
-                                                          : (btProfileMA.containsMouse ? Theme.surface3 : Theme.surface2)
-                                                     Behavior on color { ColorAnimation { duration: 100 } }
-                                                     Text {
-                                                         id: btProfileLabel; anchors.centerIn: parent
-                                                         text: btProfileBtn.modelData.label
-                                                         font.pixelSize: 8
-                                                         color: btProfileBtn.isActive ? "white" : Theme.muted1
-                                                     }
-                                                     MouseArea {
-                                                         id: btProfileMA; anchors.fill: parent; hoverEnabled: true
-                                                         cursorShape: Qt.PointingHandCursor
-                                                         onClicked: root.btSetCodec(
-                                                             btPairedEntry.modelData.address,
-                                                             btProfileBtn.modelData.id
-                                                         )
-                                                     }
-                                                 }
-                                             }
-                                         }
-                                     }
-                                 }
-                             }
-
-                             Text {
-                                 visible: root._btPairedCount === 0 && !root._btWorking
-                                 text: "No hay dispositivos emparejados"
-                                 font.pixelSize: 10; color: Theme.muted1
-                             }
-
-                             // Nearby section
-                             Item { visible: root._btNearbyCount > 0; width: parent.width; height: 8 }
-
-                             Text {
-                                 visible: root._btNearbyCount > 0
-                                 text: "Dispositivos cercanos"
-                                 font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.muted1
-                             }
-
-                             Repeater {
-                                 model: root._btNearbyList
-
-                                 Rectangle {
-                                     required property var modelData
-                                     width: parent.width; height: 38; radius: 8; color: Theme.surface3
-
-                                     RowLayout {
-                                         anchors { fill: parent; leftMargin: 14; rightMargin: 10 }
-                                         spacing: 6
-
-                                         Text { text: "󰂯"; font.pixelSize: 14; color: Theme.muted2 }
-
-                                         Column {
-                                             Layout.fillWidth: true; spacing: 1
-                                             Text {
-                                                 text: modelData.name || modelData.deviceName
-                                                 font.pixelSize: 11; color: Theme.text
-                                                 elide: Text.ElideRight; width: parent.width
-                                             }
-                                             Text { text: modelData.address; font.pixelSize: 8; color: Theme.muted2 }
-                                         }
-
-                                         Rectangle {
-                                             height: 24; radius: 6; width: btPairBtnLabel.implicitWidth + 16
-                                             color: Theme.surface2
-                                             Text {
-                                                 id: btPairBtnLabel; anchors.centerIn: parent
-                                                 text: "Emparejar"; font.pixelSize: 9; color: Theme.text
-                                             }
-                                             MouseArea {
-                                                 anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                 onClicked: root.btPairDevice(modelData)
-                                             }
-                                         }
-                                     }
-                                 }
-                             }
-                         }
-                     }
-                 }
-
-                 // ── Audio device panel ────────────────────────────────────
-                 Rectangle {
-                     width: parent.width
-                     height: root._expandedToggle === "audio" ? audioDevCol.implicitHeight + 16 : 0
-                     radius: 10; color: Theme.surface2; clip: true
-                     Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-
-                     Column {
-                         id: audioDevCol
-                         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
-                         spacing: 8
-
-                         // ── Salidas ────────────────────────────────────────────
-                         Text {
-                             text: "Salidas de audio"
-                             font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.muted1
-                         }
-
-                         Column {
-                             width: parent.width; spacing: 4
-
-                             Repeater {
-                                 model: root.audioSinks
-
-                                 Rectangle {
-                                     id: sinkRow
-                                     required property var modelData
-                                     property bool hov: false
-                                     width: parent.width; height: 38; radius: 8
-                                     color: modelData.active
-                                         ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                                         : (hov ? Theme.surface3 : Theme.surface3)
-                                     Behavior on color { ColorAnimation { duration: 100 } }
-
-                                     Rectangle {
-                                         visible: sinkRow.modelData.active
-                                         width: 3; height: 18; radius: 2
-                                         anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
-                                         color: Theme.accent
-                                     }
-
-                                     RowLayout {
-                                         anchors { fill: parent; leftMargin: 14; rightMargin: 10 }
-                                         spacing: 8
-                                         Text {
-                                             text: sinkRow.modelData.icon; font.pixelSize: 14
-                                             color: sinkRow.modelData.active ? Theme.accent : Theme.muted2
-                                         }
-                                         Text {
-                                             Layout.fillWidth: true
-                                             text: sinkRow.modelData.label
-                                             font.pixelSize: 11; color: Theme.text; elide: Text.ElideRight
-                                         }
-                                         Text {
-                                             visible: sinkRow.modelData.active
-                                             text: "Activa"; font.pixelSize: 9; color: Theme.accent
-                                         }
-                                     }
-
-                                     MouseArea {
-                                         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                         onEntered: sinkRow.hov = true
-                                         onExited:  sinkRow.hov = false
-                                         onClicked: { if (!sinkRow.modelData.active) root.setDefaultSink(sinkRow.modelData) }
-                                     }
-                                 }
-                             }
-
-                             Text {
-                                 visible: root.audioSinks.length === 0
-                                 text: "No hay salidas disponibles"
-                                 font.pixelSize: 10; color: Theme.muted2
-                             }
-                         }
-
-                         // ── Entradas ───────────────────────────────────────────
-                         Item {
-                             width: parent.width; height: 24
-
-                             Text {
-                                 anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                                 text: "Entradas de audio"
-                                 font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.muted1
-                             }
-
-                             Rectangle {
-                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                 width: 22; height: 22; radius: 6
-                                 color: srcTogMA.containsMouse ? Theme.surface3 : Theme.surface2
-                                 Behavior on color { ColorAnimation { duration: 100 } }
-                                 Text {
-                                     anchors.centerIn: parent
-                                     text: root._audioShowSources ? "󰅃" : "󰅀"
-                                     font.pixelSize: 11; color: Theme.muted1
-                                 }
-                                 MouseArea {
-                                     id: srcTogMA; anchors.fill: parent; hoverEnabled: true
-                                     cursorShape: Qt.PointingHandCursor
-                                     onClicked: root._audioShowSources = !root._audioShowSources
-                                 }
-                             }
-                         }
-
-                         Column {
-                             visible: root._audioShowSources
-                             width: parent.width; spacing: 4
-
-                             Repeater {
-                                 model: root.audioSources
-
-                                 Rectangle {
-                                     id: sourceRow
-                                     required property var modelData
-                                     property bool hov: false
-                                     width: parent.width; height: 38; radius: 8
-                                     color: modelData.active
-                                         ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                                         : (hov ? Theme.surface3 : Theme.surface3)
-                                     Behavior on color { ColorAnimation { duration: 100 } }
-
-                                     Rectangle {
-                                         visible: sourceRow.modelData.active
-                                         width: 3; height: 18; radius: 2
-                                         anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
-                                         color: Theme.accent
-                                     }
-
-                                     RowLayout {
-                                         anchors { fill: parent; leftMargin: 14; rightMargin: 10 }
-                                         spacing: 8
-                                         Text {
-                                             text: sourceRow.modelData.icon; font.pixelSize: 14
-                                             color: sourceRow.modelData.active ? Theme.accent : Theme.muted2
-                                         }
-                                         Text {
-                                             Layout.fillWidth: true
-                                             text: sourceRow.modelData.label
-                                             font.pixelSize: 11; color: Theme.text; elide: Text.ElideRight
-                                         }
-                                         Text {
-                                             visible: sourceRow.modelData.active
-                                             text: "Activa"; font.pixelSize: 9; color: Theme.accent
-                                         }
-                                     }
-
-                                     MouseArea {
-                                         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                         onEntered: sourceRow.hov = true
-                                         onExited:  sourceRow.hov = false
-                                         onClicked: { if (!sourceRow.modelData.active) root.setDefaultSource(sourceRow.modelData) }
-                                     }
-                                 }
-                             }
-
-                             Text {
-                                 visible: root.audioSources.length === 0
-                                 text: "No hay entradas disponibles"
-                                 font.pixelSize: 10; color: Theme.muted2
-                             }
-                         }
-                     }
-                 }
-
-                 // ── Power & Fans detail panel ─────────────────────────────
-                 Rectangle {
-                     width: parent.width
-                      height: root._expandedToggle === "power" ? powerDetailCol.implicitHeight + 16 : 0
-                      radius: 10; color: Theme.surface2; clip: true
-                      Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-
-                    Column {
-                        id: powerDetailCol
-                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
-                        spacing: 10
-
-                        // ── CPU power profiles — UPower PowerProfiles ──────
-                        Text {
-                            text: "CPU Power Profile"
-                            font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.muted1
-                        }
-
-                        Flow {
-                            width: parent.width
-                            spacing: 6
-
-                            Repeater {
-                                // Fixed 3 profiles: PowerSaver, Balanced, Performance
-                                // Hide Performance if not available on this hardware
-                                model: {
-                                    var profiles = [
-                                        PowerProfile.PowerSaver,
-                                        PowerProfile.Balanced
-                                    ]
-                                    if (PowerProfiles.hasPerformanceProfile)
-                                        profiles.push(PowerProfile.Performance)
-                                    return profiles
-                                }
-
-                                Rectangle {
-                                    id: pBtn
-                                    required property var modelData   // PowerProfile enum value
-                                    required property int index
-                                    property bool active: PowerProfiles.profile === modelData
-
-                                    width: {
-                                        var n = PowerProfiles.hasPerformanceProfile ? 3 : 2
-                                        return (powerDetailCol.width - 6 * (n - 1)) / n
-                                    }
-                                    height: 36; radius: 8
-                                    color: active
-                                        ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.22)
-                                        : (pBtnHov.containsMouse ? Theme.surface3 : Theme.surface2)
-                                    border.color: active ? Theme.accent : "transparent"; border.width: 1
-                                    Behavior on color { ColorAnimation { duration: 100 } }
-
-                                    Column {
-                                        anchors.centerIn: parent; spacing: 2
-                                        Text {
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                            text: root._powerIcon(pBtn.modelData)
-                                            font.pixelSize: 13
-                                            color: pBtn.active ? Theme.accent : Theme.muted1
-                                        }
-                                        Text {
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                            text: root._powerLabel(pBtn.modelData)
-                                            font.pixelSize: 8
-                                            color: pBtn.active ? Theme.accent : Theme.muted2
-                                        }
-                                    }
-
-                                    MouseArea {
-                                        id: pBtnHov; anchors.fill: parent; hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: root.setPower(pBtn.modelData)
-                                    }
-                                }
-                            }
-                        }
-
-                        // ── Fan profiles ───────────────────────────────────
-                        Rectangle { width: parent.width; height: 1; color: Theme.surface3; visible: SysData.fanAvailable }
-
-                        Text {
-                            visible: SysData.fanAvailable
-                            text: "Fan Profile"
-                            font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.muted1
-                        }
-
-                        // Fan RPM bars
-                        Column {
-                            visible: SysData.fanAvailable && SysData.fan1Rpm > 0
-                            width: parent.width; spacing: 4
-
-                            Repeater {
-                                model: [
-                                    { label: "F1", rpm: SysData.fan1Rpm, pct: SysData.fan1Percent, color: Theme.accent },
-                                    { label: "F2", rpm: SysData.fan2Rpm, pct: SysData.fan2Percent, color: Theme.accent2 }
-                                ]
-
-                                Row {
-                                    required property var modelData
-                                    spacing: 6
-                                    Text {
-                                        text: modelData.label; font.pixelSize: 9; color: Theme.muted1
-                                        width: 16; anchors.verticalCenter: parent.verticalCenter
-                                    }
-                                    Item {
-                                        width: powerDetailCol.width - 80; height: 6
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        Rectangle { anchors.fill: parent; radius: 3; color: Theme.surface3 }
-                                        Rectangle {
-                                            anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                                            width: Math.max(4, modelData.pct / 100 * parent.width)
-                                            radius: 3; color: modelData.color
-                                            Behavior on width { NumberAnimation { duration: 300 } }
-                                        }
-                                    }
-                                    Text {
-                                        text: modelData.rpm + " rpm"; font.pixelSize: 9; color: Theme.muted2
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-                                }
-                            }
-                        }
-
-                        // Fan profile buttons — dynamic from fan-control.sh
-                        Flow {
-                            visible: SysData.fanAvailable && root._fanProfiles.length > 0
-                            width: parent.width; spacing: 6
-
-                            Repeater {
-                                model: root._fanProfiles
-
-                                Rectangle {
-                                    id: fBtn
-                                    required property var modelData
-                                    property bool active: SysData.fanProfile === modelData.id
-
-                                    width: (powerDetailCol.width - 6 * Math.max(1, root._fanProfiles.length - 1)) / Math.max(1, root._fanProfiles.length)
-                                    height: 36; radius: 8
-                                    color: fBtn.active
-                                        ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.22)
-                                        : (fBtnHov.containsMouse ? Theme.surface3 : Theme.surface2)
-                                    border.color: fBtn.active ? Theme.accent : "transparent"; border.width: 1
-                                    Behavior on color { ColorAnimation { duration: 100 } }
-
-                                    Column {
-                                        anchors.centerIn: parent; spacing: 2
-                                        Text {
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                            text: fBtn.modelData.icon
-                                            font.pixelSize: 13; color: fBtn.active ? Theme.accent : Theme.muted1
-                                        }
-                                        Text {
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                            text: fBtn.modelData.label
-                                            font.pixelSize: 8
-                                            color: fBtn.active ? Theme.accent : Theme.muted2
-                                        }
-                                    }
-
-                                    MouseArea {
-                                        id: fBtnHov; anchors.fill: parent; hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            if (!fanApplyProc.running) {
-                                                fanApplyProc.command = ["sudo", Paths.scripts + "/fan-control.sh", "set_profile", fBtn.modelData.id]
-                                                fanApplyProc.running = true
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Temps row
-                        Row {
-                            visible: SysData.fanAvailable
-                            spacing: 8
-
-                            Repeater {
-                                model: [
-                                    { label: "CPU", temp: SysData.fanCpuTemp },
-                                    { label: "GPU", temp: SysData.fanGpuTemp }
-                                ]
-                                Row {
-                                    required property var modelData
-                                    spacing: 4
-                                    Text { text: modelData.label + ":"; font.pixelSize: 9; color: Theme.muted2 }
-                                    Text {
-                                        text: modelData.temp + " °C"; font.pixelSize: 9
-                                        color: modelData.temp >= 85 ? "#ff7b72"
-                                             : modelData.temp >= 70 ? "#e3b341"
-                                             : Theme.muted1
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                 // ── Battery detail panel — UPower ─────────────────────────
-                 Rectangle {
-                     width: parent.width
-                     height: root._expandedToggle === "battery" ? batDetailCol.implicitHeight + 16 : 0
-                     radius: 10; color: Theme.surface2; clip: true
-                     Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-
-                     Column {
-                         id: batDetailCol
-                         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
-                         spacing: 6
-
-                         // Charge bar
-                         Item {
-                             width: parent.width; height: 6
-                             Rectangle { anchors.fill: parent; radius: 3; color: Theme.surface3 }
-                             Rectangle {
-                                 anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                                 width: Math.max(4, root._batPctUP / 100 * parent.width)
-                                 radius: 3
-                                 color: root._batChargingUP ? Theme.success
-                                      : root._batPctUP > 50 ? Theme.accent
-                                      : root._batPctUP > 20 ? Theme.yellow
-                                      : Theme.error
-                                 Behavior on width { NumberAnimation { duration: 300 } }
-                             }
-                         }
-
-                         Row {
-                             spacing: 16
-                             Text {
-                                 text: Math.round(root._batPctUP) + "%"
-                                 font.pixelSize: 13; font.weight: Font.DemiBold; color: Theme.text
-                             }
-                             Text {
-                                 text: {
-                                     if (root._batFullUP)     return "Full"
-                                     if (root._batChargingUP) return "Charging"
-                                     return "Discharging"
-                                 }
-                                 font.pixelSize: 11; color: Theme.muted1
-                                 anchors.verticalCenter: parent.verticalCenter
-                             }
-                             Text {
-                                 visible: root._batChangeRate > 0
-                                 text: root._batChangeRate.toFixed(1) + " W"
-                                 font.pixelSize: 11; color: Theme.muted2
-                                 anchors.verticalCenter: parent.verticalCenter
-                             }
-                         }
-
-                         // Health / Capacity / Energy — mini cards (UPower native)
-                         Row {
-                             width: parent.width; spacing: 6
-                             visible: root._batAvailableUP
-
-                             Repeater {
-                                 model: [
-                                     {
-                                         value: root._batHealthUP > 0
-                                             ? root._batHealthUP.toFixed(1) + "%"
-                                             : "—",
-                                         label: "Health",
-                                         color: root._batHealthUP >= 80 ? Theme.accent
-                                              : root._batHealthUP >= 60 ? Theme.yellow
-                                              : root._batHealthUP > 0   ? Theme.error
-                                              : Theme.muted2
-                                     },
-                                     {
-                                         value: root._batCapWhUP > 0
-                                             ? root._batCapWhUP.toFixed(1) + " Wh"
-                                             : "—",
-                                         label: "Capacity",
-                                         color: Theme.text
-                                     },
-                                     {
-                                         value: root._batEnergyUP > 0
-                                             ? root._batEnergyUP.toFixed(1) + " Wh"
-                                             : "—",
-                                         label: "Now",
-                                         color: Theme.muted1
-                                     }
-                                 ]
-
-                                 Rectangle {
-                                     required property var modelData
-                                     width: (parent.width - 12) / 3
-                                     height: 48; radius: 8; color: Theme.surface3
-                                     Column {
-                                         anchors.centerIn: parent; spacing: 3
-                                         Text {
-                                             anchors.horizontalCenter: parent.horizontalCenter
-                                             text: modelData.value
-                                             font.pixelSize: 12; font.weight: Font.DemiBold
-                                             color: modelData.color
-                                         }
-                                         Text {
-                                             anchors.horizontalCenter: parent.horizontalCenter
-                                             text: modelData.label
-                                             font.pixelSize: 9; color: Theme.muted2
-                                         }
-                                     }
-                                 }
-                             }
-                         }
-
-                         // Time remaining
-                         Row {
-                             spacing: 8
-                             visible: !root._batFullUP && root._batAvailableUP
-
-                             Text {
-                                 text: root._batChargingUP ? "Full in:" : "Empty in:"
-                                 font.pixelSize: 10; color: Theme.muted2
-                             }
-                             Text {
-                                 text: {
-                                     var t = root._batChargingUP ? root._batTimeFull : root._batTimeEmpty
-                                     return root._fmtTime(t) || "—"
-                                 }
-                                 font.pixelSize: 10; color: Theme.text
-                             }
-                         }
-                     }
-                 }
-
-                 // ── Language detail panel ──────────────────────────────────
-                 Rectangle {
-                     width: parent.width
-                      height: root._expandedToggle === "language" ? langDetailCol.implicitHeight + 16 : 0
-                      radius: 10; color: Theme.surface2; clip: true
-                      Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-
-                    Column {
-                        id: langDetailCol
-                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
-                        spacing: 8
-
-                        // ── Mini tabs ──────────────────────────────────────────
-                        Row {
-                            width: parent.width
-                            spacing: 4
-                            Repeater {
-                                model: [
-                                    { id: "keyboard", icon: "󰌌", label: "Keyboard" },
-                                    { id: "locale",   icon: "󰗊", label: "Locale"   }
-                                ]
-                                Rectangle {
-                                    required property var modelData
-                                    height: 24
-                                    width: langTabInner.implicitWidth + 16
-                                    radius: 6
-                                    color: root._langTab === modelData.id ? Theme.accentSurface : "transparent"
-                                    Behavior on color { ColorAnimation { duration: 80 } }
-                                    Row {
-                                        id: langTabInner
-                                        anchors.centerIn: parent
-                                        spacing: 4
-                                        Text {
-                                            text: modelData.icon; font.pixelSize: 10
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            color: root._langTab === modelData.id ? Theme.accent : Theme.muted3
-                                            Behavior on color { ColorAnimation { duration: 80 } }
-                                        }
-                                        Text {
-                                            text: modelData.label; font.pixelSize: 10
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            color: root._langTab === modelData.id ? Theme.accent : Theme.muted3
-                                            Behavior on color { ColorAnimation { duration: 80 } }
-                                        }
-                                    }
-                                    MouseArea {
-                                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            root._langTab    = modelData.id
-                                            root._langSearch = ""
-                                            langSearchInput.text = ""
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // ── Search ─────────────────────────────────────────────
-                        Rectangle {
-                            width: parent.width; height: 28; radius: 7
-                            color: Theme.surface3
-
-                            Row {
-                                anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
-                                spacing: 6
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: "󰍉"; font.pixelSize: 11; color: Theme.muted2
-                                }
-                                TextInput {
-                                    id: langSearchInput
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: parent.width - 26
-                                    font.pixelSize: 10; color: Theme.text
-                                    selectionColor: Theme.accent; selectedTextColor: Theme.text
-                                    clip: true
-                                    onTextChanged: root._langSearch = text
-                                    Text {
-                                        anchors.fill: parent
-                                        text: root._langTab === "keyboard" ? "Search layout…" : "Search locale…"
-                                        font.pixelSize: 10; color: Theme.muted2
-                                        visible: !parent.text && !parent.activeFocus
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-                            }
-                        }
-
-                        // ── Keyboard tab: layout list ──────────────────────────
-                        Item {
-                            visible: root._langTab === "keyboard"
-                            width: parent.width
-                            height: visible ? Math.min(root._filteredLayouts.length, 5) * 32 + 4 : 0
-                            clip: true
-
-                            ListView {
-                                anchors.fill: parent
-                                model: root._filteredLayouts
-                                spacing: 2
-                                clip: true
-
-                                ScrollBar.vertical: ScrollBar {
-                                    policy: ScrollBar.AsNeeded
-                                    contentItem: Rectangle { implicitWidth: 3; radius: 2; color: Theme.surface3 }
-                                }
-
-                                delegate: Rectangle {
-                                    required property var modelData
-                                    required property int index
-                                    width: ListView.view.width; height: 30; radius: 7
-                                    property bool isActive: {
-                                        var layout = (root._langLayout || "").toLowerCase()
-                                        var code   = (modelData.code   || "").toLowerCase()
-                                        return layout.indexOf(code) >= 0 || code.indexOf(layout) >= 0
-                                    }
-                                    color: langItemHov.containsMouse
-                                        ? Theme.surface3
-                                        : (isActive ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15) : "transparent")
-                                    Behavior on color { ColorAnimation { duration: 80 } }
-
-                                    Rectangle {
-                                        visible: isActive
-                                        width: 3; height: 14; radius: 2
-                                        anchors { left: parent.left; leftMargin: 4; verticalCenter: parent.verticalCenter }
-                                        color: Theme.accent
-                                    }
-
-                                    RowLayout {
-                                        anchors { fill: parent; leftMargin: isActive ? 12 : 8; rightMargin: 8 }
-                                        Text {
-                                            Layout.fillWidth: true
-                                            text: modelData.code
-                                            font.pixelSize: 10; color: Theme.text
-                                            elide: Text.ElideRight
-                                        }
-                                        Text {
-                                            visible: isActive
-                                            text: "󰄬"; font.pixelSize: 10; color: Theme.accent
-                                        }
-                                    }
-
-                                    MouseArea {
-                                        id: langItemHov
-                                        anchors.fill: parent; hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            var cmd = "hyprctl keyword input:kb_layout " + modelData.code +
-                                                      " 2>/dev/null && sleep 0.4 && hyprctl dispatch switchxkblayout all 0"
-                                            langSetProc.command = ["sh", "-c", cmd]
-                                            if (!langSetProc.running) langSetProc.running = true
-                                            root._langLayout = modelData.code
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // ── Locale tab: locale list ────────────────────────────
-                        Item {
-                            visible: root._langTab === "locale"
-                            width: parent.width
-                            height: visible ? Math.min(root._filteredLocales.length, 5) * 32 + 4 : 0
-                            clip: true
-
-                            ListView {
-                                anchors.fill: parent
-                                model: root._filteredLocales
-                                spacing: 2
-                                clip: true
-
-                                ScrollBar.vertical: ScrollBar {
-                                    policy: ScrollBar.AsNeeded
-                                    contentItem: Rectangle { implicitWidth: 3; radius: 2; color: Theme.surface3 }
-                                }
-
-                                delegate: Rectangle {
-                                    required property var modelData
-                                    required property int index
-                                    width: ListView.view.width; height: 30; radius: 7
-                                    property bool isActive: {
-                                        var locale = (root._langLocale  || "").toLowerCase()
-                                        var value  = (modelData.value   || "").toLowerCase()
-                                        return locale.indexOf(value) >= 0 || value.indexOf(locale) >= 0
-                                    }
-                                    color: localeItemHov.containsMouse
-                                        ? Theme.surface3
-                                        : (isActive ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15) : "transparent")
-                                    Behavior on color { ColorAnimation { duration: 80 } }
-
-                                    Rectangle {
-                                        visible: isActive
-                                        width: 3; height: 14; radius: 2
-                                        anchors { left: parent.left; leftMargin: 4; verticalCenter: parent.verticalCenter }
-                                        color: Theme.accent
-                                    }
-
-                                    RowLayout {
-                                        anchors { fill: parent; leftMargin: isActive ? 12 : 8; rightMargin: 8 }
-                                        Text {
-                                            Layout.fillWidth: true
-                                            text: modelData.value
-                                            font.pixelSize: 10; color: Theme.text
-                                            elide: Text.ElideRight
-                                        }
-                                        Text {
-                                            visible: isActive
-                                            text: "󰄬"; font.pixelSize: 10; color: Theme.accent
-                                        }
-                                    }
-
-                                    MouseArea {
-                                        id: localeItemHov
-                                        anchors.fill: parent; hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            langSetLocaleProc.command = ["sh", "-c",
-                                                "localectl set-locale LANG=" + modelData.value + " 2>/dev/null"]
-                                            if (!langSetLocaleProc.running) langSetLocaleProc.running = true
-                                            root._langLocale = modelData.value
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
 
                 // ══════════════════════════════════════════════════════════
                  // ══════════════════════════════════════════════════════════
@@ -4455,6 +2875,142 @@ PanelWindow {
             width: 3; radius: 2
             height: Math.max(20, ccFlick.visibleArea.heightRatio * (ccCard.height - 24))
             color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.4)
+        }
+    }
+
+    // ── Panel overlay (popups de detalle) ─────────────────────────────────
+    CcPanelOverlay {
+        anchors.fill: parent
+        z: 200
+
+        activePanel: root._activePanel
+
+        // WiFi
+        nmWifiDev:           root._nmWifiDev
+        wifiRadioOn:         root._wifiRadioOn
+        wifiScanning:        root._wifiScanning
+        wifiWorking:         root._wifiWorking
+        wifiStatusMsg:       root._wifiStatusMsg
+        wifiSelectedIdx:     root._wifiSelectedIdx
+        wifiPasswordByIndex: root._wifiPasswordByIndex
+        wifiConnectedSsid:   root._wifiConnectedSsid
+        ethConnected:        root._ethConnected
+        ethIp:               root._ethIp
+        ethSpeed:            root._ethSpeed
+        wifiIp:              root._wifiIp
+        wifiGateway:         root._wifiGateway
+        wifiDns:             root._wifiDns
+        wifiPwFetchResult:    root._wifiPwFetchResult
+        wifiPwFetchResultIdx: root.wifiPwFetchResultIdx
+
+        // Bluetooth
+        btAdapter:     root._btAdapter
+        btAvailable:   root._btAvailable
+        btPwrd:        root._btPwrd
+        btScanning:    root._btScanning
+        btWorking:     root._btWorking
+        btStatusMsg:   root._btStatusMsg
+        btPairedList:  root._btPairedList
+        btNearbyList:  root._btNearbyList
+        btPairedCount: root._btPairedCount
+        btNearbyCount: root._btNearbyCount
+        btCodecData:   root._btCodecData
+
+        // Audio
+        audioSinks:   root.audioSinks
+        audioSources: root.audioSources
+
+        // Power
+        fanProfiles: root._fanProfiles
+        fanProfile:  SysData.fanProfile
+
+        // Battery
+        batAvailable:  root._batAvailableUP
+        batPct:        root._batPctUP
+        batCharging:   root._batChargingUP
+        batFull:       root._batFullUP
+        batHealth:     root._batHealthUP
+        batCapWh:      root._batCapWhUP
+        batEnergy:     root._batEnergyUP
+        batChangeRate: root._batChangeRate
+        batTimeEmpty:  root._batTimeEmpty
+        batTimeFull:   root._batTimeFull
+
+        // Language
+        filteredLayouts: root._filteredLayouts
+        filteredLocales: root._filteredLocales
+        langLayout:      root._langLayout
+        langLocale:      root._langLocale
+        langTab:         root._langTab
+        langSearch:      root._langSearch
+
+        // ── Signal handlers ───────────────────────────────────────────────
+        onClosePanel: {
+            if (root._activePanel === "bluetooth") {
+                if (root._btAdapter) {
+                    root._btAdapter.discovering  = false
+                    root._btAdapter.discoverable = false
+                    root._btAdapter.pairable     = false
+                }
+                root._btScanning = false
+                btScanTimer.stop()
+                btActionTimeout.stop()
+                btAutoConnTimer.stop()
+                btConnectRetryTimer.stop()
+            }
+            root._activePanel = ""
+        }
+
+        // WiFi
+        onWifiToggleRadio:    root.wifiToggleRadio()
+        onWifiRescan:         root.wifiRescan()
+        onWifiConnectKnown: (net) => root.wifiConnectKnown(net)
+        onWifiConnectNew: (ssid, pw) => root.wifiConnectNew(ssid, pw)
+        onWifiDisconnect: (net) => root.wifiDisconnect(net)
+        onWifiForget: (net) => root.wifiForget(net)
+        onWifiFetchPassword: (ssid, idx) => root.wifiFetchPasswordFor(ssid, idx)
+        onWifiCopyPassword: (ssid) => root.wifiCopyPassword(ssid)
+        onWifiSelectIdx: (idx) => { root._wifiSelectedIdx = idx }
+        onWifiPasswordChanged: (idx, pw) => {
+            var copy = Object.assign({}, root._wifiPasswordByIndex)
+            copy[idx] = pw
+            root._wifiPasswordByIndex = copy
+        }
+
+        // Bluetooth
+        onBtTogglePower:  root.btTogglePower()
+        onBtToggleScan:   root.btToggleScan()
+        onBtConnect: (d)  => root.btConnectDevice(d)
+        onBtDisconnect: (d) => root.btDisconnectDevice(d)
+        onBtPair: (d)     => root.btPairDevice(d)
+        onBtForget: (d)   => root.btForgetDevice(d)
+        onBtSetCodec: (mac, prof) => root.btSetCodec(mac, prof)
+
+        // Audio
+        onAudioSetDefaultSink: (e)  => root.setDefaultSink(e)
+        onAudioSetDefaultSource: (e) => root.setDefaultSource(e)
+
+        // Power
+        onPowerSetProfile: (p) => root.setPower(p)
+
+        // Language
+        onLangSelectTab: (tab) => {
+            root._langTab    = tab
+            root._langSearch = ""
+        }
+        onLangSearchQuery: (q) => { root._langSearch = q }
+        onLangSetLayout: (code) => {
+            var cmd = "hyprctl keyword input:kb_layout " + code +
+                      " 2>/dev/null && sleep 0.4 && hyprctl dispatch switchxkblayout all 0"
+            langSetProc.command = ["sh", "-c", cmd]
+            if (!langSetProc.running) langSetProc.running = true
+            root._langLayout = code
+        }
+        onLangSetLocale: (value) => {
+            langSetLocaleProc.command = ["sh", "-c",
+                "localectl set-locale LANG=" + value + " 2>/dev/null"]
+            if (!langSetLocaleProc.running) langSetLocaleProc.running = true
+            root._langLocale = value
         }
     }
 
