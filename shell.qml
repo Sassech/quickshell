@@ -272,6 +272,7 @@ ShellRoot {
     signal broadcastVolume()
     signal broadcastClock(var screen)
     signal broadcastControlCenter(var screen)
+    signal broadcastScreenshot(var screen)
 
     // ── Top Bar ──────────────────────────────────────────────────────────
     Variants {
@@ -612,6 +613,42 @@ ShellRoot {
         }
     }
 
+    // ── SCREENSHOT MODAL ──────────────────────────────────────────────────
+    Process {
+        id: screenshotFifo
+        running: true
+        command: ["bash", root._scriptsPath + "/screenshot-fifo.sh"]
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: monName => root.fifoScreenReader(monName, root.broadcastScreenshot)
+        }
+        onExited: function(code) {
+            console.log("[FIFO] screenshot exited (" + code + "), restarting")
+            screenshotFifo.running = true
+        }
+    }
+
+    Variants {
+        model: Quickshell.screens
+        ScreenshotModal {
+            id: screenshotModalInst
+            property var modelData
+            screen: modelData
+            Connections {
+                target: root
+                function onBroadcastCloseAll(screen) {
+                    if (screenshotModalInst.modelData === screen) screenshotModalInst.visible = false
+                }
+                function onBroadcastScreenshot(screen) {
+                    if (screenshotModalInst.modelData !== screen) return
+                    var was = screenshotModalInst.visible
+                    root.broadcastCloseAll(screen)
+                    if (!was) screenshotModalInst.open()
+                }
+            }
+        }
+    }
+
     // ── VOLUME OSD ────────────────────────────────────────────────────────
     Process {
         id: volumeFifo
@@ -789,6 +826,7 @@ ShellRoot {
         wallpaperFifo.running = false
         overviewFifo.running = false
         spotlightFifo.running = false
+        screenshotFifo.running = false
         volumeFifo.running = false
         brightnessFifo.running = false
     }

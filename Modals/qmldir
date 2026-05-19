@@ -10,3 +10,4 @@ MediaModal 1.0 MediaModal.qml
 BrightnessOsd 1.0 BrightnessOsd.qml
 VolumeOsd 1.0 VolumeOsd.qml
 ControlCenter 1.0 ControlCenter.qml
+ScreenshotModal 1.0 ScreenshotModal.qml

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# screenshot.sh — captura con grimblast (freeze)
+# screenshot.sh — captura con grimblast (freeze, sin cursor)
 # Uso: screenshot.sh [fullscreen|active|region]
 
 set -euo pipefail
@@ -19,7 +19,8 @@ case "$MODE" in
         ;;
 
     active|window)
-        grimblast --freeze copysave active "$FILE"
+        # Overlay interactivo: hover sobre ventana la ilumina, click la captura
+        grimblast --freeze copysave area "$FILE"
         ;;
 
     region|*)
@@ -32,13 +33,14 @@ esac
 wl-copy < "$FILE"
 
 case "$MODE" in
-    fullscreen|full) LABEL="Pantalla completa" ;;
-    active|window)   LABEL="Ventana activa"    ;;
-    *)               LABEL="Región"            ;;
+    fullscreen|full) LABEL="Full screen"   ;;
+    active|window)   LABEL="Active window" ;;
+    *)               LABEL="Region"        ;;
 esac
 
 notify-send \
     --urgency=normal \
     --expire-time=4000 \
     --icon="$FILE" \
-    "$(basename "$FILE")"
+    "Screenshot saved" \
+    "$LABEL — $(basename "$FILE")"
