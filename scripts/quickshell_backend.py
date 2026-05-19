@@ -181,24 +181,30 @@ def fetch_ram() -> dict:
 def fetch_gpu() -> dict:
     # Try NVIDIA first
     rc, out = _run_cmd(
-        ["nvidia-smi", "--query-gpu=utilization.gpu,temperature.gpu,name",
+        ["nvidia-smi",
+         "--query-gpu=utilization.gpu,temperature.gpu,name,memory.used,memory.total",
          "--format=csv,noheader,nounits"],
         timeout=3,
     )
     if rc == 0 and out and "failed" not in out.lower():
         parts = out.split(", ")
         if len(parts) >= 2:
-            pct = int(parts[0].strip() or "-1")
-            tmp = int(parts[1].strip() or "0")
+            pct  = int(parts[0].strip() or "-1")
+            tmp  = int(parts[1].strip() or "0")
             name = parts[2].strip() if len(parts) > 2 else "NVIDIA"
             name = name.replace("NVIDIA GeForce ", "").replace("GeForce ", "")
-            return {"t": "gpu", "u": pct, "tmp": tmp, "n": name}
+            vram_used  = int(parts[3].strip() or "0") if len(parts) > 3 else 0
+            vram_total = int(parts[4].strip() or "0") if len(parts) > 4 else 0
+            return {"t": "gpu", "u": pct, "tmp": tmp, "n": name,
+                    "vu": vram_used, "vt": vram_total}
 
     # Fallback: sysfs (AMD/Intel) — usa el path cacheado en main()
     pct, tmp, name = -1, 0, "GPU"
+    vram_used, vram_total = 0, 0
     cpath = _gpu_card_path
     if not cpath:
-        return {"t": "gpu", "u": pct, "tmp": tmp, "n": name}
+        return {"t": "gpu", "u": pct, "tmp": tmp, "n": name,
+                "vu": vram_used, "vt": vram_total}
 
     vendor = _read_sys(f"{cpath}/device/vendor")
     if "10de" in vendor:
@@ -224,7 +230,18 @@ def fetch_gpu() -> dict:
             except (ValueError, ZeroDivisionError):
                 pass
 
-    return {"t": "gpu", "u": pct, "tmp": tmp, "n": name}
+    # AMD VRAM via sysfs (bytes → MB)
+    try:
+        vram_used_raw  = _read_sys(f"{cpath}/device/mem_info_vram_used")
+        vram_total_raw = _read_sys(f"{cpath}/device/mem_info_vram_total")
+        if vram_used_raw and vram_total_raw:
+            vram_used  = int(int(vram_used_raw)  / 1048576)
+            vram_total = int(int(vram_total_raw) / 1048576)
+    except (ValueError, TypeError):
+        pass
+
+    return {"t": "gpu", "u": pct, "tmp": tmp, "n": name,
+            "vu": vram_used, "vt": vram_total}
 
 
 def fetch_disk() -> dict:

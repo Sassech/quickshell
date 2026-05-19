@@ -35,7 +35,7 @@ PanelWindow {
     property int  _btRev: 0
 
     // ── Paneles expandibles en toggles ───────────────────────────────────
-    property string _activePanel: ""   // "wifi" | "bluetooth" | "audio" | "power" | "battery" | "language" | ""
+    property string _activePanel: ""   // "wifi" | "bluetooth" | "audio" | "power" | "battery" | "language" | "cpu" | "ram" | "gpu" | ""
     property bool   _audioShowSources: true
 
     // ── WiFi inline state — Quickshell.Networking API ────────────────────
@@ -642,6 +642,15 @@ PanelWindow {
         var m = Math.floor(s / 60)
         var sec = s % 60
         return m + ":" + (sec < 10 ? "0" : "") + sec
+    }
+
+    function langRefresh() {
+        root._langSearch = ""
+        root._langTab    = "keyboard"
+        langLayoutProc.running     = true
+        langCurrentProc.running    = true
+        langLocaleProc.running     = true
+        langLocaleListProc.running = true
     }
 
     function volIcon(vol, muted) {
@@ -2210,13 +2219,8 @@ PanelWindow {
                             onEntered: langCard.hov = true
                             onExited:  langCard.hov = false
                             onClicked: {
-                                root._activePanel  = "language"
-                                root._langSearch   = ""
-                                root._langTab      = "keyboard"
-                                langLayoutProc.running     = true
-                                langCurrentProc.running    = true
-                                langLocaleProc.running     = true
-                                langLocaleListProc.running = true
+                                root._activePanel = "language"
+                                root.langRefresh()
                             }
                         }
                     }
@@ -2259,7 +2263,7 @@ PanelWindow {
                             required property var modelData
                             required property int index
                             property bool hov: false
-                            property bool expanded: root._expandedMetric === modelData.key
+                            property bool expanded: root._activePanel === modelData.key
 
                             width: (metricsRow.width - 12) / 3
                             height: 70
@@ -2346,283 +2350,14 @@ PanelWindow {
                                 onExited:  metCard.hov = false
                                 onClicked: {
                                     var k = modelData.key
-                                    root._expandedMetric = (root._expandedMetric === k) ? "" : k
-                                    if (root._expandedMetric === "cpu" && !root._cpuLoaded) {
-                                        root._cpuBuf = ""; cpuDetailProc.running = true
-                                    } else if (root._expandedMetric === "gpu" && !root._gpuLoaded) {
-                                        root._gpuBuf = ""; gpuDetailProc.running = true
-                                    }
+                                    root._activePanel = (root._activePanel === k) ? "" : k
                                 }
                             }
                         }
                     }
                 }
 
-                 // ── Panel de detalle expandible — CPU ──────────────────────
-                 Rectangle {
-                     width: parent.width
-                     height: root._expandedMetric === "cpu" ? cpuDetailCol.implicitHeight + 16 : 0
-                     radius: 10; color: Theme.surface2
-                    clip: true
-                    Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-
-                    Column {
-                        id: cpuDetailCol
-                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
-                        spacing: 6
-
-                        // Modelo
-                        Text {
-                            text: root._cpuModel || "CPU"
-                            font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.text
-                            elide: Text.ElideRight; width: parent.width
-                        }
-
-                        // Uso global + temp + freq
-                        Row {
-                            spacing: 12
-                            Text { text: "Usage: " + SysData.cpuPercent + "%"; font.pixelSize: 10; color: Theme.muted1 }
-                            Text {
-                                visible: root._cpuPkgTemp > 0
-                                text: "Temp: " + root._cpuPkgTemp + " °C"
-                                font.pixelSize: 10
-                                color: root._cpuPkgTemp >= 85 ? "#ff7b72"
-                                     : root._cpuPkgTemp >= 70 ? "#e3b341"
-                                     : Theme.muted1
-                            }
-                            Text {
-                                visible: root._cpuAvgFreq > 0
-                                text: root._cpuAvgFreq + " MHz"
-                                font.pixelSize: 10; color: Theme.muted1
-                            }
-                        }
-
-                        // Barras por núcleo (máx 16 en grid 4 cols)
-                        Grid {
-                            columns: 4
-                            spacing: 4
-                            width: parent.width
-
-                            Repeater {
-                                model: Math.min(root._cpuCorePcts.length, 16)
-                                Item {
-                                    required property int index
-                                    property int corePct: root._cpuCorePcts[index] || 0
-                                    width: (cpuDetailCol.width - 12) / 4; height: 22
-
-                                    Rectangle {
-                                        anchors.fill: parent; radius: 4; color: Theme.surface3
-                                    }
-                                    Rectangle {
-                                        anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                                        width: Math.max(4, corePct / 100 * parent.width)
-                                        radius: 4
-                                        color: corePct > 85 ? "#ff7b72"
-                                             : corePct > 65 ? "#e3b341"
-                                             : Theme.accent
-                                        Behavior on width { NumberAnimation { duration: 200 } }
-                                    }
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "C" + (index + 1)
-                                        font.pixelSize: 8; color: Theme.muted1
-                                    }
-                                }
-                            }
-                        }
-
-                        // Gov + EPP
-                        Row {
-                            spacing: 10
-                            visible: root._cpuGov !== ""
-                            Text { text: "Governor: " + root._cpuGov; font.pixelSize: 9; color: Theme.muted2 }
-                            Text { visible: root._cpuEpp !== ""; text: "EPP: " + root._cpuEpp; font.pixelSize: 9; color: Theme.muted2 }
-                        }
-                    }
-                }
-
-                 // ── Panel de detalle expandible — RAM ──────────────────────
-                 Rectangle {
-                     width: parent.width
-                     height: root._expandedMetric === "ram" ? ramDetailCol.implicitHeight + 16 : 0
-                     radius: 10; color: Theme.surface2
-                    clip: true
-                    Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-
-                    Column {
-                        id: ramDetailCol
-                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
-                        spacing: 6
-
-                        // Barra RAM usada
-                        Item {
-                            width: parent.width; height: 6
-                            Rectangle { anchors.fill: parent; radius: 3; color: Theme.surface3 }
-                            Rectangle {
-                                anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                                width: Math.max(6, SysData.ramPercent / 100 * parent.width)
-                                radius: 3
-                                color: SysData.ramPercent >= 90 ? "#ff7b72"
-                                     : SysData.ramPercent >= 75 ? "#e3b341"
-                                     : Theme.accent
-                                Behavior on width { NumberAnimation { duration: 200 } }
-                            }
-                        }
-
-                        Row {
-                            spacing: 12
-                            Text { text: SysData.ramUsedGb.toFixed(1) + " / " + SysData.ramTotalGb.toFixed(1) + " GB"; font.pixelSize: 10; color: Theme.text }
-                            Text { text: "(" + SysData.ramPercent + "%)"; font.pixelSize: 10; color: Theme.muted1 }
-                        }
-
-                        // Swap si hay
-                        Item {
-                            visible: SysData.swapPercent > 0
-                            width: parent.width; height: 6
-                            Rectangle { anchors.fill: parent; radius: 3; color: Theme.surface3 }
-                            Rectangle {
-                                anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                                width: Math.max(4, SysData.swapPercent / 100 * parent.width)
-                                radius: 3; color: "#e3b341"
-                                Behavior on width { NumberAnimation { duration: 200 } }
-                            }
-                        }
-                        Text {
-                            visible: SysData.swapPercent > 0
-                            text: "Swap: " + SysData.swapPercent + "%"
-
-                            font.pixelSize: 9; color: Theme.muted2
-                        }
-
-                        Row {
-                            spacing: 12
-                            Text { text: "Free: " + SysData.ramAvailGb.toFixed(1) + " GB"; font.pixelSize: 9; color: Theme.muted2 }
-                        }
-                    }
-                }
-
-                 // ── Panel de detalle expandible — GPU (multi-vendor) ──────────
-                 Rectangle {
-                     width: parent.width
-                     height: root._expandedMetric === "gpu" ? gpuDetailCol.implicitHeight + 16 : 0
-                     radius: 10; color: Theme.surface2
-                    clip: true
-                    Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-
-                    Column {
-                        id: gpuDetailCol
-                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
-                        spacing: 8
-
-                        Repeater {
-                            model: root._gpus
-
-                            Column {
-                                id: gpuEntry
-                                required property var modelData
-                                required property int index
-                                width: gpuDetailCol.width
-                                spacing: 4
-
-                                // Separator between GPUs
-                                Rectangle {
-                                    visible: gpuEntry.index > 0
-                                    width: parent.width; height: 1; color: Theme.surface3
-                                }
-
-                                // Name + vendor badge
-                                Row {
-                                    spacing: 6
-                                    Text {
-                                        text: {
-                                            var v = gpuEntry.modelData.vendor
-                                            if (v === "nvidia") return "󰾲"
-                                            if (v === "amd")    return "󰢮"
-                                            return "󰾅"  // intel
-                                        }
-                                        font.pixelSize: 13
-                                        color: {
-                                            var v = gpuEntry.modelData.vendor
-                                            if (v === "nvidia") return "#76b900"
-                                            if (v === "amd")    return "#ed1c24"
-                                            return Theme.accent
-                                        }
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-                                    Text {
-                                        text: gpuEntry.modelData.name || (gpuEntry.modelData.vendor.toUpperCase() + " GPU")
-                                        font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.text
-                                        elide: Text.ElideRight
-                                        width: gpuDetailCol.width - 26
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-                                }
-
-                                // Inactive overlay for NVIDIA when driver off
-                                Text {
-                                    visible: gpuEntry.modelData.vendor === "nvidia" && gpuEntry.modelData.status !== "active"
-                                    text: "Driver inactive"
-                                    font.pixelSize: 9; color: Theme.muted2
-                                }
-
-                                // Util bar (skip for Intel which reports -1)
-                                Item {
-                                    visible: gpuEntry.modelData.util >= 0 && gpuEntry.modelData.status === "active"
-                                    width: parent.width; height: 5
-                                    Rectangle { anchors.fill: parent; radius: 3; color: Theme.surface3 }
-                                    Rectangle {
-                                        anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                                        width: Math.max(4, gpuEntry.modelData.util / 100 * parent.width)
-                                        radius: 3; color: Theme.accent
-                                        Behavior on width { NumberAnimation { duration: 200 } }
-                                    }
-                                }
-
-                                // Stats row
-                                Row {
-                                    visible: gpuEntry.modelData.status === "active"
-                                    spacing: 10
-
-                                    Text {
-                                        visible: gpuEntry.modelData.util >= 0
-                                        text: gpuEntry.modelData.util + "% util"
-                                        font.pixelSize: 9; color: Theme.muted1
-                                    }
-                                    Text {
-                                        visible: gpuEntry.modelData.temp > 0
-                                        text: gpuEntry.modelData.temp + " °C"
-                                        font.pixelSize: 9
-                                        color: gpuEntry.modelData.temp >= 85 ? "#ff7b72"
-                                             : gpuEntry.modelData.temp >= 70 ? "#e3b341"
-                                             : Theme.muted1
-                                    }
-                                    Text {
-                                        visible: gpuEntry.modelData.freq > 0
-                                        text: gpuEntry.modelData.freq + " MHz"
-                                        font.pixelSize: 9; color: Theme.muted1
-                                    }
-                                    Text {
-                                        visible: gpuEntry.modelData.vramTotal > 0
-                                        text: gpuEntry.modelData.vramUsed + " / " + gpuEntry.modelData.vramTotal + " MiB"
-                                        font.pixelSize: 9; color: Theme.muted1
-                                    }
-                                    Text {
-                                        visible: gpuEntry.modelData.power > 0
-                                        text: gpuEntry.modelData.power.toFixed(1) + " W"
-                                        font.pixelSize: 9; color: Theme.muted2
-                                    }
-                                }
-                            }
-                        }
-
-                        // Empty state
-                        Text {
-                            visible: root._gpus.length === 0
-                            text: "No GPU data"
-                            font.pixelSize: 10; color: Theme.muted2
-                        }
-                    }
-                }
+                // CPU / RAM / GPU: detalle ahora en CcCpuPanel / CcRamPanel / CcGpuPanel (overlay)
 
                 // ── Disco: Root + Home ─────────────────────────────────────
                 Item { width: parent.width; height: 8 }
@@ -2935,6 +2670,27 @@ PanelWindow {
         batChangeRate: root._batChangeRate
         batTimeEmpty:  root._batTimeEmpty
         batTimeFull:   root._batTimeFull
+
+        // CPU
+        cpuAvailable: SysData.cpuAvailable
+        cpuPercent:   SysData.cpuPercent
+        cpuTemp:      SysData.cpuTemp
+
+        // RAM
+        ramAvailable: SysData.ramAvailable
+        ramPercent:   SysData.ramPercent
+        ramUsedGb:    SysData.ramUsedGb
+        ramTotalGb:   SysData.ramTotalGb
+        ramAvailGb:   SysData.ramAvailGb
+        swapPercent:  SysData.swapPercent
+
+        // GPU
+        gpuAvailable:   SysData.gpuAvailable
+        gpuPercent:     SysData.gpuPercent >= 0 ? SysData.gpuPercent : 0
+        gpuTemp:        SysData.gpuTemp
+        gpuName:        SysData.gpuName
+        gpuVramUsedMb:  SysData.gpuVramUsedMb
+        gpuVramTotalMb: SysData.gpuVramTotalMb
 
         // Language
         filteredLayouts: root._filteredLayouts

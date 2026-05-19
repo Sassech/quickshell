@@ -14,7 +14,7 @@ Item {
     id: root
 
     // ── Inputs desde ControlCenter ────────────────────────────────────────
-    required property string activePanel          // "wifi"|"bluetooth"|"audio"|"power"|"battery"|"language"|""
+    required property string activePanel          // "wifi"|"bluetooth"|"audio"|"power"|"battery"|"language"|"cpu"|"ram"|"gpu"|""
 
     // WiFi
     required property var    nmWifiDev
@@ -66,6 +66,27 @@ Item {
     required property real  batChangeRate
     required property real  batTimeEmpty
     required property real  batTimeFull
+
+    // CPU
+    required property bool cpuAvailable
+    required property int  cpuPercent
+    required property int  cpuTemp
+
+    // RAM
+    required property bool ramAvailable
+    required property int  ramPercent
+    required property real ramUsedGb
+    required property real ramTotalGb
+    required property real ramAvailGb
+    required property int  swapPercent
+
+    // GPU
+    required property bool   gpuAvailable
+    required property int    gpuPercent
+    required property int    gpuTemp
+    required property string gpuName
+    required property int    gpuVramUsedMb
+    required property int    gpuVramTotalMb
 
     // Language
     required property var    filteredLayouts
@@ -239,6 +260,45 @@ Item {
             batChangeRate: root.batChangeRate
             batTimeEmpty:  root.batTimeEmpty
             batTimeFull:   root.batTimeFull
+
+            onCloseRequested: root.closePanel()
+        }
+
+        // ── CPU Panel ─────────────────────────────────────────────────────
+        CcCpuPanel {
+            visible: root.activePanel === "cpu"
+
+            cpuAvailable: root.cpuAvailable
+            cpuPercent:   root.cpuPercent
+            cpuTemp:      root.cpuTemp
+
+            onCloseRequested: root.closePanel()
+        }
+
+        // ── RAM Panel ─────────────────────────────────────────────────────
+        CcRamPanel {
+            visible: root.activePanel === "ram"
+
+            ramAvailable: root.ramAvailable
+            ramPercent:   root.ramPercent
+            ramUsedGb:    root.ramUsedGb
+            ramTotalGb:   root.ramTotalGb
+            ramAvailGb:   root.ramAvailGb
+            swapPercent:  root.swapPercent
+
+            onCloseRequested: root.closePanel()
+        }
+
+        // ── GPU Panel ─────────────────────────────────────────────────────
+        CcGpuPanel {
+            visible: root.activePanel === "gpu"
+
+            gpuAvailable:  root.gpuAvailable
+            gpuPercent:    root.gpuPercent
+            gpuTemp:       root.gpuTemp
+            gpuName:       root.gpuName
+            gpuVramUsedMb: root.gpuVramUsedMb
+            gpuVramTotalMb: root.gpuVramTotalMb
 
             onCloseRequested: root.closePanel()
         }

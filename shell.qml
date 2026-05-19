@@ -300,7 +300,6 @@ ShellRoot {
             onLanguageClicked:   screen => root.broadcastLanguage(screen)
             onWifiClicked:       screen => root.broadcastWifi(screen)
             onBluetoothClicked:  screen => root.broadcastBluetooth(screen)
-            onAudioClicked:      screen => root.broadcastAudio(screen)
 
         }
     }
@@ -551,23 +550,7 @@ ShellRoot {
     // ── LANGUAGE MODAL ────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
-        LanguageModal {
-            id: languageModalInst
-            property var modelData
-            screen: modelData
-            Connections {
-                target: root
-                function onBroadcastCloseAll(screen) {
-                    if (languageModalInst.modelData === screen) languageModalInst.visible = false
-                }
-                function onBroadcastLanguage(screen) {
-                    if (languageModalInst.modelData !== screen) return
-                    var was = languageModalInst.visible
-                    root.broadcastCloseAll(screen)
-                    languageModalInst.visible = !was
-                }
-            }
-        }
+        // LanguageModal eliminado — ahora abre ControlCenter con _activePanel = "language"
     }
 
 
@@ -592,17 +575,17 @@ ShellRoot {
                 function onBroadcastWifi(screen) {
                     if (ccInst.modelData !== screen) return
                     root.broadcastCloseAll(screen)
-                    ccInst.visible            = true
-                    ccInst._expandedToggle    = "wifi"
-                    ccInst._wifiStatusMsg     = ""
-                    ccInst._wifiSelectedIdx   = -1
+                    ccInst.visible          = true
+                    ccInst._activePanel     = "wifi"
+                    ccInst._wifiStatusMsg   = ""
+                    ccInst._wifiSelectedIdx = -1
                     ccInst._wifiPasswordByIndex = ({})
                 }
                 function onBroadcastBluetooth(screen) {
                     if (ccInst.modelData !== screen) return
                     root.broadcastCloseAll(screen)
-                    ccInst.visible = true
-                    ccInst._expandedToggle = "bluetooth"
+                    ccInst.visible      = true
+                    ccInst._activePanel = "bluetooth"
                     ccInst._btStatusMsg = ""
                     ccInst.btRefreshDeviceLists()
                     if (ccInst._btPwrd && ccInst._btAdapter) {
@@ -614,9 +597,16 @@ ShellRoot {
                 function onBroadcastAudio(screen) {
                     if (ccInst.modelData !== screen) return
                     root.broadcastCloseAll(screen)
-                    ccInst.visible = true
-                    ccInst._expandedToggle = "audio"
+                    ccInst.visible      = true
+                    ccInst._activePanel = "audio"
                     ccInst.loadAudioDevices()
+                }
+                function onBroadcastLanguage(screen) {
+                    if (ccInst.modelData !== screen) return
+                    root.broadcastCloseAll(screen)
+                    ccInst.visible      = true
+                    ccInst._activePanel = "language"
+                    ccInst.langRefresh()
                 }
             }
         }

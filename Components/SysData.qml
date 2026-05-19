@@ -31,6 +31,8 @@ QtObject {
     property int gpuTemp: 0
     property string gpuName: ""
     property bool gpuAvailable: false
+    property int gpuVramUsedMb: 0
+    property int gpuVramTotalMb: 0
 
     // ── Disk ───────────────────────────────────────────────────────────────
     property int diskUsedGb: 0
@@ -96,6 +98,8 @@ QtObject {
             data.gpuTemp = msg.tmp
             data.gpuName = msg.n
             data.gpuAvailable = msg.u >= 0
+            data.gpuVramUsedMb  = msg.vu || 0
+            data.gpuVramTotalMb = msg.vt || 0
             break
         case "disk":
             data.diskUsedGb = msg.ug
