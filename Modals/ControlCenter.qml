@@ -140,8 +140,16 @@ PanelWindow {
     property string _langSetBuf:   ""
     property var    _langLocales:  []
     property string _langLocaleBuf:""
-    property string _langSearch:   ""
-    property string _langTab:      "keyboard"
+    property string _langSearch:        ""   // valor debounced (el que leen los filtros)
+    property string _langSearchPending: ""   // valor inmediato del campo de texto
+    property string _langTab:           "keyboard"
+
+    // Debounce: aplica la búsqueda 150 ms después de la última tecla
+    Timer {
+        id: _langSearchDebounce
+        interval: 150
+        onTriggered: root._langSearch = root._langSearchPending
+    }
 
     property var _filteredLayouts: {
         root._langLayouts; root._langSearch
@@ -617,8 +625,10 @@ PanelWindow {
     }
 
     function langRefresh() {
-        root._langSearch = ""
-        root._langTab    = "keyboard"
+        root._langSearchPending = ""
+        root._langSearch        = ""
+        _langSearchDebounce.stop()
+        root._langTab           = "keyboard"
         langLayoutProc.running     = true
         langCurrentProc.running    = true
         langLocaleProc.running     = true
@@ -2561,10 +2571,15 @@ PanelWindow {
 
         // Language
         onLangSelectTab: (tab) => {
-            root._langTab    = tab
-            root._langSearch = ""
+            root._langTab           = tab
+            root._langSearchPending = ""
+            root._langSearch        = ""
+            _langSearchDebounce.stop()
         }
-        onLangSearchQuery: (q) => { root._langSearch = q }
+        onLangSearchQuery: (q) => {
+            root._langSearchPending = q
+            _langSearchDebounce.restart()
+        }
         onLangSetLayout: (code) => {
             var cmd = "hyprctl keyword input:kb_layout " + code +
                       " 2>/dev/null && sleep 0.4 && hyprctl dispatch switchxkblayout all 0"

@@ -60,14 +60,14 @@ def main() -> None:
             })
 
             if is_binary and "png" in preview.lower() and imagemagick:
-                thumb_tasks.append((len(entries) - 1, entry_id))
+                thumb_tasks.append((len(entries) - 1, entry_id, preview))
 
         # Generar thumbnails en paralelo
         if thumb_tasks:
             with ThreadPoolExecutor(max_workers=4) as pool:
                 futures = {
-                    pool.submit(generate_thumbnail, eid): idx
-                    for idx, eid in thumb_tasks
+                    pool.submit(generate_thumbnail, eid, prev): idx
+                    for idx, eid, prev in thumb_tasks
                 }
                 for future in as_completed(futures):
                     idx = futures[future]
@@ -86,7 +86,7 @@ def main() -> None:
         print("[]")
 
 
-def generate_thumbnail(entry_id: str) -> str:
+def generate_thumbnail(entry_id: str, preview: str = "") -> str:
     thumb_path = f"/tmp/qs-clip-{entry_id}.png"
 
     if os.path.exists(thumb_path):
@@ -95,9 +95,11 @@ def generate_thumbnail(entry_id: str) -> str:
     raw_path = f"/tmp/qs-raw-{entry_id}"
 
     try:
-        # Obtener la entrada y decodificar en un solo pipeline
+        # Decodificar directo pasando "ID\tpreview" por stdin — sin relanzar cliphist list
+        line = f"{entry_id}\t{preview}".encode()
         decode_result = subprocess.run(
-            ["bash", "-c", f"cliphist list | awk -F'\\t' '$1 == \"{entry_id}\" {{print; exit}}' | cliphist decode"],
+            ["cliphist", "decode"],
+            input=line,
             capture_output=True,
             timeout=10
         )

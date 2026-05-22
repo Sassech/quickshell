@@ -17,17 +17,41 @@ query = query_args[0].strip() if query_args else ""
 query_low = query.lower()
 results = []
 
-# ── Resolución de iconos ────────────────────────────────────────────────
+# ── Resolución de iconos — caché persistente en disco ───────────────────
+_ICON_CACHE_PATH = os.path.expanduser("~/.cache/qs-icon-cache.json")
 _icon_cache: dict = {}
+
+def _load_icon_cache() -> None:
+    global _icon_cache
+    try:
+        with open(_ICON_CACHE_PATH) as f:
+            _icon_cache = json.load(f)
+    except Exception:
+        _icon_cache = {}
+
+def _save_icon_cache() -> None:
+    try:
+        os.makedirs(os.path.dirname(_ICON_CACHE_PATH), exist_ok=True)
+        tmp = _ICON_CACHE_PATH + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(_icon_cache, f, separators=(",", ":"))
+        os.replace(tmp, _ICON_CACHE_PATH)
+    except Exception:
+        pass
+
+_load_icon_cache()
+_icon_cache_dirty = False
 
 
 def find_icon_path(icon_name: str) -> str:
+    global _icon_cache_dirty
     if not icon_name:
         return ""
     if icon_name in _icon_cache:
         return _icon_cache[icon_name]
     if icon_name.startswith("/") and os.path.exists(icon_name):
         _icon_cache[icon_name] = icon_name
+        _icon_cache_dirty = True
         return icon_name
     sizes = ["256x256", "128x128", "96x96", "64x64", "48x48", "32x32"]
     themes = ["hicolor", "Papirus", "Papirus-Dark", "breeze", "Adwaita"]
@@ -39,13 +63,16 @@ def find_icon_path(icon_name: str) -> str:
                     p = f"/usr/share/icons/{theme}/{size}/{cat}/{icon_name}.{ext}"
                     if os.path.exists(p):
                         _icon_cache[icon_name] = p
+                        _icon_cache_dirty = True
                         return p
     for ext in ("png", "svg", "xpm"):
         p = f"/usr/share/pixmaps/{icon_name}.{ext}"
         if os.path.exists(p):
             _icon_cache[icon_name] = p
+            _icon_cache_dirty = True
             return p
     _icon_cache[icon_name] = ""
+    _icon_cache_dirty = True
     return ""
 
 
@@ -222,6 +249,8 @@ if list_apps_mode:
                 "iconPath": find_icon_path(info["icon"]),
             })
     apps.sort(key=lambda x: x["name"].lower())
+    if _icon_cache_dirty:
+        _save_icon_cache()
     print(json.dumps(apps))
     sys.exit(0)
 
@@ -354,5 +383,8 @@ if query and not calc_re.match(query):
         "icon": "󰆍",
         "iconPath": "",
     })
+
+if _icon_cache_dirty:
+    _save_icon_cache()
 
 print(json.dumps(results[:15]))

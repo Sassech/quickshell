@@ -16,7 +16,7 @@ while IFS= read -r cmd <&3; do
     case "$cmd" in
         increment\ *)
             n="${cmd#increment }"
-            wpctl set-volume @DEFAULT_AUDIO_SINK@ "${n}%+" >/dev/null 2>&1
+            wpctl set-volume --limit 1.5 @DEFAULT_AUDIO_SINK@ "${n}%+" >/dev/null 2>&1
             ;;
         decrement\ *)
             n="${cmd#decrement }"

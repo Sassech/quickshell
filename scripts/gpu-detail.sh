@@ -27,14 +27,10 @@ read_temp_mc() {
 }
 
 gpu_name_from_lspci() {
-    # Extract GPU name for a PCI slot (e.g. "00:02.0")
+    # Extract GPU name for a PCI slot — single awk call, zero extra forks
     local slot="$1"
     lspci -s "$slot" 2>/dev/null \
-        | sed 's/.*: //' \
-        | sed 's/ (rev [0-9a-f]*//' \
-        | sed 's/)//' \
-        | sed 's/^[[:space:]]*//' \
-        | sed 's/[[:space:]]*$//'
+        | awk 'NR==1{ sub(/.*: /,""); sub(/ \(rev[^)]*\)/,""); gsub(/^[[:space:]]+|[[:space:]]+$/,""); print }'
 }
 
 # ── Enumerate all GPU cards ────────────────────────────────────────────────
@@ -76,9 +72,9 @@ for entry in "${GPU_ENTRIES[@]:-}"; do
         # Name from lspci
         name=""
         if [ -n "$pci_short" ] && [ "$pci_short" != "unknown" ]; then
-            name=$(lspci -s "$pci_short" 2>/dev/null | sed 's/.*: //' | sed 's/ (rev.*)//' || true)
+            name=$(gpu_name_from_lspci "$pci_short")
         fi
-        [ -z "$name" ] && name=$(lspci 2>/dev/null | awk '/Intel.*VGA|Intel.*UHD|Intel.*Iris|Intel.*Arc/{sub(/.*: /,""); sub(/ \(rev.*/,""); print; exit}')
+        [ -z "$name" ] && name=$(lspci 2>/dev/null | awk '/Intel.*VGA|Intel.*UHD|Intel.*Iris|Intel.*Arc/{sub(/.*: /,""); sub(/ \(rev[^)]*\)/,""); gsub(/^[[:space:]]+|[[:space:]]+$/,""); print; exit}')
         [ -z "$name" ] && name="Intel GPU"
 
         # Frequency
@@ -109,9 +105,9 @@ for entry in "${GPU_ENTRIES[@]:-}"; do
         # Name
         name=""
         if [ -n "$pci_short" ] && [ "$pci_short" != "unknown" ]; then
-            name=$(lspci -s "$pci_short" 2>/dev/null | sed 's/.*: //' | sed 's/ (rev.*)//' || true)
+            name=$(gpu_name_from_lspci "$pci_short")
         fi
-        [ -z "$name" ] && name=$(lspci 2>/dev/null | awk '/AMD.*VGA|Radeon|RDNA/{sub(/.*: /,""); sub(/ \(rev.*/,""); print; exit}')
+        [ -z "$name" ] && name=$(lspci 2>/dev/null | awk '/AMD.*VGA|Radeon|RDNA/{sub(/.*: /,""); sub(/ \(rev[^)]*\)/,""); gsub(/^[[:space:]]+|[[:space:]]+$/,""); print; exit}')
         [ -z "$name" ] && name="AMD GPU"
 
         # hwmon linked to this card
