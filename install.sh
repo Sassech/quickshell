@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh — Configura el entorno completo de quickshell
+# install.sh — QuickShell configuration and package installer
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,7 +16,7 @@ info() { echo "   $*"; }
 # ─────────────────────────────────────────────────────────────────────────────
 # 0. Install packages
 # ─────────────────────────────────────────────────────────────────────────────
-$XDG_CONFIG_HOME/quickshell/packages.sh
+"${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/packages.sh"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. sudoers rules for quickshell scripts
@@ -36,22 +36,22 @@ sudo chmod 440 /etc/sudoers.d/quickshell-power /etc/sudoers.d/quickshell-fan
 if sudo visudo -c &>/dev/null; then
     ok "Reglas sudoers instaladas."
 else
-    echo "sudoers sintaxys error."
+    echo "sudoers syntax error."
     exit 1
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2. quickshell-backend — servicio systemd de métricas del sistema
+# 2. quickshell-backend — systemd user service to 
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
-echo "▶ Instalando servicio quickshell-backend (systemd user)..."
+echo "▶ Installing systemd user service..."
 
 BACKEND_SERVICE_SRC="$SCRIPT_DIR/config/systemd/user/quickshell-backend.service"
 BACKEND_SERVICE_DST="$HOME/.config/systemd/user/quickshell-backend.service"
 
 mkdir -p "$HOME/.config/systemd/user"
 
-# Sustituir el token __SCRIPT_DIR__ por la ruta real del proyecto
+# Replace __SCRIPT_DIR__ placeholder with actual path in the service file
 sed "s|__SCRIPT_DIR__|$SCRIPT_DIR|g" "$BACKEND_SERVICE_SRC" > "$BACKEND_SERVICE_DST"
 
 if [ "$EUID" -eq 0 ]; then
@@ -63,20 +63,20 @@ else
     systemctl --user enable quickshell-backend.service
     systemctl --user restart quickshell-backend.service
 fi
-ok "Servicio quickshell-backend instalado, habilitado e iniciado."
+ok "QuickShell backend service installed and started."
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4. mpDris2  —  puente MPD → MPRIS2 (necesario para rmpc y otros clientes MPD)
+# 4. mpDris2  —  bridge MPD → MPRIS2 (required for rmpc and other MPD clients)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Configuración de mpDris2
+# mpDris2 configuration
 MPDRIS2_CONF_DIR="$HOME/.config/mpDris2"
 MPDRIS2_CONF="$MPDRIS2_CONF_DIR/mpDris2.conf"
 
 if [ ! -f "$MPDRIS2_CONF" ]; then
     mkdir -p "$MPDRIS2_CONF_DIR"
 
-    # Intentar leer music_directory del mpd.conf del usuario
+    # Try to detect music_directory from mpd.conf, fallback to ~/Música if not found
     MPD_MUSIC_DIR=""
     MPD_CONF="$HOME/.config/mpd/mpd.conf"
     if [ -f "$MPD_CONF" ]; then
@@ -102,7 +102,7 @@ else
     ok "Configuración de mpDris2 ya existe, no se sobreescribe."
 fi
 
-# Habilitar e iniciar el servicio systemd de usuario
+# Enable and start mpDris2 service (with Restart=always)
 echo ""
 echo "▶ Habilitando servicio mpDris2 (systemd user)..."
 
@@ -115,7 +115,7 @@ Restart=always
 RestartSec=2
 EOF
 
-# Ejecutar como el usuario real (no root)
+# Execute as current user if running as root, otherwise just run normally
 if [ "$EUID" -eq 0 ]; then
     sudo -u "$CURRENT_USER" systemctl --user daemon-reload
     sudo -u "$CURRENT_USER" systemctl --user enable mpDris2.service
@@ -128,10 +128,10 @@ fi
 ok "Servicio mpDris2 habilitado e iniciado (Restart=always)."
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 5. Geoclue2 — permisos de ubicación para el clima
+# 5. Geoclue2 — location provider for weather info
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
-echo "▶ Configurando geoclue2 para ubicación del clima..."
+echo "▶ Configuring geoclue2..."
 
 GEOCLUE_CONF_DIR="/etc/geoclue/conf.d"
 GEOCLUE_CONF="$GEOCLUE_CONF_DIR/quickshell.conf"
@@ -140,28 +140,28 @@ if [ -d "$GEOCLUE_CONF_DIR" ]; then
     if [ ! -f "$GEOCLUE_CONF" ]; then
         echo "[quickshell]
 enable=true" | sudo tee "$GEOCLUE_CONF" > /dev/null
-        ok "Configuración de geoclue2 creada en $GEOCLUE_CONF"
+        ok "Configuration created at $GEOCLUE_CONF"
     else
-        ok "Configuración de geoclue2 ya existe."
+        ok "Configuration for geoclue2 already exists."
     fi
     
-    # Configurar beaconDB como proveedor de ubicación (más preciso que Google)
+    # Configure beaconDB as location provider (more accurate than Google)
     BEACONDB_CONF="$GEOCLUE_CONF_DIR/99-beacondb.conf"
     if [ ! -f "$BEACONDB_CONF" ]; then
         echo "[wifi]
 enable=true
 url=https://api.beacondb.net/v1/geolocate" | sudo tee "$BEACONDB_CONF" > /dev/null
-        ok "Configuración beaconDB creada en $BEACONDB_CONF"
+        ok "Configuration for beaconDB created at $BEACONDB_CONF"
     else
-        ok "Configuración beaconDB ya existe."
+        ok "Configuration for beaconDB already exists."
     fi
     
     sudo systemctl try-restart geoclue 2>/dev/null || sudo systemctl restart geoclue 2>/dev/null || true
-    ok "Servicio geoclue reiniciado."
+    ok "Service geoclue restarted."
 else
-    warn "Directorio $GEOCLUE_CONF_DIR no existe. Instala geoclue2 si necesitas ubicación."
+    warn "Directory $GEOCLUE_CONF_DIR does not exist. Install geoclue2 if you need location services."
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
-ok "Instalación completa. Reinicia la sesión si es un entorno nuevo."
+ok "Installation complete. Restart your session if this is a new environment."
