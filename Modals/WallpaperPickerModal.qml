@@ -349,6 +349,7 @@ PanelWindow {
                     visible: imageModel.count > 0
                     model: imageModel
                     clip: true
+                    reuseItems: true
 
                     cellWidth:  Math.floor(gridView.width / 3)
                     cellHeight: 158
@@ -368,6 +369,11 @@ PanelWindow {
                         required property int   index
 
                         property bool isActive: root.currentWallpaper === model.path
+
+                        // reuseItems: resetear source al entrar al pool para evitar
+                        // que la imagen anterior quede visible mientras carga la nueva
+                        ListView.onPooled:  { thumb.source = "" }
+                        ListView.onReused:  { thumb.source = model.thumb !== "" ? ("file://" + model.thumb) : "" }
 
                         Rectangle {
                             id: cellBg
