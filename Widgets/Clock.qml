@@ -17,6 +17,12 @@ Rectangle {
     property string utcTime: "--:--"
     property bool ntpSynced: true
 
+    // ── Valores cacheados del tooltip (actualizados por updateTime, no en cada hover) ──
+    property int  _weekOfYear:    0
+    property int  _dayOfYear:     0
+    property int  _daysRemaining: 0
+    property string _tooltipDate: ""
+
     // ── Load preferences ───────────────────────────────────────────────────
     Component.onCompleted: {
         loadPrefs();
@@ -113,7 +119,7 @@ Rectangle {
         const hours = now.getHours();
         const minutes = now.getMinutes();
         const seconds = now.getSeconds();
-        
+
         if (root.use24h) {
             timeText.text = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
             secsText.text = `:${seconds.toString().padStart(2, "0")}`;
@@ -123,7 +129,30 @@ Rectangle {
             timeText.text = `${h}:${minutes.toString().padStart(2, "0")}`;
             secsText.text = `:${seconds.toString().padStart(2, "0")} ${ampm}`;
         }
+
+        // Actualizar fecha (evita que se vuelva stale pasada la medianoche)
         dateText.text = Qt.formatDateTime(now, "ddd dd MMM");
+
+        // Actualizar valores del tooltip una vez por segundo (no en cada hover)
+        root._tooltipDate    = Qt.formatDateTime(now, "dddd, d 'de' MMMM 'de' yyyy");
+        root._weekOfYear     = _calcWeekOfYear(now);
+        root._dayOfYear      = _calcDayOfYear(now);
+        root._daysRemaining  = _calcDaysRemaining(now);
+    }
+
+    function _calcWeekOfYear(now) {
+        const start = new Date(now.getFullYear(), 0, 1);
+        return Math.ceil(((now - start) + start.getDay() * 86400000) / 604800000);
+    }
+
+    function _calcDayOfYear(now) {
+        const start = new Date(now.getFullYear(), 0, 1);
+        return Math.ceil((now - start) / 86400000);
+    }
+
+    function _calcDaysRemaining(now) {
+        const end = new Date(now.getFullYear(), 11, 31);
+        return Math.ceil((end - now) / 86400000);
     }
 
     Row {
@@ -144,7 +173,7 @@ Rectangle {
                 font.bold: true
                 font.family: "monospace"
                 anchors.verticalCenter: parent.verticalCenter
-                text: Qt.formatDateTime(new Date(), "HH:mm")
+                text: "--:--"
             }
 
             Text {
@@ -153,7 +182,7 @@ Rectangle {
                 font.pixelSize: 14
                 font.family: "monospace"
                 anchors.verticalCenter: parent.verticalCenter
-                text: Qt.formatDateTime(new Date(), ":ss")
+                text: ":--"
             }
         }
 
@@ -172,7 +201,7 @@ Rectangle {
             color: Theme.muted1
             font.pixelSize: 11
             anchors.verticalCenter: parent.verticalCenter
-            text: Qt.formatDateTime(new Date(), "ddd dd MMM")
+            text: "---"
         }
 
         // UTC indicator
@@ -224,7 +253,7 @@ Rectangle {
             spacing: 4
 
             Text {
-                text: Qt.formatDateTime(new Date(), "dddd, d 'de' MMMM 'de' yyyy")
+                text: root._tooltipDate
                 color: Theme.text
                 font.pixelSize: 11
                 font.bold: true
@@ -237,19 +266,19 @@ Rectangle {
             }
 
             Text {
-                text: "Semana: " + getWeekOfYear()
+                text: "Semana: " + root._weekOfYear
                 color: Theme.muted1
                 font.pixelSize: 9
             }
 
             Text {
-                text: "Día del año: " + getDayOfYear()
+                text: "Día del año: " + root._dayOfYear
                 color: Theme.muted1
                 font.pixelSize: 9
             }
 
             Text {
-                text: "Días restantes: " + getDaysRemaining()
+                text: "Días restantes: " + root._daysRemaining
                 color: Theme.muted1
                 font.pixelSize: 9
             }
@@ -268,23 +297,4 @@ Rectangle {
         }
     }
 
-    function getWeekOfYear() {
-        const now = new Date();
-        const start = new Date(now.getFullYear(), 0, 1);
-        const diff = now - start;
-        const oneWeek = 604800000;
-        return Math.ceil((diff + start.getDay() * 86400000) / oneWeek);
-    }
-
-    function getDayOfYear() {
-        const now = new Date();
-        const start = new Date(now.getFullYear(), 0, 1);
-        return Math.ceil((now - start) / 86400000);
-    }
-
-    function getDaysRemaining() {
-        const now = new Date();
-        const end = new Date(now.getFullYear(), 11, 31);
-        return Math.ceil((end - now) / 86400000);
-    }
 }
