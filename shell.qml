@@ -273,22 +273,25 @@ ShellRoot {
     signal broadcastClock(var screen)
     signal broadcastControlCenter(var screen)
     signal broadcastScreenshot(var screen)
+    signal broadcastClipboardCount(int n)
 
     // ── Top Bar ──────────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
 
         TopBar {
+            id: topBarInst
             property var modelData
             screen: modelData
             onWeatherClicked:        screen => root.broadcastWeather(screen)
-
-
-
-
             onClipboardClicked:      screen => root.broadcastClipboard(screen)
             onClockClicked:          screen => root.broadcastClock(screen)
             onControlCenterClicked:  screen => root.broadcastControlCenter(screen)
+            Connections {
+                target: root
+                // Actualiza el badge del ClipboardWidget sin timer de polling
+                function onBroadcastClipboardCount(n) { topBarInst.updateClipboardCount(n) }
+            }
         }
     }
 
@@ -358,6 +361,8 @@ ShellRoot {
             id: clipboardModalInst
             property var modelData
             screen: modelData
+            // Propaga el conteo actualizado al widget del topbar (elimina timer 30s)
+            onCountChanged: n => root.broadcastClipboardCount(n)
             Connections {
                 target: root
                 function onBroadcastCloseAll(screen) {

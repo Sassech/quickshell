@@ -8,13 +8,11 @@ PanelWindow {
     id: root
     
     signal weatherClicked(var screen)
-
-
-
-
     signal clipboardClicked(var screen)
     signal clockClicked(var screen)
     signal controlCenterClicked(var screen)
+
+    function updateClipboardCount(n) { clipboardWidget.updateCount(n) }
     
     // ── Aliases al WeatherProvider (instance lives in Weather widget) ───
     // Weather widget already has its own WeatherProvider; no duplicate here.

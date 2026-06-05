@@ -41,11 +41,11 @@ Rectangle {
         }
     }
 
-    // Actualiza conteo al inicio y cada 30s
-    Timer {
-        interval: 30000
-        running: true; repeat: true; triggeredOnStart: true
-        onTriggered: countProc.running = true
+    // Carga el conteo una vez al inicio; se actualiza vía countUpdated(n) desde el modal
+    Component.onCompleted: countProc.running = true
+
+    function updateCount(n) {
+        if (!isNaN(n) && n >= 0) root.entryCount = n
     }
 
     property string _countBuf: ""
@@ -59,6 +59,7 @@ Rectangle {
         onExited: {
             const n = parseInt(root._countBuf.trim())
             if (!isNaN(n)) root.entryCount = n
+            root._countBuf = ""
         }
     }
 
