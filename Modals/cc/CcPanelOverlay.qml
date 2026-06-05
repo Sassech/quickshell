@@ -193,7 +193,7 @@ Item {
             onForgetNet: (net) => root.wifiForget(net)
             onFetchPassword: (ssid, idx) => root.wifiFetchPassword(ssid, idx)
             onCopyPassword: (ssid) => root.wifiCopyPassword(ssid)
-            onSelectedIdxChanged: (idx) => root.wifiSelectIdx(idx)
+            onSelectNetwork: (idx) => root.wifiSelectIdx(idx)
             onPasswordChanged: (idx, pw) => root.wifiPasswordChanged(idx, pw)
         }
 

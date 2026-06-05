@@ -49,7 +49,7 @@ Rectangle {
     signal forgetNet(var net)
     signal fetchPassword(string ssid, int idx)
     signal copyPassword(string ssid)
-    signal selectedIdxChanged(int idx)
+    signal selectNetwork(int idx)
     signal passwordChanged(int idx, string pw)
 
     // ── Helpers ───────────────────────────────────────────────────────────
@@ -306,7 +306,7 @@ Rectangle {
                                         if (wNetRow.modelData.connected) {
                                             root.disconnectNet(wNetRow.modelData)
                                         } else if (root.wifiSelectedIdx !== index) {
-                                            root.selectedIdxChanged(index)
+                                            root.selectNetwork(index)
                                             root.passwordChanged(index, "")
                                             wNetRow.showPwText = false
                                         } else {
@@ -331,7 +331,7 @@ Rectangle {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 var next = (root.wifiSelectedIdx === index) ? -1 : index
-                                root.selectedIdxChanged(next)
+                                root.selectNetwork(next)
                                 if (next === index) {
                                     root.passwordChanged(index, "")
                                     wNetRow.showPwText = false
