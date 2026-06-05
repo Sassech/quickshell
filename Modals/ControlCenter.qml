@@ -968,12 +968,10 @@ PanelWindow {
             var output = root._btCodecBuf.trim()
             root._btCodecBuf = ""
             try {
-                var data   = JSON.parse(output)
-                var mac    = root._btCurrentCodecMac.toUpperCase()
-                var newMap = ({})
-                Object.assign(newMap, root._btCodecData)
-                newMap[mac]         = data
-                root._btCodecData   = newMap
+                var data = JSON.parse(output)
+                var mac  = root._btCurrentCodecMac.toUpperCase()
+                root._btCodecData[mac] = data
+                root._btCodecDataChanged()
             } catch(e) {}
             root.btRunNextCodecQuery()
         }
