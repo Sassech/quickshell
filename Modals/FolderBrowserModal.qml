@@ -4,6 +4,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import Qt.labs.platform
 import "../Components"
 
 PanelWindow {
@@ -24,6 +25,9 @@ PanelWindow {
     signal folderSelected(string path)
 
     property string initialPath: "~"
+
+    // Home dir portable — evita hardcodear nombre de usuario
+    readonly property string _homePath: StandardPaths.standardLocations(StandardPaths.HomeLocation)[0] ?? ""
 
     function open(startPath) {
         initialPath = startPath || "~"
@@ -169,7 +173,7 @@ PanelWindow {
                     // Ruta actual
                     Text {
                         Layout.fillWidth: true
-                        text: root.currentPath.replace("/home/sassech", "~")
+                        text: root._homePath ? root.currentPath.replace(root._homePath, "~") : root.currentPath
                         font.pixelSize: 13
                         color: Theme.muted1
                         elide: Text.ElideLeft
@@ -420,7 +424,7 @@ PanelWindow {
                         }
                         Text {
                             width: parent.width
-                            text: root.currentPath.replace("/home/sassech", "~")
+                            text: root._homePath ? root.currentPath.replace(root._homePath, "~") : root.currentPath
                             font.pixelSize: 12
                             color: Theme.accent2
                             elide: Text.ElideLeft
