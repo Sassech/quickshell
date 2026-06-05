@@ -42,6 +42,28 @@ Rectangle {
     signal forgetDevice(var device)
     signal setCodec(string mac, string profile)
 
+    // ── Helpers ───────────────────────────────────────────────────────────
+    function _deviceName(device) {
+        return device.name || device.deviceName || device.address
+    }
+
+    // ── Estado de forget pendiente (clave: MAC del dispositivo) ───────────
+    property var    _pendingForget:    ({})   // { "AA:BB:CC" : true }
+    property string _forgetPendingMac: ""
+
+    Timer {
+        id: btForgetCancelTimer
+        interval: 3000
+        onTriggered: {
+            if (root._forgetPendingMac !== "") {
+                var pf = Object.assign({}, root._pendingForget)
+                delete pf[root._forgetPendingMac]
+                root._pendingForget = pf
+                root._forgetPendingMac = ""
+            }
+        }
+    }
+
     // ── Contenido ─────────────────────────────────────────────────────────
     Column {
         id: btDetailCol
@@ -190,13 +212,7 @@ Rectangle {
                     property bool   hasCodec: modelData.connected
                                               && cInfo !== null
                                               && (cInfo.profiles?.length ?? 0) > 0
-                    property bool   pendingForget: false
-
-                    Timer {
-                        id: btForgetCancelTimer
-                        interval: 3000
-                        onTriggered: btPairedEntry.pendingForget = false
-                    }
+                    property bool   pendingForget: root._pendingForget[devMac] === true
 
                     Rectangle {
                         width: parent.width; height: 38; radius: 8
@@ -223,7 +239,7 @@ Rectangle {
                             Column {
                                 Layout.fillWidth: true; spacing: 1
                                 Text {
-                                    text: btPairedEntry.modelData.name || btPairedEntry.modelData.deviceName
+                                    text: root._deviceName(btPairedEntry.modelData)
                                     font.pixelSize: 11; color: Theme.text
                                     elide: Text.ElideRight; width: parent.width
                                 }
@@ -285,14 +301,21 @@ Rectangle {
                                 }
                                 MouseArea {
                                     id: btForgetMA; anchors.fill: parent; hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
+                                    enabled: !root.btWorking
+                                    cursorShape: root.btWorking ? Qt.ArrowCursor : Qt.PointingHandCursor
                                     onClicked: {
                                         if (!btPairedEntry.pendingForget) {
-                                            btPairedEntry.pendingForget = true
+                                            var pf = Object.assign({}, root._pendingForget)
+                                            pf[btPairedEntry.devMac] = true
+                                            root._pendingForget = pf
+                                            root._forgetPendingMac = btPairedEntry.devMac
                                             btForgetCancelTimer.restart()
                                         } else {
                                             btForgetCancelTimer.stop()
-                                            btPairedEntry.pendingForget = false
+                                            var pf2 = Object.assign({}, root._pendingForget)
+                                            delete pf2[btPairedEntry.devMac]
+                                            root._pendingForget = pf2
+                                            root._forgetPendingMac = ""
                                             root.forgetDevice(btPairedEntry.modelData)
                                         }
                                     }
@@ -377,6 +400,7 @@ Rectangle {
                 model: root.btNearbyList
 
                 Rectangle {
+                    id: wNetRow
                     required property var modelData
                     width: parent.width; height: 38; radius: 8; color: Theme.surface3
 
@@ -389,11 +413,11 @@ Rectangle {
                         Column {
                             Layout.fillWidth: true; spacing: 1
                             Text {
-                                text: modelData.name || modelData.deviceName
+                                text: root._deviceName(wNetRow.modelData)
                                 font.pixelSize: 11; color: Theme.text
                                 elide: Text.ElideRight; width: parent.width
                             }
-                            Text { text: modelData.address; font.pixelSize: 8; color: Theme.muted2 }
+                            Text { text: wNetRow.modelData.address; font.pixelSize: 8; color: Theme.muted2 }
                         }
 
                         Rectangle {
@@ -405,7 +429,7 @@ Rectangle {
                             }
                             MouseArea {
                                 anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                onClicked: root.pairDevice(modelData)
+                                onClicked: root.pairDevice(wNetRow.modelData)
                             }
                         }
                     }
