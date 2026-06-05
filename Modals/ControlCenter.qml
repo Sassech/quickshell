@@ -114,6 +114,19 @@ PanelWindow {
     property string _btCurrentCodecMac:  ""
     property string _btCodecBuf:         ""
 
+    // ── Mensajes de estado Bluetooth ──────────────────────────────────────
+    readonly property string _btMsgConnected:    "✓ Conectado"
+    readonly property string _btMsgDisconnected: "✓ Desconectado"
+    readonly property string _btMsgPaired:       "✓ Emparejado"
+    readonly property string _btMsgForgotten:    "✓ Dispositivo olvidado"
+    readonly property string _btMsgCodecOk:      "✓ Codec cambiado"
+    readonly property string _btMsgNoAdapter:    "✗ Sin adaptador"
+    readonly property string _btMsgNoPower:      "✗ Enciende el Bluetooth primero"
+    readonly property string _btMsgTimeout:      "✗ Tiempo de espera"
+    readonly property string _btMsgConnFailed:   "✗ No se pudo conectar"
+    readonly property string _btMsgPairFailed:   "✗ No se pudo emparejar"
+    readonly property string _btMsgCodecErr:     "✗ Error al cambiar codec"
+
     // Fan profiles (read from fan-control.sh)
     property var    _fanProfiles:  []     // [{id, label}] from fan-control.sh list
     property string _fanBuf:       ""
@@ -763,7 +776,7 @@ PanelWindow {
 
     function btConnectDevice(device) {
         if (!device) return
-        if (!root._btPwrd) { root._btStatusMsg = "✗ Enciende el Bluetooth primero"; return }
+        if (!root._btPwrd) { root._btStatusMsg = root._btMsgNoPower; return }
         if (device.state === BluetoothDeviceState.Connecting || device.connected) return
         root._btActionDevice   = device
         root._btActionType     = "connect"
@@ -785,7 +798,7 @@ PanelWindow {
 
     function btPairDevice(device) {
         if (!device) return
-        if (!root._btPwrd) { root._btStatusMsg = "✗ Enciende el Bluetooth primero"; return }
+        if (!root._btPwrd) { root._btStatusMsg = root._btMsgNoPower; return }
         if (device.pairing || device.paired) return
         root._btActionDevice = device
         root._btActionType   = "pair"
@@ -817,7 +830,7 @@ PanelWindow {
     Timer {
         id: btActionTimeout
         interval: 10000
-        onTriggered: { if (root._btWorking) root.btResetAction("✗ Tiempo de espera") }
+        onTriggered: { if (root._btWorking) root.btResetAction(root._btMsgTimeout) }
     }
 
     Timer {
@@ -872,7 +885,7 @@ PanelWindow {
             btRefreshDebounce.restart()
             // La detección de forget debe ser inmediata — antes de que el objeto desaparezca
             if (root._btActionType === "forget" && root._btActionDevice === object)
-                root.btResetAction("✓ Dispositivo olvidado")
+                root.btResetAction(root._btMsgForgotten)
         }
     }
 
@@ -896,9 +909,9 @@ PanelWindow {
             if (!root._btActionDevice) return
             if (root._btActionType === "connect" && root._btActionDevice.connected) {
                 root._btConnectRetries = 0
-                root.btResetAction("✓ Conectado")
+                root.btResetAction(root._btMsgConnected)
             } else if (root._btActionType === "disconnect" && !root._btActionDevice.connected) {
-                root.btResetAction("✓ Desconectado")
+                root.btResetAction(root._btMsgDisconnected)
             }
         }
         function onStateChanged() {
@@ -912,7 +925,7 @@ PanelWindow {
                     btConnectRetryTimer.start()
                 } else {
                     root._btConnectRetries = 0
-                    root.btResetAction("✗ No se pudo conectar")
+                    root.btResetAction(root._btMsgConnFailed)
                 }
             }
         }
@@ -920,13 +933,13 @@ PanelWindow {
             if (!root._btActionDevice) return
             if (root._btActionType === "pair" && root._btActionDevice.paired) {
                 root._btActionDevice.trusted = true
-                root.btResetAction("✓ Emparejado")
+                root.btResetAction(root._btMsgPaired)
             }
         }
         function onPairingChanged() {
             if (!root._btActionDevice) return
             if (root._btActionType === "pair" && !root._btActionDevice.pairing && !root._btActionDevice.paired)
-                root.btResetAction("✗ No se pudo emparejar")
+                root.btResetAction(root._btMsgPairFailed)
         }
     }
 
@@ -985,7 +998,7 @@ PanelWindow {
         id: btSetCodecProc
         command: ["bash", "-c", ""]
         onExited: function(ec) {
-            root._btStatusMsg = ec === 0 ? "✓ Codec cambiado" : "✗ Error al cambiar codec"
+            root._btStatusMsg = ec === 0 ? root._btMsgCodecOk : root._btMsgCodecErr
             Qt.callLater(() => root.btRunNextCodecQuery())
         }
     }
