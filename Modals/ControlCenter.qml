@@ -2567,9 +2567,8 @@ PanelWindow {
         onWifiSelectIdx: (idx) => { root._wifiSelectedIdx = idx }
         onWifiStatusMessage: (msg) => { root._wifiStatusMsg = msg }
         onWifiPasswordChanged: (idx, pw) => {
-            var copy = Object.assign({}, root._wifiPasswordByIndex)
-            copy[idx] = pw
-            root._wifiPasswordByIndex = copy
+            root._wifiPasswordByIndex[idx] = pw
+            root._wifiPasswordByIndexChanged()
         }
 
         // Bluetooth
