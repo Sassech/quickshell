@@ -1119,8 +1119,13 @@ PanelWindow {
                 }
             }
             function onStateChanged() {
-                // Detect failed connection attempt
-                if (!modelData.connected && !root._nmWifiDev?.connected
+                // Detectar fallo real de conexión.
+                // Condición clave: stateChanging === false garantiza que NM terminó
+                // de transicionar — sin esto, los estados intermedios (Preparing →
+                // Configuring) disparan el error aunque la conexión vaya a exitosa.
+                if (!modelData.connected
+                        && !modelData.stateChanging
+                        && !root._nmWifiDev?.connected
                         && modelData.nmReason !== NMConnectionStateReason.None
                         && modelData.nmReason !== NMConnectionStateReason.UserDisconnected
                         && root._wifiWorking && root._wifiStatusMsg === "Conectando...") {
