@@ -162,15 +162,14 @@ Rectangle {
             }
         }
 
-        // ── Status / working ──────────────────────────────────────────────
+        // ── Status / working — un solo Text, tres estados ─────────────────
         Text {
-            visible: root.wifiStatusMsg !== ""
-            text: root.wifiStatusMsg; font.pixelSize: 10
-            color: root.wifiStatusMsg.startsWith("✓") ? Theme.success : Theme.error
-        }
-        Text {
-            visible: root.wifiWorking
-            text: "Conectando…"; font.pixelSize: 10; color: Theme.muted1
+            visible: root.wifiWorking || root.wifiStatusMsg !== ""
+            text:  root.wifiWorking ? "Conectando…" : root.wifiStatusMsg
+            font.pixelSize: 10
+            color: root.wifiWorking
+                   ? Theme.muted1
+                   : root.wifiStatusMsg.startsWith("✓") ? Theme.success : Theme.error
         }
 
         // ── Ethernet info ─────────────────────────────────────────────────

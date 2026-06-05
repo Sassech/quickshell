@@ -1030,7 +1030,7 @@ PanelWindow {
     function wifiConnectKnown(net) {
         root._wifiWorking   = true
         root._wifiTargetNet = net
-        root._wifiStatusMsg = "Conectando..."
+        root._wifiStatusMsg = ""   // el spinner (wifiWorking) muestra el progreso; el msg queda para el resultado
         net.connect()
     }
 
@@ -1053,7 +1053,7 @@ PanelWindow {
     function wifiDisconnect(net) {
         if (!net) return
         root._wifiWorking   = true
-        root._wifiStatusMsg = "Desconectando..."
+        root._wifiStatusMsg = ""   // el spinner muestra el progreso
         net.disconnect()
     }
 
@@ -1116,9 +1116,9 @@ PanelWindow {
                     root._wifiSelectedIdx = -1
                     root._wifiPasswordByIndex = ({})
                     wWifiInfoProc.running = true
-                } else if (root._wifiWorking && root._wifiStatusMsg === "Desconectando...") {
+                } else if (root._wifiWorking && root._wifiTargetNet === null) {
+                    // Desconexión completada (wifiDisconnect no guarda targetNet)
                     root._wifiWorking   = false
-                    root._wifiTargetNet = null
                     root._wifiStatusMsg = "✓ Desconectado"
                 }
             }
@@ -1139,7 +1139,7 @@ PanelWindow {
                         && modelData.nmReason !== NMConnectionStateReason.None
                         && modelData.nmReason !== NMConnectionStateReason.UserDisconnected
                         && modelData.nmReason !== NMConnectionStateReason.DeviceDisconnected
-                        && root._wifiWorking && root._wifiStatusMsg === "Conectando...") {
+                        && root._wifiWorking) {
                     root._wifiWorking   = false
                     root._wifiTargetNet = null
                     root._wifiStatusMsg = "✗ Error al conectar"
