@@ -767,7 +767,7 @@ PanelWindow {
         root._btActionDevice   = device
         root._btActionType     = "connect"
         root._btWorking        = true
-        root._btStatusMsg      = "Conectando..."
+        root._btStatusMsg      = ""
         device.connect()
         btActionTimeout.restart()
     }
@@ -777,7 +777,7 @@ PanelWindow {
         root._btActionDevice = device
         root._btActionType   = "disconnect"
         root._btWorking      = true
-        root._btStatusMsg    = "Desconectando..."
+        root._btStatusMsg    = ""
         device.disconnect()
         btActionTimeout.restart()
     }
@@ -789,7 +789,7 @@ PanelWindow {
         root._btActionDevice = device
         root._btActionType   = "pair"
         root._btWorking      = true
-        root._btStatusMsg    = "Emparejando..."
+        root._btStatusMsg    = ""
         device.pair()
         btActionTimeout.restart()
     }
@@ -799,9 +799,8 @@ PanelWindow {
         root._btActionDevice = device
         root._btActionType   = "forget"
         root._btWorking      = true
-        root._btStatusMsg    = "Olvidando..."
+        root._btStatusMsg    = ""
         device.forget()
-        btActionTimeout.restart()
     }
 
     // ── Bluetooth timers & reactivity ─────────────────────────────────────
@@ -832,7 +831,6 @@ PanelWindow {
         onTriggered: {
             if (!root._btActionDevice || root._btActionType !== "connect") return
             root._btConnectRetries++
-            root._btStatusMsg     = "Reintentando (" + root._btConnectRetries + "/2)..."
             root._btSawConnecting = false
             root._btActionDevice.connect()
             btActionTimeout.restart()
