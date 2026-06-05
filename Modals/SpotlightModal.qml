@@ -40,8 +40,10 @@ PanelWindow {
         { id: "calc", label: "Calc",     icon: "󰃬" },
     ]
 
-    ListModel { id: resultModel }
     ListModel { id: filteredModel }
+
+    // Array JS fuente — evita ListModel.get(i) en loop (lento)
+    property var _results: []
 
     function getCurrentTabIndex() {
         for (var i = 0; i < tabs.length; i++) {
@@ -72,8 +74,9 @@ PanelWindow {
 
     function rebuildFiltered() {
         filteredModel.clear()
-        for (var i = 0; i < resultModel.count; i++) {
-            var item = resultModel.get(i)
+        // Iteramos el array JS nativo — más rápido que ListModel.get(i)
+        for (var i = 0; i < root._results.length; i++) {
+            var item = root._results[i]
             if (activeTab === "all" || item.type === activeTab)
                 filteredModel.append(item)
         }
@@ -101,8 +104,7 @@ PanelWindow {
             root._searching = false
             var items = []
             try { items = JSON.parse(root._searchBuf) } catch(e) {}
-            resultModel.clear()
-            for (var i = 0; i < items.length; i++) resultModel.append(items[i])
+            root._results = items
             root.rebuildFiltered()
         }
     }
@@ -132,7 +134,7 @@ PanelWindow {
     }
 
     function openSpotlight() {
-        resultModel.clear()
+        root._results = []
         filteredModel.clear()
         searchInput.text = ""
         selectedIndex = 0
@@ -608,7 +610,7 @@ PanelWindow {
                         text: {
                             if (root.activeTab === "calc" && searchInput.text === "")
                                 return "Escribe una expresión matemática"
-                            if (searchInput.text !== "" && resultModel.count > 0)
+                            if (searchInput.text !== "" && root._results.length > 0)
                                 return "Sin resultados en esta categoría"
                             return "Sin resultados"
                         }
