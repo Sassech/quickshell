@@ -468,9 +468,10 @@ PanelWindow {
     }
 
     property int btConnectedCount: {
+        _btRev
         var n = 0
-        for (var i = 0; i < btDeviceList.length; i++) {
-            if (btDeviceList[i].connected) n++
+        for (var i = 0; i < root._btPairedList.length; i++) {
+            if (root._btPairedList[i].connected) n++
         }
         return n
     }
@@ -845,7 +846,7 @@ PanelWindow {
 
     Timer {
         id: btCodecRefreshTimer
-        interval: 12000; repeat: true
+        interval: 30000; repeat: true
         running: root.visible && root._activePanel === "bluetooth"
         onTriggered: {
             if (btCodecProc.running || btSetCodecProc.running) return
