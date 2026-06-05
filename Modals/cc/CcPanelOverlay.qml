@@ -108,6 +108,7 @@ Item {
     signal wifiSelectIdx(int idx)
     signal wifiPasswordChanged(int idx, string pw)
     signal wifiPasswordFetched(int idx, string pw)
+    signal wifiStatusMessage(string msg)
 
     onWifiPasswordFetched: (idx, pw) => wifiPanelInst.passwordFetched(idx, pw)
 
@@ -193,6 +194,7 @@ Item {
             onCopyPassword: (ssid) => root.wifiCopyPassword(ssid)
             onSelectNetwork: (idx) => root.wifiSelectIdx(idx)
             onPasswordChanged: (idx, pw) => root.wifiPasswordChanged(idx, pw)
+            onStatusMessage: (msg) => root.wifiStatusMessage(msg)
         }
 
         // ── Bluetooth Panel ───────────────────────────────────────────────

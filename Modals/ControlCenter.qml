@@ -2565,6 +2565,7 @@ PanelWindow {
         onWifiFetchPassword: (ssid, idx) => root.wifiFetchPasswordFor(ssid, idx)
         onWifiCopyPassword: (ssid) => root.wifiCopyPassword(ssid)
         onWifiSelectIdx: (idx) => { root._wifiSelectedIdx = idx }
+        onWifiStatusMessage: (msg) => { root._wifiStatusMsg = msg }
         onWifiPasswordChanged: (idx, pw) => {
             var copy = Object.assign({}, root._wifiPasswordByIndex)
             copy[idx] = pw

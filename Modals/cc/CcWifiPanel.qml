@@ -49,6 +49,7 @@ Rectangle {
     signal selectNetwork(int idx)
     signal passwordChanged(int idx, string pw)
     signal passwordFetched(int idx, string pw)
+    signal statusMessage(string msg)
 
     // ── Estado interno ────────────────────────────────────────────────────
     property int _fetchingIdx: -1
@@ -322,7 +323,7 @@ Rectangle {
                                             } else if (pw !== "") {
                                                 root.connectNew(wNetRow.modelData.name, pw)
                                             } else {
-                                                // status msg handled by parent
+                                                root.statusMessage("Ingresá la contraseña")
                                             }
                                         }
                                     }
