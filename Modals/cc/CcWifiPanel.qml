@@ -1,7 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Controls
-import Quickshell
 import Quickshell.Io
 import Quickshell.Networking
 import "../../Components"
@@ -230,8 +228,6 @@ Rectangle {
                     property bool   showPwText:    false
                     property string realPassword:  ""
                     property bool   fetchingPw:    false
-
-                    onModelDataChanged: { showPwText = false; realPassword = "" }
 
                     function fetchSavedPassword() {
                         if (realPassword !== "" || fetchingPw) {
