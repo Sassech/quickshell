@@ -36,9 +36,6 @@ Rectangle {
     required property string wifiIp
     required property string wifiGateway
     required property string wifiDns
-    required property string wifiPwFetchResult
-    required property int    wifiPwFetchResultIdx
-
     // ── Outputs ───────────────────────────────────────────────────────────
     signal closeRequested()
     signal toggleRadio()
@@ -51,6 +48,10 @@ Rectangle {
     signal copyPassword(string ssid)
     signal selectNetwork(int idx)
     signal passwordChanged(int idx, string pw)
+    signal passwordFetched(int idx, string pw)
+
+    // ── Estado interno ────────────────────────────────────────────────────
+    property int _fetchingIdx: -1
 
     // ── Helpers ───────────────────────────────────────────────────────────
     function wifiSignalIcon(strength) {
@@ -234,17 +235,21 @@ Rectangle {
                             showPwText = !showPwText
                             return
                         }
+                        // Cancelar fetch previo en vuelo para otra fila
+                        root._fetchingIdx = index
                         fetchingPw = true
                         root.fetchPassword(modelData.name, index)
                     }
 
                     Connections {
                         target: root
-                        function onWifiPwFetchResultIdxChanged() {
-                            if (root.wifiPwFetchResultIdx !== index) return
-                            wNetRow.realPassword = root.wifiPwFetchResult
+                        function onPasswordFetched(idx, pw) {
+                            if (idx !== index) return
+                            if (root._fetchingIdx !== index) return   // resultado obsoleto
+                            wNetRow.realPassword = pw
                             wNetRow.fetchingPw   = false
-                            if (root.wifiPwFetchResult !== "") wNetRow.showPwText = true
+                            root._fetchingIdx    = -1
+                            if (pw !== "") wNetRow.showPwText = true
                         }
                     }
 

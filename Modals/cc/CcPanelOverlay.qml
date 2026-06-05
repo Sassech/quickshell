@@ -31,9 +31,6 @@ Item {
     required property string wifiIp
     required property string wifiGateway
     required property string wifiDns
-    required property string wifiPwFetchResult
-    required property int    wifiPwFetchResultIdx
-
     // Bluetooth
     required property var    btAdapter
     required property bool   btAvailable
@@ -110,6 +107,9 @@ Item {
     signal wifiCopyPassword(string ssid)
     signal wifiSelectIdx(int idx)
     signal wifiPasswordChanged(int idx, string pw)
+    signal wifiPasswordFetched(int idx, string pw)
+
+    onWifiPasswordFetched: (idx, pw) => wifiPanelInst.passwordFetched(idx, pw)
 
     // Bluetooth signals
     signal btTogglePower()
@@ -165,6 +165,7 @@ Item {
 
         // ── WiFi Panel ────────────────────────────────────────────────────
         CcWifiPanel {
+            id: wifiPanelInst
             visible: root.activePanel === "wifi"
 
             nmWifiDev:          root.nmWifiDev
@@ -181,9 +182,6 @@ Item {
             wifiIp:             root.wifiIp
             wifiGateway:        root.wifiGateway
             wifiDns:            root.wifiDns
-            wifiPwFetchResult:    root.wifiPwFetchResult
-            wifiPwFetchResultIdx: root.wifiPwFetchResultIdx
-
             onCloseRequested:     root.closePanel()
             onToggleRadio:        root.wifiToggleRadio()
             onRescan:             root.wifiRescan()

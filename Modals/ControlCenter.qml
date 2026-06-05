@@ -1229,9 +1229,8 @@ PanelWindow {
         stdout: SplitParser { splitMarker: "\n"; onRead: d => wSharedPwFetchProc._buf += d }
         onExited: {
             var pw = wSharedPwFetchProc._buf.trim()
-            wSharedPwFetchProc._buf    = ""
-            root._wifiPwFetchResult    = pw
-            root.wifiPwFetchResultIdx = root._wifiPwFetchIdx
+            wSharedPwFetchProc._buf = ""
+            ccPanelOverlay.wifiPasswordFetched(root._wifiPwFetchIdx, pw)
         }
     }
 
@@ -2456,6 +2455,7 @@ PanelWindow {
 
     // ── Panel overlay (popups de detalle) ─────────────────────────────────
     CcPanelOverlay {
+        id: ccPanelOverlay
         anchors.fill: parent
         z: 200
 
@@ -2476,9 +2476,6 @@ PanelWindow {
         wifiIp:              root._wifiIp
         wifiGateway:         root._wifiGateway
         wifiDns:             root._wifiDns
-        wifiPwFetchResult:    root._wifiPwFetchResult
-        wifiPwFetchResultIdx: root.wifiPwFetchResultIdx
-
         // Bluetooth
         btAdapter:     root._btAdapter
         btAvailable:   root._btAvailable
