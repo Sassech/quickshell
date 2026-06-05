@@ -135,9 +135,11 @@ Rectangle {
 
         // ── Status message ─────────────────────────────────────────────────
         Text {
-            visible: root.btStatusMsg !== ""
-            text: root.btStatusMsg; font.pixelSize: 10
-            color: root.btStatusMsg.startsWith("✓") ? Theme.success : Theme.error
+            visible: root.btWorking || root.btStatusMsg !== ""
+            text: root.btWorking ? "Trabajando…" : root.btStatusMsg
+            font.pixelSize: 10
+            color: root.btWorking ? Theme.muted1
+                 : root.btStatusMsg.startsWith("✓") ? Theme.success : Theme.error
         }
 
         // ── No adapter ─────────────────────────────────────────────────────
