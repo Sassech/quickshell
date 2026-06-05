@@ -231,6 +231,9 @@ Rectangle {
                     property string realPassword:  ""
                     property bool   fetchingPw:    false
 
+                    readonly property string _signalIcon: root.wifiSignalIcon(modelData.signalStrength)
+                    readonly property string _secLabel:   root.wifiSecurityLabel(modelData.security)
+
                     function fetchSavedPassword() {
                         if (realPassword !== "" || fetchingPw) {
                             showPwText = !showPwText
@@ -276,7 +279,7 @@ Rectangle {
                             spacing: 6
 
                             Text {
-                                text: root.wifiSignalIcon(wNetRow.modelData.signalStrength)
+                                text: wNetRow._signalIcon
                                 font.pixelSize: 13
                                 color: wNetRow.modelData.connected ? Theme.accent : Theme.muted2
                             }
@@ -454,7 +457,7 @@ Rectangle {
                                 Row {
                                     spacing: 4
                                     Text { text: "Seguridad:"; font.pixelSize: 10; color: Theme.muted1; width: 72 }
-                                    Text { text: root.wifiSecurityLabel(wNetRow.modelData.security); font.pixelSize: 10; color: Theme.text }
+                                    Text { text: wNetRow._secLabel; font.pixelSize: 10; color: Theme.text }
                                 }
                                 Row {
                                     spacing: 4
