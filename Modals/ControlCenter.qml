@@ -54,6 +54,7 @@ PanelWindow {
     property string _wifiStatusMsg:  ""
     property int    _wifiSelectedIdx: -1
     property var    _wifiPasswordByIndex: ({})
+    property var    _wifiTargetNet:  null   // red a la que se está intentando conectar
 
     // Derived: connected network (reactive)
     property var    _wifiConnectedNet: {
@@ -1028,6 +1029,7 @@ PanelWindow {
     // Conectar red conocida (native API)
     function wifiConnectKnown(net) {
         root._wifiWorking   = true
+        root._wifiTargetNet = net
         root._wifiStatusMsg = "Conectando..."
         net.connect()
     }
@@ -1109,27 +1111,37 @@ PanelWindow {
             function onConnectedChanged() {
                 if (modelData.connected) {
                     root._wifiWorking   = false
+                    root._wifiTargetNet = null
                     root._wifiStatusMsg = "✓ Conectado"
                     root._wifiSelectedIdx = -1
                     root._wifiPasswordByIndex = ({})
                     wWifiInfoProc.running = true
                 } else if (root._wifiWorking && root._wifiStatusMsg === "Desconectando...") {
                     root._wifiWorking   = false
+                    root._wifiTargetNet = null
                     root._wifiStatusMsg = "✓ Desconectado"
                 }
             }
             function onStateChanged() {
                 // Detectar fallo real de conexión.
-                // Condición clave: stateChanging === false garantiza que NM terminó
-                // de transicionar — sin esto, los estados intermedios (Preparing →
-                // Configuring) disparan el error aunque la conexión vaya a exitosa.
+                // Requisitos para considerar un error genuino:
+                // 1. Es la red que estamos intentando conectar (modelData === _wifiTargetNet)
+                //    — sin esto, la red anterior que se desconecta al cambiar de red
+                //    también dispara este handler con _wifiWorking=true.
+                // 2. stateChanging === false — NM terminó de transicionar.
+                // 3. El reason no es una desconexión normal:
+                //    - None: sin razón (estado inicial)
+                //    - UserDisconnected: el usuario desconectó explícitamente
+                //    - DeviceDisconnected: NM desconectó la red vieja para conectar la nueva
                 if (!modelData.connected
                         && !modelData.stateChanging
-                        && !root._nmWifiDev?.connected
+                        && modelData === root._wifiTargetNet
                         && modelData.nmReason !== NMConnectionStateReason.None
                         && modelData.nmReason !== NMConnectionStateReason.UserDisconnected
+                        && modelData.nmReason !== NMConnectionStateReason.DeviceDisconnected
                         && root._wifiWorking && root._wifiStatusMsg === "Conectando...") {
                     root._wifiWorking   = false
+                    root._wifiTargetNet = null
                     root._wifiStatusMsg = "✗ Error al conectar"
                 }
             }
