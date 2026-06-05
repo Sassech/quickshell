@@ -75,12 +75,6 @@ ShellRoot {
     ]
 
     // ── Helpers ───────────────────────────────────────────────
-    function getFocusedScreen() {
-        var monCmd = ["bash", "-c",
-            "hyprctl monitors -j | python3 -c \"import json,sys; ms=json.load(sys.stdin); print(next((m['name'] for m in ms if m.get('focused')), ms[0]['name']))\""]
-        return monCmd
-    }
-
     function getScreenFromMonName(monName) {
         const name = monName.trim()
         for (var i = 0; i < Quickshell.screens.length; i++) {
