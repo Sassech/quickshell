@@ -734,7 +734,6 @@ PanelWindow {
             return
         }
         root._btAutoConnDevice = root._btAutoConnQueue.shift()
-        root._btAutoConnQueue  = root._btAutoConnQueue
         if (root._btAutoConnDevice) {
             root._btAutoConnDevice.connect()
             btAutoConnTimer.restart()

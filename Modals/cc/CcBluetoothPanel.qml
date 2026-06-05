@@ -42,11 +42,6 @@ Rectangle {
     signal forgetDevice(var device)
     signal setCodec(string mac, string profile)
 
-    // ── Helper ────────────────────────────────────────────────────────────
-    function _sanitizeMac(mac) {
-        return mac.replace(/[^0-9A-Fa-f:]/g, "")
-    }
-
     // ── Contenido ─────────────────────────────────────────────────────────
     Column {
         id: btDetailCol
