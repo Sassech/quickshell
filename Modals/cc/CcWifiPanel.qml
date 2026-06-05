@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls
 import Quickshell.Io
 import Quickshell.Networking
 import "../../Components"
@@ -53,6 +54,26 @@ Rectangle {
 
     // ── Estado interno ────────────────────────────────────────────────────
     property int _fetchingIdx: -1
+    property var _sortedNets: []
+
+    function _rebuildSortedNets() {
+        var dev = root.nmWifiDev
+        if (!dev) { root._sortedNets = []; return }
+        var nets = dev.networks.values.slice()
+        nets.sort(function(a, b) {
+            if (a.connected !== b.connected) return a.connected ? -1 : 1
+            return b.signalStrength - a.signalStrength
+        })
+        root._sortedNets = nets
+    }
+
+    Connections {
+        target: root.nmWifiDev ? root.nmWifiDev.networks : null
+        function onValuesChanged() { root._rebuildSortedNets() }
+    }
+
+    onNmWifiDevChanged: root._rebuildSortedNets()
+    Component.onCompleted: root._rebuildSortedNets()
 
     // ── Helpers ───────────────────────────────────────────────────────────
     function wifiSignalIcon(strength) {
@@ -174,25 +195,25 @@ Rectangle {
 
         // ── Ethernet info ─────────────────────────────────────────────────
         Rectangle {
-            visible: root.ethConnected
-            width: parent.width; height: root.ethConnected ? 44 : 0
+            width: parent.width
+            height: root.ethConnected ? 44 : 0
+            clip: true
             radius: 8; color: Theme.successSurface
             border.color: Qt.tint(Theme.surface2, Qt.rgba(Theme.success.r, Theme.success.g, Theme.success.b, 0.30))
             Behavior on height { NumberAnimation { duration: 150 } }
-            Row {
+            RowLayout {
                 anchors { fill: parent; margins: 10 }
                 spacing: 10
-                Text { text: "󰈀"; font.pixelSize: 16; color: Theme.success; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: "󰈀"; font.pixelSize: 16; color: Theme.success; Layout.alignment: Qt.AlignVCenter }
                 Column {
-                    spacing: 1; anchors.verticalCenter: parent.verticalCenter
+                    spacing: 1; Layout.fillWidth: true
                     Text { text: "Ethernet"; font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text }
                     Text { text: root.ethIp || "Sin IP"; font.pixelSize: 9; color: Theme.muted1 }
                 }
-                Item { width: 1 }
                 Text {
                     visible: root.ethSpeed !== ""
                     text: root.ethSpeed; font.pixelSize: 9; color: Theme.muted1
-                    anchors.verticalCenter: parent.verticalCenter
+                    Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
                 }
             }
         }
@@ -205,27 +226,24 @@ Rectangle {
         }
 
         // ── Network list ──────────────────────────────────────────────────
-        Column {
+        ListView {
             visible: root.wifiRadioOn && root.nmWifiDev !== null
-            width: parent.width; spacing: 4
+            width: parent.width
+            height: Math.min(contentHeight, 300)
+            clip: true
+            spacing: 4
+            model: root._sortedNets
 
-            Repeater {
-                model: {
-                    var dev = root.nmWifiDev
-                    if (!dev) return []
-                    var nets = dev.networks.values.slice()
-                    nets.sort(function(a, b) {
-                        if (a.connected !== b.connected) return a.connected ? -1 : 1
-                        return b.signalStrength - a.signalStrength
-                    })
-                    return nets
-                }
+            ScrollBar.vertical: ScrollBar {
+                policy: ScrollBar.AsNeeded
+                contentItem: Rectangle { implicitWidth: 4; radius: 2; color: Theme.surface3 }
+            }
 
-                Column {
+            delegate: Column {
                     id: wNetRow
                     required property var modelData
                     required property int index
-                    width: parent.width; spacing: 0
+                    width: ListView.view.width; spacing: 0
 
                     property bool   showPwText:    false
                     property string realPassword:  ""
@@ -517,9 +535,9 @@ Rectangle {
                         }
                     }
                 }
-            }
         }
 
         Item { width: parent.width; height: 4 }
     }
 }
+
