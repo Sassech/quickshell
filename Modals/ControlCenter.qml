@@ -264,8 +264,10 @@ PanelWindow {
     property string _audioSourceBuf:   ""
 
     // Computed — se recalcula cuando cambia _pwRev o los mapas de disponibilidad
+    // Gate: solo escanea nodos cuando el panel de audio está activo y visible
     property var audioSinks: {
         _pwRev; _audioSinkAvail
+        if (!root.visible || root._activePanel !== "audio") return root.audioSinks ?? []
         var activeName = root.defaultSink?.name ?? ""
         var out = []
         var all = Pipewire.nodes.values
@@ -288,6 +290,7 @@ PanelWindow {
 
     property var audioSources: {
         _pwRev; _audioSourceAvail
+        if (!root.visible || root._activePanel !== "audio") return root.audioSources ?? []
         var activeName = root.defaultSource?.name ?? ""
         var out = []
         var all = Pipewire.nodes.values
@@ -367,9 +370,10 @@ PanelWindow {
     }
 
     // Fetch port availability (pactl — no expuesto por Pipewire API)
+    // LANG=C fuerza output en inglés — pactl es locale-sensitive
     Process {
         id: _audioSinkAvailProc
-        command: ["bash", "-c", "pactl --format=json list sinks 2>/dev/null"]
+        command: ["bash", "-c", "LANG=C pactl --format=json list sinks 2>/dev/null"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._audioSinkBuf += d + "\n" }
         onExited: {
             try {
@@ -382,7 +386,7 @@ PanelWindow {
                     var ok = false
                     for (var p = 0; p < ports.length; p++) {
                         var av = (ports[p].availability || "").toString().toLowerCase()
-                        if (av !== "no disponible" && av !== "not available") { ok = true; break }
+                        if (av !== "not available") { ok = true; break }
                     }
                     map[name] = ok
                 }
@@ -395,7 +399,7 @@ PanelWindow {
 
     Process {
         id: _audioSourceAvailProc
-        command: ["bash", "-c", "pactl --format=json list sources 2>/dev/null"]
+        command: ["bash", "-c", "LANG=C pactl --format=json list sources 2>/dev/null"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._audioSourceBuf += d + "\n" }
         onExited: {
             try {
@@ -409,7 +413,7 @@ PanelWindow {
                     var ok = false
                     for (var p = 0; p < ports.length; p++) {
                         var av = (ports[p].availability || "").toString().toLowerCase()
-                        if (av !== "no disponible" && av !== "not available") { ok = true; break }
+                        if (av !== "not available") { ok = true; break }
                     }
                     map[name] = ok
                 }
