@@ -58,7 +58,7 @@ QtObject {
     
     property Process _geoProcess: Process {
         id: geoProcess
-        command: ["sh", "-c", "curl -s --max-time 6 'http://ip-api.com/json/'"]
+        command: ["curl", "-s", "--max-time", "6", "http://ip-api.com/json/"]
         
         stdout: SplitParser {
             splitMarker: ""
@@ -194,7 +194,7 @@ QtObject {
             "&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset" +
             "&forecast_days=7&wind_speed_unit=kmh&temperature_unit=celsius&timezone=auto"
         
-        weatherProcess.command = ["sh", "-c", "curl -s --max-time 10 '" + url + "'"]
+        weatherProcess.command = ["curl", "-s", "--max-time", "10", url]
         weatherProcess.running = true
     }
     
