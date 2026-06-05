@@ -864,9 +864,12 @@ PanelWindow {
     // Observe adapter device changes
     Connections {
         target: root._btAdapter ? root._btAdapter.devices : null
-        function onObjectInsertedPost(object, index) { root.btRefreshDeviceLists() }
+        function onObjectInsertedPost(object, index) {
+            btRefreshDebounce.restart()
+        }
         function onObjectRemovedPost(object, index) {
-            root.btRefreshDeviceLists()
+            btRefreshDebounce.restart()
+            // La detección de forget debe ser inmediata — antes de que el objeto desaparezca
             if (root._btActionType === "forget" && root._btActionDevice === object)
                 root.btResetAction("✓ Dispositivo olvidado")
         }
