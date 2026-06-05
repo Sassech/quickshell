@@ -98,8 +98,9 @@ Rectangle {
 
     Timer {
         id: idleTimer
-        interval: 5000
-        running: true
+        interval: 30000
+        // Solo pollea cuando el tooltip está visible — es el único consumidor del valor
+        running: mouseArea.containsMouse
         repeat: true
         triggeredOnStart: true
         onTriggered: {
@@ -141,15 +142,12 @@ Rectangle {
         }
     }
 
+    // onValuesChanged cubre inserción/remoción de players; también revalúa el estado
+    // de playback. No usamos Connections a values[0] porque es dangling reference
+    // cuando el player se reemplaza o elimina.
     Connections {
         target: Mpris.players
         function onValuesChanged() { root._checkMediaPlaying() }
-    }
-
-    // Conecta al player activo para detectar pausa/stop
-    Connections {
-        target: Mpris.players.values.length > 0 ? Mpris.players.values[0] : null
-        function onPlaybackStateChanged() { root._checkMediaPlaying() }
     }
 
     Process {
