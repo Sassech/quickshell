@@ -312,13 +312,13 @@ Rectangle {
                             }
                             Text {
                                 text: Math.round(wNetRow.modelData.signalStrength * 100) + "%"
-                                font.pixelSize: 9; color: Theme.muted2; width: 28
+                                font.pixelSize: 9; color: Theme.muted2; Layout.preferredWidth: 28
                                 horizontalAlignment: Text.AlignRight
                             }
 
                             Rectangle {
-                                height: 22; radius: 6
-                                width: wNetRow.modelData.connected ? 78 : 64
+                                Layout.preferredHeight: 22; radius: 6
+                                Layout.preferredWidth: wNetRow.modelData.connected ? 78 : 64
                                 color: wNetRow.modelData.connected ? Theme.error
                                      : (root.wifiSelectedIdx === index ? Theme.accent : Theme.surface3)
                                 Behavior on color { ColorAnimation { duration: 100 } }
@@ -393,7 +393,7 @@ Rectangle {
                                 Text { text: "󰌋"; font.pixelSize: 12; color: Theme.muted1; Layout.alignment: Qt.AlignVCenter }
 
                                 Item {
-                                    Layout.fillWidth: true; height: 22
+                                    Layout.fillWidth: true; Layout.preferredHeight: 22
 
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
@@ -428,7 +428,7 @@ Rectangle {
                                 }
 
                                 Rectangle {
-                                    width: 24; height: 24; radius: 6
+                                    Layout.preferredWidth: 24; Layout.preferredHeight: 24; radius: 6
                                     color: wEyeMA.containsMouse ? Theme.surface2 : "transparent"
                                     Behavior on color { ColorAnimation { duration: 100 } }
                                     Text {
@@ -446,7 +446,7 @@ Rectangle {
 
                                 Rectangle {
                                     visible: wNetRow.modelData.known
-                                    width: 24; height: 24; radius: 6
+                                    Layout.preferredWidth: 24; Layout.preferredHeight: 24; radius: 6
                                     color: wCopyPwMA.containsMouse ? Theme.surface2 : "transparent"
                                     Behavior on color { ColorAnimation { duration: 100 } }
                                     Text { anchors.centerIn: parent; text: "󰂏"; font.pixelSize: 12; color: Theme.muted1 }
