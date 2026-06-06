@@ -368,7 +368,7 @@ PanelWindow {
                             Image {
                                 visible: row.hasThumb
                                 source: row.hasThumb ? ("file://" + row.model.thumb) : ""
-                                implicitWidth: 72; implicitHeight: 72
+                                sourceSize.width: 72; sourceSize.height: 72
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
                                 cache: true

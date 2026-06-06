@@ -350,7 +350,7 @@ PanelWindow {
                         contentItem: Rectangle {
                             implicitHeight: 3; radius: 2
                             color: root.accent
-                            opacity: parent.active ? 0.8 : 0.3
+                            opacity: 0.6
                         }
                     }
 

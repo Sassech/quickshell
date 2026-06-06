@@ -279,7 +279,7 @@ Rectangle {
                                 Layout.preferredWidth: btPairedEntry.pendingForget
                                     ? btForgetConfirmText.implicitWidth + 14
                                     : 24
-                                Behavior on width { NumberAnimation { duration: 120 } }
+                                Behavior on Layout.preferredWidth { NumberAnimation { duration: 120 } }
                                 color: btPairedEntry.pendingForget
                                     ? Qt.rgba(Theme.error.r, Theme.error.g, Theme.error.b, 0.18)
                                     : (btForgetMA.containsMouse
