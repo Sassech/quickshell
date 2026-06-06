@@ -2374,7 +2374,7 @@ PanelWindow {
                                 // Barra de progreso (solo visual)
                                 Item {
                                     Layout.fillWidth: true
-                                    height: 3
+                                    Layout.preferredHeight: 3
 
                                     property real progress: {
                                         const p = root.mprisPlayer
