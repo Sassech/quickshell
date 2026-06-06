@@ -150,7 +150,7 @@ Rectangle {
         function onValuesChanged() { root._checkMediaPlaying() }
     }
 
-    Process {
+    property Process inhibitProc: Process {
         id: inhibitProc
         command: [
             "systemd-inhibit",
