@@ -133,7 +133,7 @@ PanelWindow {
             // ── Header ─────────────────────────────────────────
             Rectangle {
                 Layout.fillWidth: true
-                height: 56
+                Layout.preferredHeight: 56
                 color: "transparent"
 
                 RowLayout {
@@ -151,7 +151,7 @@ PanelWindow {
 
                     // Botón atrás
                     Rectangle {
-                        width: 28; height: 28; radius: 8
+                        Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 8
                         color: backMa.containsMouse ? Theme.surface2 : "transparent"
                         visible: root.currentPath !== "/" && root.currentPath !== ""
                         Behavior on color { ColorAnimation { duration: 100 } }
@@ -181,7 +181,7 @@ PanelWindow {
 
                     // Cerrar
                     Rectangle {
-                        width: 28; height: 28; radius: 8
+                        Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 8
                         color: closeMa.containsMouse ? Theme.surface3 : "transparent"
                         Behavior on color { ColorAnimation { duration: 120 } }
                         Text {
@@ -217,7 +217,7 @@ PanelWindow {
 
                 // ── Sidebar accesos rápidos ─────────────────
                 Rectangle {
-                    width: 160
+                    Layout.preferredWidth: 160
                     Layout.fillHeight: true
                     color: Theme.cardBg3
 
@@ -397,7 +397,7 @@ PanelWindow {
             // ── Footer: ruta actual + botón seleccionar ──────
             Rectangle {
                 Layout.fillWidth: true
-                height: 56
+                Layout.preferredHeight: 56
                 color: Theme.cardBg3
 
                 // Borde superior
@@ -433,7 +433,7 @@ PanelWindow {
 
                     // Botón cancelar
                     Rectangle {
-                        width: 90; height: 34; radius: 9
+                        Layout.preferredWidth: 90; Layout.preferredHeight: 34; radius: 9
                         color: cancelMa.containsMouse ? Theme.surface2 : Theme.surface1
                         border.color: Theme.surface3
                         border.width: 1
@@ -455,7 +455,7 @@ PanelWindow {
 
                     // Botón seleccionar
                     Rectangle {
-                        width: 130; height: 34; radius: 9
+                        Layout.preferredWidth: 130; Layout.preferredHeight: 34; radius: 9
                         color: selectMa.containsMouse ? Theme.accent : Theme.accent2
                         Behavior on color { ColorAnimation { duration: 100 } }
                         Text {
