@@ -208,7 +208,7 @@ PanelWindow {
                 Item { Layout.fillWidth: true }
 
                 Rectangle {
-                    width: 28; height: 28; radius: 8
+                    Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 8
                     color: closeMa.containsMouse ? Theme.surface3 : "transparent"
                     Behavior on color { ColorAnimation { duration: 120 } }
                     Text {
@@ -230,7 +230,7 @@ PanelWindow {
             // ── Selector de carpeta ───────────────────────────────
             Rectangle {
                 Layout.fillWidth: true
-                height: 38
+                Layout.preferredHeight: 38
                 radius: 10
                 color: Theme.cardBg3
                 border.color: folderBarMa.containsMouse ? Theme.accent2 : Theme.surface2
@@ -259,7 +259,7 @@ PanelWindow {
 
                     // Botón abrir explorador
                     Rectangle {
-                        width: 28; height: 28; radius: 7
+                        Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 7
                         color: editBtnMa.containsMouse ? Theme.surface2 : "transparent"
                         Behavior on color { ColorAnimation { duration: 100 } }
                         Text {
