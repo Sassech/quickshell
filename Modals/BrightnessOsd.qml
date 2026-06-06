@@ -87,7 +87,7 @@ PanelWindow {
 
             // Progress bar
             Item {
-                Layout.fillWidth: true; height: 6
+                Layout.fillWidth: true; Layout.preferredHeight: 6
 
                 Rectangle {
                     id: track
@@ -108,7 +108,7 @@ PanelWindow {
                 text: root.brightness + "%"
                 font.pixelSize: 13; font.weight: Font.Normal
                 color: Theme.text
-                width: 38
+                Layout.preferredWidth: 38
                 horizontalAlignment: Text.AlignRight
             }
         }
