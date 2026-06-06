@@ -250,8 +250,8 @@ Rectangle {
                             }
 
                             Rectangle {
-                                height: 24; radius: 6
-                                width: btConnBtnText.implicitWidth + 16
+                                Layout.preferredHeight: 24; radius: 6
+                                Layout.preferredWidth: btConnBtnText.implicitWidth + 16
                                 color: btPairedEntry.modelData.connected ? Theme.error : Theme.accent
                                 Behavior on color { ColorAnimation { duration: 150 } }
                                 Text {
@@ -275,8 +275,8 @@ Rectangle {
                             // Forget button (2-step confirm)
                             Rectangle {
                                 id: btForgetBtn
-                                height: 24; radius: 6
-                                width: btPairedEntry.pendingForget
+                                Layout.preferredHeight: 24; radius: 6
+                                Layout.preferredWidth: btPairedEntry.pendingForget
                                     ? btForgetConfirmText.implicitWidth + 14
                                     : 24
                                 Behavior on width { NumberAnimation { duration: 120 } }
@@ -421,7 +421,7 @@ Rectangle {
                         }
 
                         Rectangle {
-                            height: 24; radius: 6; width: btPairBtnLabel.implicitWidth + 16
+                            Layout.preferredHeight: 24; radius: 6; Layout.preferredWidth: btPairBtnLabel.implicitWidth + 16
                             color: Theme.surface2
                             Text {
                                 id: btPairBtnLabel; anchors.centerIn: parent
