@@ -138,7 +138,7 @@ PanelWindow {
 
             // Progress bar + 100% marker
             Item {
-                Layout.fillWidth: true; height: 6
+                Layout.fillWidth: true; Layout.preferredHeight: 6
 
                 Rectangle {
                     id: track
@@ -170,7 +170,7 @@ PanelWindow {
                 text: root.muted ? "Mudo" : root.volumePct + "%"
                 font.pixelSize: 13; font.weight: Font.Normal
                 color: root.muted ? Theme.muted2 : Theme.text
-                width: 46
+                Layout.preferredWidth: 46
                 horizontalAlignment: Text.AlignRight
             }
         }
