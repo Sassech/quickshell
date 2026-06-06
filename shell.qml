@@ -309,7 +309,7 @@ ShellRoot {
         ClockModal {
             id: clockModalInst
             property var modelData
-            screen: modelData
+            targetScreen: modelData
             notifModel: notifHistory
             Connections {
                 target: root

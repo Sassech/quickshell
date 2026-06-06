@@ -20,7 +20,7 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-    property var screen: null
+    property var targetScreen: null   // renombrado para evitar conflicto con WindowInterface.screen
     property var notifModel: null
     property int currentMonth: new Date().getMonth()
     property int currentYear: new Date().getFullYear()
