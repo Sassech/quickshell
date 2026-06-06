@@ -201,7 +201,7 @@ PanelWindow {
 
                 // Limpiar todo
                 Rectangle {
-                    width: 28; height: 28; radius: 8
+                    Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 8
                     color: wipeMa.containsMouse ? Theme.error : Theme.warning
                     opacity: wipeMa.containsMouse ? 1.0 : 0.7
                     Behavior on color { ColorAnimation { duration: 120 } }
@@ -225,7 +225,7 @@ PanelWindow {
             // ── Buscador ──────────────────────────────────────────────
             Item {
                 Layout.fillWidth: true
-                height: 40
+                Layout.preferredHeight: 40
 
                 // Foco visual (borde accent)
                 Rectangle {
@@ -368,7 +368,7 @@ PanelWindow {
                             Image {
                                 visible: row.hasThumb
                                 source: row.hasThumb ? ("file://" + row.model.thumb) : ""
-                                width: 72; height: 72
+                                implicitWidth: 72; implicitHeight: 72
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
                                 cache: true
