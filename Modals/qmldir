@@ -5,8 +5,6 @@ ClipboardModal 1.0 ClipboardModal.qml
 SpotlightModal 1.0 SpotlightModal.qml
 WallpaperPickerModal 1.0 WallpaperPickerModal.qml
 FolderBrowserModal 1.0 FolderBrowserModal.qml
-LanguageModal 1.0 LanguageModal.qml
-MediaModal 1.0 MediaModal.qml
 BrightnessOsd 1.0 BrightnessOsd.qml
 VolumeOsd 1.0 VolumeOsd.qml
 ControlCenter 1.0 ControlCenter.qml
