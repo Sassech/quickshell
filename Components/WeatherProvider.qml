@@ -65,6 +65,7 @@ QtObject {
             onRead: data => { root._geoRaw += data }
         }
         
+        // qmllint disable signal-handler-parameters
         onExited: function(exitCode) {
             root.loading = false
             root.statusChanged()
@@ -88,6 +89,7 @@ QtObject {
                 root.cityName = "Error geo"
             }
         }
+        // qmllint enable signal-handler-parameters
     }
     
     property Process _weatherProcess: Process {
@@ -100,6 +102,7 @@ QtObject {
             onRead: data => { root._weatherRaw += data }
         }
         
+        // qmllint disable signal-handler-parameters
         onExited: function(exitCode) {
             root.loading = false
             root.statusChanged()
@@ -177,6 +180,7 @@ QtObject {
                 console.log("WeatherProvider: Parse error:", e)
             }
         }
+        // qmllint enable signal-handler-parameters
     }
     
     // ── Funciones publicas ───────────────────────────────────────────────
