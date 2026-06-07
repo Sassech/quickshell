@@ -501,22 +501,6 @@ PanelWindow {
         return "󰂱"
     }
 
-    Connections {
-        target: btAdapter ? btAdapter.devices : null
-        function onObjectInsertedPost(object, index) { root._btRev++ }
-        function onObjectRemovedPost(object, index)  { root._btRev++ }
-    }
-
-    Instantiator {
-        model: btAdapter ? btAdapter.devices : null
-        delegate: Connections {
-            required property var modelData
-            target: modelData
-            function onConnectedChanged() { root._btRev++ }
-            function onNameChanged()      { root._btRev++ }
-        }
-    }
-
     // ── MPRIS — reproductor ───────────────────────────────────────────────
     property var mprisPlayer: {
         var players = Mpris.players.values
