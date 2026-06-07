@@ -53,6 +53,7 @@ Rectangle {
         id: wpctlRefresh
         command: ["bash", "-c", "wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._buf += d }
+        // qmllint disable signal-handler-parameters
         onExited: {
             const m = root._buf.trim().match(/Volume:\s*([\d.]+)(\s*\[MUTED\])?/)
             root._buf = ""
@@ -62,6 +63,7 @@ Rectangle {
                 root.muted = !!m[2]
             }
         }
+        // qmllint enable signal-handler-parameters
     }
 
     function volIcon() {
