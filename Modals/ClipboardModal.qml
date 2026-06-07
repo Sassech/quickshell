@@ -72,9 +72,10 @@ PanelWindow {
             splitMarker: ""
             onRead: data => root._listBuf += data
         }
-        onExited: function(code) {
-            if (code !== 0) {
-                console.log("[ClipboardModal] listProc failed with code:", code)
+        // qmllint disable signal-handler-parameters
+        onExited: function(exitCode) {
+            if (exitCode !== 0) {
+                console.log("[ClipboardModal] listProc failed with code:", exitCode)
             }
 
             try {
@@ -95,6 +96,7 @@ PanelWindow {
             root.countChanged(root.entryCount)
             root.updateDisplay()
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // ── Copia al portapapeles ───────────────────────────────────────────
@@ -110,10 +112,11 @@ PanelWindow {
             copyProc.running = true
         }
 
-        onExited: function(code) {
+        // qmllint disable signal-handler-parameters
+        onExited: function(exitCode) {
             _isCopying = false
-            if (code !== 0) {
-                console.log("[ClipboardModal] copyProc failed with code:", code)
+            if (exitCode !== 0) {
+                console.log("[ClipboardModal] copyProc failed with code:", exitCode)
                 root.visible = false
                 return
             }
@@ -122,6 +125,7 @@ PanelWindow {
             // El usuario puede recargar manualmente si necesita ver actualizaciones
             delayClose.start()
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // Timer para cerrar modal después de copiar
@@ -135,12 +139,14 @@ PanelWindow {
     Process {
         id: wipeProc
         command: ["bash", "-c", "cliphist wipe 2>>/tmp/qs-clipboard.log"]
-        onExited: function(code) {
-            if (code !== 0) {
-                console.log("[ClipboardModal] wipeProc failed with code:", code)
+        // qmllint disable signal-handler-parameters
+        onExited: function(exitCode) {
+            if (exitCode !== 0) {
+                console.log("[ClipboardModal] wipeProc failed with code:", exitCode)
             }
             root.loadEntries()
         }
+        // qmllint enable signal-handler-parameters
     }
 
     ListModel { id: displayModel }
