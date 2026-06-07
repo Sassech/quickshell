@@ -41,6 +41,7 @@ Rectangle {
             }
         }
 
+        // qmllint disable signal-handler-parameters
         onExited: {
             if (!root.sinkDetected) {
                 root.restartAttempts++
@@ -49,6 +50,7 @@ Rectangle {
                 }
             }
         }
+        // qmllint enable signal-handler-parameters
     }
 
     Process {
@@ -83,6 +85,7 @@ Rectangle {
             }
         }
 
+        // qmllint disable signal-handler-parameters
         onExited: {
             if (root.isPlaying && root.sinkDetected) {
                 root.restartAttempts++
@@ -91,6 +94,7 @@ Rectangle {
                 }
             }
         }
+        // qmllint enable signal-handler-parameters
     }
 
     Row {
