@@ -55,11 +55,13 @@ Rectangle {
             splitMarker: "\n"
             onRead: data => root._countBuf = data
         }
+        // qmllint disable signal-handler-parameters
         onExited: {
             const n = parseInt(root._countBuf.trim())
             if (!isNaN(n)) root.entryCount = n
             root._countBuf = ""
         }
+        // qmllint enable signal-handler-parameters
     }
 
     MouseArea {
