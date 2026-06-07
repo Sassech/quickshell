@@ -52,6 +52,7 @@ PanelWindow {
             splitMarker: "\n"
             onRead: d => configReadProc.buf += d + "\n"
         }
+        // qmllint disable signal-handler-parameters
         onExited: {
             var parts = buf.split("---")
             try {
@@ -61,6 +62,7 @@ PanelWindow {
             if (parts[1]) root.currentWallpaper = parts[1].trim()
             buf = ""
         }
+        // qmllint enable signal-handler-parameters
     }
 
     onVisibleChanged: {
@@ -95,12 +97,14 @@ PanelWindow {
             splitMarker: "\n"
             onRead: d => root._listBuf += d + "\n"
         }
+        // qmllint disable signal-handler-parameters
         onExited: {
             root._loading = false
             var items = []
             try { items = JSON.parse(root._listBuf) } catch(e) {}
             for (var i = 0; i < items.length; i++) imageModel.append(items[i])
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // ── Aplica wallpaper ───────────────────────────────────────
@@ -111,9 +115,11 @@ PanelWindow {
             Paths.scripts + "/wallpaper-set.sh",
             pending
         ]
+        // qmllint disable signal-handler-parameters
         onExited: {
             root.currentWallpaper = pending
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // ── Guarda config ──────────────────────────────────────────
