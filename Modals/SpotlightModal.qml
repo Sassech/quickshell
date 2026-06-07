@@ -160,35 +160,28 @@ PanelWindow {
 
     function launchSelected() {
         if (filteredModel.count === 0) return
-        var idx = Math.min(selectedIndex, filteredModel.count - 1)
-        var item = filteredModel.get(idx)
-        launcher.running = false
+        const idx = Math.min(selectedIndex, filteredModel.count - 1)
+        const item = filteredModel.get(idx)
 
         if (item.execArgs && item.execArgs.length > 0) {
+            // startDetached: el proceso no muere si Quickshell recarga o se cierra
             launcher.command = item.execArgs
-            launcher.running = true
+            launcher.startDetached()
             closeSpotlight(true)
             return
         }
 
         if (!item || !item.exec) return
 
-        var exec = item.exec
-        var cmd
-        if (exec.includes(" ") || exec.includes("'") || exec.includes('"')) {
-            cmd = "setsid bash -c 'setsid " + exec.replace(/'/g, "'\\''") + "' &>/dev/null &"
-        } else {
-            cmd = "setsid " + exec + " &>/dev/null &"
-        }
-        launcher.command = ["bash", "-c", cmd]
-        launcher.running = true
+        // exec legacy: lanzar desatado del proceso principal
+        launcher.command = ["bash", "-c", item.exec]
+        launcher.startDetached()
         closeSpotlight(true)
     }
 
     Process {
         id: launcher
         running: false
-        onExited: running = false
     }
 
     onVisibleChanged: {

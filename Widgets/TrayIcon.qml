@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell.Widgets
 
 Rectangle {
     id: root
@@ -26,11 +27,10 @@ Rectangle {
         return raw
     }
 
-    Image {
+    IconImage {
         anchors.centerIn: parent
-        width: root.size - 4
-        height: root.size - 4
+        implicitSize: root.size - 4
         source: root._resolvedIcon
-        sourceSize: Qt.size(root.size - 4, root.size - 4)
+        asynchronous: true
     }
 }

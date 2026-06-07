@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell.Io
+import Quickshell.Hyprland
 import "../Components"
 
 Rectangle {
@@ -16,24 +17,41 @@ Rectangle {
 
     Behavior on color { ColorAnimation { duration: 100 } }
 
-    // Poll keyboard layout — 30s es más que suficiente para un dato que cambia manualmente
-    Timer {
-        interval: 30000; running: true; repeat: true; triggeredOnStart: true
-        onTriggered: devProc.running = true
+    // ── Hyprland rawEvent — actualiza layout en tiempo real sin polling ────
+    // El evento "activelayout" se emite cada vez que cambia el layout activo.
+    // Formato de data: "<device-name>,<layout-name>"
+    Connections {
+        target: Hyprland
+        function onRawEvent(event) {
+            if (event.name === "activelayout") {
+                const parts = event.data.split(",")
+                if (parts.length >= 2) {
+                    const name = parts[1].trim()
+                    if (name) root.layout = name.substring(0, 3).toUpperCase()
+                }
+            }
+        }
     }
 
+    // ── Fetch inicial del layout al arrancar ──────────────────────────────
+    // Solo se ejecuta una vez — el socket mantiene el estado actualizado de ahí en más.
     Process {
-        id: devProc
-        command: ["sh", "-c",
-            "hyprctl devices -j 2>/dev/null | "
-            + "awk -F'\"' '/active_keymap/{print $4; exit}'"]
+        id: initLayoutProc
+        command: ["hyprctl", "devices", "-j"]
         stdout: SplitParser {
             splitMarker: ""
             onRead: data => {
-                const v = data.trim()
-                if (v) root.layout = v.substring(0, 3).toUpperCase()
+                try {
+                    const obj = JSON.parse(data)
+                    const keyboards = obj.keyboards ?? []
+                    const main = keyboards.find(k => k.main) ?? keyboards[0]
+                    if (main && main.active_keymap) {
+                        root.layout = main.active_keymap.substring(0, 3).toUpperCase()
+                    }
+                } catch(e) {}
             }
         }
+        Component.onCompleted: running = true
     }
 
     // Poll system locale once at startup
@@ -82,4 +100,10 @@ Rectangle {
         }
     }
 
+    MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.clicked()
+    }
 }
