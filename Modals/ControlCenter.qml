@@ -663,8 +663,7 @@ PanelWindow {
         root._btCodecQueue      = root._btCodecQueue.slice(1)
         root._btCodecBuf        = ""
         var safeMac = root.btSanitizeMac(root._btCurrentCodecMac)
-        btCodecProc.command = ["bash", "-c",
-            "\"" + Paths.scripts + "/bt-codec.sh\" info " + safeMac]
+        btCodecProc.command = [Paths.scripts + "/bt-codec.sh", "info", safeMac]
         btCodecProc.running = true
     }
 
@@ -673,8 +672,7 @@ PanelWindow {
         root._btCurrentCodecMac = mac
         var safeMac     = root.btSanitizeMac(mac)
         var safeProfile = profile.replace(/[^a-zA-Z0-9_-]/g, "")
-        btSetCodecProc.command = ["bash", "-c",
-            "\"" + Paths.scripts + "/bt-codec.sh\" set " + safeMac + " " + safeProfile]
+        btSetCodecProc.command = [Paths.scripts + "/bt-codec.sh", "set", safeMac, safeProfile]
         btSetCodecProc.running = true
     }
 
