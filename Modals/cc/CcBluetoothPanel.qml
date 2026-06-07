@@ -56,9 +56,8 @@ Rectangle {
         interval: 3000
         onTriggered: {
             if (root._forgetPendingMac !== "") {
-                var pf = Object.assign({}, root._pendingForget)
-                delete pf[root._forgetPendingMac]
-                root._pendingForget = pf
+                delete root._pendingForget[root._forgetPendingMac]
+                root._pendingForgetChanged()
                 root._forgetPendingMac = ""
             }
         }
@@ -305,16 +304,14 @@ Rectangle {
                                     cursorShape: root.btWorking ? Qt.ArrowCursor : Qt.PointingHandCursor
                                     onClicked: {
                                         if (!btPairedEntry.pendingForget) {
-                                            var pf = Object.assign({}, root._pendingForget)
-                                            pf[btPairedEntry.devMac] = true
-                                            root._pendingForget = pf
+                                            root._pendingForget[btPairedEntry.devMac] = true
+                                            root._pendingForgetChanged()
                                             root._forgetPendingMac = btPairedEntry.devMac
                                             btForgetCancelTimer.restart()
                                         } else {
                                             btForgetCancelTimer.stop()
-                                            var pf2 = Object.assign({}, root._pendingForget)
-                                            delete pf2[btPairedEntry.devMac]
-                                            root._pendingForget = pf2
+                                            delete root._pendingForget[btPairedEntry.devMac]
+                                            root._pendingForgetChanged()
                                             root._forgetPendingMac = ""
                                             root.forgetDevice(btPairedEntry.modelData)
                                         }
@@ -400,7 +397,7 @@ Rectangle {
                 model: root.btNearbyList
 
                 Rectangle {
-                    id: wNetRow
+                    id: btNearbyRow
                     required property var modelData
                     width: parent.width; height: 38; radius: 8; color: Theme.surface3
 
@@ -413,11 +410,11 @@ Rectangle {
                         Column {
                             Layout.fillWidth: true; spacing: 1
                             Text {
-                                text: root._deviceName(wNetRow.modelData)
+                                text: root._deviceName(btNearbyRow.modelData)
                                 font.pixelSize: 11; color: Theme.text
                                 elide: Text.ElideRight; width: parent.width
                             }
-                            Text { text: wNetRow.modelData.address; font.pixelSize: 8; color: Theme.muted2 }
+                            Text { text: btNearbyRow.modelData.address; font.pixelSize: 8; color: Theme.muted2 }
                         }
 
                         Rectangle {
@@ -429,7 +426,7 @@ Rectangle {
                             }
                             MouseArea {
                                 anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                onClicked: root.pairDevice(wNetRow.modelData)
+                                onClicked: root.pairDevice(btNearbyRow.modelData)
                             }
                         }
                     }
