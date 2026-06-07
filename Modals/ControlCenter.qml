@@ -1779,7 +1779,7 @@ PanelWindow {
                                 root.btRefreshDeviceLists()
                                 if (root._btPwrd && root._btAdapter) {
                                     root._btAdapter.discoverable = true
-                                    root._btAdapter.pairable     = true
+                                    // pairable ya tiene default=true per la API — no se fuerza
                                     root.btAutoConnectTrusted()
                                 }
                             }
@@ -2538,10 +2538,11 @@ PanelWindow {
         // Bluetooth
         onBtTogglePower:  root.btTogglePower()
         onBtToggleScan:   root.btToggleScan()
-        onBtConnect: (d)  => root.btConnectDevice(d)
-        onBtDisconnect: (d) => root.btDisconnectDevice(d)
-        onBtPair: (d)     => root.btPairDevice(d)
-        onBtForget: (d)   => root.btForgetDevice(d)
+        onBtConnect: (d)      => root.btConnectDevice(d)
+        onBtDisconnect: (d)   => root.btDisconnectDevice(d)
+        onBtPair: (d)         => root.btPairDevice(d)
+        onBtCancelPair: (d)   => { if (d) d.cancelPair() }
+        onBtForget: (d)       => root.btForgetDevice(d)
         onBtSetCodec: (mac, prof) => root.btSetCodec(mac, prof)
 
         // Audio

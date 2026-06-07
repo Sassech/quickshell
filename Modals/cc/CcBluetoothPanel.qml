@@ -1,5 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
+import Quickshell.Widgets
 import "../../Components"
 
 // ── Panel Bluetooth — popup del Control Center ────────────────────────────────
@@ -39,6 +41,7 @@ Rectangle {
     signal connectDevice(var device)
     signal disconnectDevice(var device)
     signal pairDevice(var device)
+    signal cancelPairDevice(var device)
     signal forgetDevice(var device)
     signal setCodec(string mac, string profile)
 
@@ -197,14 +200,19 @@ Rectangle {
                 font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.muted1
             }
 
-            Repeater {
+            ListView {
+                width: parent.width
+                height: contentHeight
+                clip: false
+                spacing: 4
                 model: root.btPairedList
+                interactive: false   // el scroll lo maneja el Column padre
 
-                Column {
+                delegate: Column {
                     id: btPairedEntry
                     required property var modelData
                     required property int index
-                    width: parent.width; spacing: 4
+                    width: ListView.view.width; spacing: 4
 
                     property string devMac:   modelData.address.toUpperCase()
                     property var    cInfo:    root.btCodecData[devMac] ?? null
@@ -230,9 +238,12 @@ Rectangle {
                             anchors { fill: parent; leftMargin: 14; rightMargin: 10 }
                             spacing: 6
 
-                            Text {
-                                text: "󰂱"; font.pixelSize: 14
-                                color: btPairedEntry.modelData.connected ? Theme.accent : Theme.muted2
+                            IconImage {
+                                Layout.preferredWidth: 16; Layout.preferredHeight: 16
+                                source: Quickshell.iconPath(btPairedEntry.modelData.icon, "bluetooth")
+                                implicitSize: 16
+                                opacity: btPairedEntry.modelData.connected ? 1.0 : 0.45
+                                Behavior on opacity { NumberAnimation { duration: 150 } }
                             }
 
                             Column {
@@ -376,7 +387,7 @@ Rectangle {
                         }
                     }
                 }
-            }
+            }   // fin ListView
 
             Text {
                 visible: root.btPairedCount === 0 && !root.btWorking
@@ -405,7 +416,12 @@ Rectangle {
                         anchors { fill: parent; leftMargin: 14; rightMargin: 10 }
                         spacing: 6
 
-                        Text { text: "󰂯"; font.pixelSize: 14; color: Theme.muted2 }
+                        IconImage {
+                            Layout.preferredWidth: 16; Layout.preferredHeight: 16
+                            source: Quickshell.iconPath(btNearbyRow.modelData.icon, "bluetooth")
+                            implicitSize: 16
+                            opacity: 0.55
+                        }
 
                         Column {
                             Layout.fillWidth: true; spacing: 1
@@ -418,15 +434,25 @@ Rectangle {
                         }
 
                         Rectangle {
-                            Layout.preferredHeight: 24; radius: 6; Layout.preferredWidth: btPairBtnLabel.implicitWidth + 16
-                            color: Theme.surface2
+                            Layout.preferredHeight: 24; radius: 6
+                            Layout.preferredWidth: btPairBtnLabel.implicitWidth + 16
+                            color: btNearbyRow.modelData.pairing ? Theme.surface3 : Theme.surface2
+                            Behavior on color { ColorAnimation { duration: 100 } }
                             Text {
                                 id: btPairBtnLabel; anchors.centerIn: parent
-                                text: "Emparejar"; font.pixelSize: 9; color: Theme.text
+                                text: btNearbyRow.modelData.pairing ? "Cancelar" : "Emparejar"
+                                font.pixelSize: 9
+                                color: btNearbyRow.modelData.pairing ? Theme.error : Theme.text
+                                Behavior on color { ColorAnimation { duration: 100 } }
                             }
                             MouseArea {
                                 anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                onClicked: root.pairDevice(btNearbyRow.modelData)
+                                onClicked: {
+                                    if (btNearbyRow.modelData.pairing)
+                                        root.cancelPairDevice(btNearbyRow.modelData)
+                                    else
+                                        root.pairDevice(btNearbyRow.modelData)
+                                }
                             }
                         }
                     }

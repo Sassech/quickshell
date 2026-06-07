@@ -590,7 +590,7 @@ ShellRoot {
                     ccInst.btRefreshDeviceLists()
                     if (ccInst._btPwrd && ccInst._btAdapter) {
                         ccInst._btAdapter.discoverable = true
-                        ccInst._btAdapter.pairable     = true
+                        // pairable ya tiene default=true per la API — no se fuerza
                         ccInst.btAutoConnectTrusted()
                     }
                 }

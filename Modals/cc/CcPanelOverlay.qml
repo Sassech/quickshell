@@ -118,6 +118,7 @@ Item {
     signal btConnect(var device)
     signal btDisconnect(var device)
     signal btPair(var device)
+    signal btCancelPair(var device)
     signal btForget(var device)
     signal btSetCodec(string mac, string profile)
 
@@ -219,6 +220,7 @@ Item {
             onConnectDevice: (d)    => root.btConnect(d)
             onDisconnectDevice: (d) => root.btDisconnect(d)
             onPairDevice: (d)       => root.btPair(d)
+            onCancelPairDevice: (d) => root.btCancelPair(d)
             onForgetDevice: (d)     => root.btForget(d)
             onSetCodec: (mac, prof) => root.btSetCodec(mac, prof)
         }
