@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import Quickshell
@@ -158,7 +160,7 @@ PanelWindow {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 22; height: 22
                     cursorShape: root.loading ? Qt.ArrowCursor : Qt.PointingHandCursor
-                    onClicked: if (!root.loading) refresh()
+                    onClicked: if (!root.loading) root.refresh()
 
                     Text {
                         anchors.centerIn: parent
@@ -273,13 +275,13 @@ PanelWindow {
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: wmoIcon(currentWeather.weatherCode, currentWeather.isDay); font.pixelSize: 46
+                        text: root.wmoIcon(root.currentWeather.weatherCode, root.currentWeather.isDay); font.pixelSize: 46
                     }
                     Column {
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 2
                         Text {
-                            text: Math.round(currentWeather.temperature) + "°"; color: Theme.text
+                            text: Math.round(root.currentWeather.temperature) + "°"; color: Theme.text
                             font.pixelSize: 34; font.bold: true
                         }
                         Text { text: root.cityName; color: Theme.muted1; font.pixelSize: 12 }
@@ -298,17 +300,17 @@ PanelWindow {
                         Row {
                             spacing: 4
                             Text { text: "↑"; color: Theme.warning; font.pixelSize: 13 }
-                            Text { text: Math.round(currentWeather.windSpeed) + " km/h"; color: Theme.text; font.pixelSize: 12 }
+                            Text { text: Math.round(root.currentWeather.windSpeed) + " km/h"; color: Theme.text; font.pixelSize: 12 }
                         }
                         Row {
                             spacing: 4
                             Text { text: "💧"; font.pixelSize: 11 }
-                            Text { text: currentWeather.humidity + "%"; color: Theme.text; font.pixelSize: 12 }
+                            Text { text: root.currentWeather.humidity + "%"; color: Theme.text; font.pixelSize: 12 }
                         }
                         Row {
                             spacing: 4
                             Text { text: "🌡"; font.pixelSize: 11 }
-                            Text { text: Math.round(currentWeather.feelsLike) + "°"; color: Theme.text; font.pixelSize: 12 }
+                            Text { text: Math.round(root.currentWeather.feelsLike) + "°"; color: Theme.text; font.pixelSize: 12 }
                         }
                     }
 
@@ -355,17 +357,18 @@ PanelWindow {
                     }
 
                     delegate: Rectangle {
+                        id: hourlyDelegate
                         required property var modelData
                         required property int index
                         width:  110; height: 158; radius: 10
-                        color:  index === root.selectedHourIndex ? Theme.surface1 : Theme.cardBg3
-                        border.color: index === root.selectedHourIndex ? root.accent : Theme.surface2
-                        border.width: index === root.selectedHourIndex ? 1 : 0
+                        color:  hourlyDelegate.index === root.selectedHourIndex ? Theme.surface1 : Theme.cardBg3
+                        border.color: hourlyDelegate.index === root.selectedHourIndex ? root.accent : Theme.surface2
+                        border.width: hourlyDelegate.index === root.selectedHourIndex ? 1 : 0
 
                         MouseArea {
                             anchors.fill: parent
                             cursorShape:  Qt.PointingHandCursor
-                            onClicked:    root.selectedHourIndex = index
+                            onClicked:    root.selectedHourIndex = hourlyDelegate.index
                         }
 
                         Column {
@@ -377,14 +380,14 @@ PanelWindow {
 
                             Text {
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                text:  modelData.time
-                                color: index === root.selectedHourIndex ? root.accent : Theme.muted1
-                                font.pixelSize: 12; font.bold: index === root.selectedHourIndex
+                                text:  hourlyDelegate.modelData.time
+                                color: hourlyDelegate.index === root.selectedHourIndex ? root.accent : Theme.muted1
+                                font.pixelSize: 12; font.bold: hourlyDelegate.index === root.selectedHourIndex
                             }
                             Item { width:1; height:4 }
                             Text {
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                text: wmoIcon(modelData.code, modelData.isDay)
+                                text: root.wmoIcon(hourlyDelegate.modelData.code, hourlyDelegate.modelData.isDay)
                                 font.pixelSize: 20
                             }
                             Item { width:1; height:4 }
@@ -393,13 +396,13 @@ PanelWindow {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 spacing: 4
                                 Text {
-                                    text: Math.round(modelData.temp) + "°"
+                                    text: Math.round(hourlyDelegate.modelData.temp) + "°"
                                     color: Theme.text; font.pixelSize: 18; font.bold: true
                                     anchors.baseline: feelsLbl.baseline
                                 }
                                 Text {
                                     id: feelsLbl
-                                    text: Math.round(modelData.feels) + "°"
+                                    text: Math.round(hourlyDelegate.modelData.feels) + "°"
                                     color: Theme.muted3; font.pixelSize: 12
                                     anchors.bottom: parent.bottom
                                 }
@@ -413,27 +416,27 @@ PanelWindow {
                                 Row {
                                     spacing: 3
                                     Text { text: "💧"; font.pixelSize: 9 }
-                                    Text { text: modelData.hum + "%"; color: Theme.muted1; font.pixelSize: 9 }
+                                    Text { text: hourlyDelegate.modelData.hum + "%"; color: Theme.muted1; font.pixelSize: 9 }
                                 }
                                 Row {
                                     spacing: 3
                                     Text { text: "↑"; color: Theme.accent; font.pixelSize: 9 }
-                                    Text { text: Math.round(modelData.wind) + " km/h"; color: Theme.muted1; font.pixelSize: 9 }
+                                    Text { text: Math.round(hourlyDelegate.modelData.wind) + " km/h"; color: Theme.muted1; font.pixelSize: 9 }
                                 }
                                 Row {
                                     spacing: 3
                                     Text { text: "→"; color: Theme.success; font.pixelSize: 9 }
-                                    Text { text: Math.round(modelData.press) + " hPa"; color: Theme.muted1; font.pixelSize: 9 }
+                                    Text { text: Math.round(hourlyDelegate.modelData.press) + " hPa"; color: Theme.muted1; font.pixelSize: 9 }
                                 }
                                 Row {
                                     spacing: 3
                                     Text { text: "🌧"; font.pixelSize: 9 }
-                                    Text { text: modelData.precip + "%"; color: Theme.muted1; font.pixelSize: 9 }
+                                    Text { text: hourlyDelegate.modelData.precip + "%"; color: Theme.muted1; font.pixelSize: 9 }
                                 }
                                 Row {
                                     spacing: 3
                                     Text { text: "◎"; color: Theme.accent2; font.pixelSize: 9 }
-                                    Text { text: modelData.vis.toFixed(1) + " km"; color: Theme.muted1; font.pixelSize: 9 }
+                                    Text { text: hourlyDelegate.modelData.vis.toFixed(1) + " km"; color: Theme.muted1; font.pixelSize: 9 }
                                 }
                             }
                         }
@@ -459,18 +462,19 @@ PanelWindow {
                         model: root.dailyData
 
                         Rectangle {
+                            id: dailyDelegate
                             required property var modelData
                             required property int index
                             width:  (parent.width - 6 * 6) / 7
                             height: 104; radius: 10
-                            color:  index === root.selectedDayIndex ? Theme.surface1 : Theme.cardBg3
-                            border.color: index === root.selectedDayIndex ? root.accent : Theme.surface2
-                            border.width: index === root.selectedDayIndex ? 1 : 0
+                            color:  dailyDelegate.index === root.selectedDayIndex ? Theme.surface1 : Theme.cardBg3
+                            border.color: dailyDelegate.index === root.selectedDayIndex ? root.accent : Theme.surface2
+                            border.width: dailyDelegate.index === root.selectedDayIndex ? 1 : 0
 
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape:  Qt.PointingHandCursor
-                                onClicked:    root._selectDay(index)
+                                onClicked:    root._selectDay(dailyDelegate.index)
                             }
 
                             Column {
@@ -478,24 +482,24 @@ PanelWindow {
 
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    text:  index === 0 ? "Hoy" : modelData.dayName
-                                    color: index === root.selectedDayIndex ? root.accent : Theme.muted1
-                                    font.pixelSize: 11; font.bold: index === root.selectedDayIndex
+                                    text:  dailyDelegate.index === 0 ? "Hoy" : dailyDelegate.modelData.dayName
+                                    color: dailyDelegate.index === root.selectedDayIndex ? root.accent : Theme.muted1
+                                    font.pixelSize: 11; font.bold: dailyDelegate.index === root.selectedDayIndex
                                 }
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    text: wmoIcon(modelData.code, true); font.pixelSize: 24
+                                    text: root.wmoIcon(dailyDelegate.modelData.code, true); font.pixelSize: 24
                                 }
                                 Column {
                                     anchors.horizontalCenter: parent.horizontalCenter; spacing: 1
                                     Text {
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        text: Math.round(modelData.max) + "°"
+                                        text: Math.round(dailyDelegate.modelData.max) + "°"
                                         color: Theme.text; font.pixelSize: 12; font.bold: true
                                     }
                                     Text {
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        text: Math.round(modelData.min) + "°"
+                                        text: Math.round(dailyDelegate.modelData.min) + "°"
                                         color: Theme.muted3; font.pixelSize: 11
                                     }
                                 }
