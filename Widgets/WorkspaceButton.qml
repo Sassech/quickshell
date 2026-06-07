@@ -19,14 +19,14 @@ Rectangle {
         width: 18
         height: 18
         radius: 4
-        color: workspace.active ? Theme.accent : "transparent"
+        color: root.workspace.active ? Theme.accent : "transparent"
 
         Text {
             anchors.centerIn: parent
-            text: workspace.id
-            color: workspace.active ? Theme.cardBg3 : Theme.muted1
+            text: root.workspace.id
+            color: root.workspace.active ? Theme.cardBg3 : Theme.muted1
             font.pixelSize: 11
-            font.bold: workspace.active
+            font.bold: root.workspace.active
         }
     }
 
@@ -36,7 +36,7 @@ Rectangle {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: {
-            Hyprland.dispatch("workspace " + workspace.id)
+            Hyprland.dispatch("workspace " + root.workspace.id)
         }
     }
 }

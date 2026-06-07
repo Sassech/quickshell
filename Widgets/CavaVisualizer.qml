@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell.Io
 import "../Components"
@@ -42,8 +43,8 @@ Rectangle {
 
         onExited: {
             if (!root.sinkDetected) {
-                restartAttempts++
-                if (restartAttempts < maxRestartAttempts) {
+                root.restartAttempts++
+                if (root.restartAttempts < root.maxRestartAttempts) {
                     Qt.callLater(function() { sinkProcess.running = true })
                 }
             }
@@ -84,8 +85,8 @@ Rectangle {
 
         onExited: {
             if (root.isPlaying && root.sinkDetected) {
-                restartAttempts++
-                if (restartAttempts < maxRestartAttempts) {
+                root.restartAttempts++
+                if (root.restartAttempts < root.maxRestartAttempts) {
                     Qt.callLater(function() { cavaProcess.running = true })
                 }
             }
@@ -101,14 +102,19 @@ Rectangle {
 
             Item {
                 id: barItem
+                required property int index
+                // Copias locales de propiedades del root para evitar acceso no calificado
+                // en el scope del delegate (pragma ComponentBehavior: Bound en shell.qml)
+                readonly property bool _playing: root.isPlaying
+                readonly property var  _levels:  root.audioLevels
                 width: 3
                 height: 16
 
                 // Escala normalizada 0.0–1.0 (baseScale mínima para no desaparecer)
                 property real baseScale: 0.25
-                property real targetScale: root.isPlaying && index < root.audioLevels.length
-                    ? Math.max(baseScale, root.audioLevels[index] / 16.0)
-                    : baseScale
+                property real targetScale: barItem._playing && barItem.index < barItem._levels.length
+                    ? Math.max(barItem.baseScale, barItem._levels[barItem.index] / 16.0)
+                    : barItem.baseScale
 
                 Rectangle {
                     width: parent.width
@@ -116,7 +122,7 @@ Rectangle {
                     // Anclar al bottom via transform origin
                     transformOrigin: Item.Bottom
                     anchors.bottom: parent.bottom
-                    color: root.isPlaying ? Theme.accent : Theme.surface3
+                    color: barItem._playing ? Theme.accent : Theme.surface3
                     radius: 1.5
 
                     // GPU-accelerated: scale en Y no dispara re-layout

@@ -57,7 +57,7 @@ Rectangle {
                 try {
                     const prefs = JSON.parse(data);
                     root.use24h = prefs.use24h !== false;
-                    updateTime();
+                    root.updateTime();
                 } catch(e) {}
             }
         }
@@ -108,7 +108,7 @@ Rectangle {
             const prevSec = secsText.text;
             const newSec = Qt.formatDateTime(now, ":ss");
             if (prevSec !== newSec) {
-                updateTime();
+                root.updateTime();
             }
         }
     }

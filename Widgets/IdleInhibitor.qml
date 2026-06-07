@@ -89,7 +89,7 @@ Rectangle {
             onRead: data => {
                 root._idleBuf += data;
                 const seconds = parseInt(root._idleBuf.trim()) || 0;
-                root.idleTime = formatIdleTime(seconds);
+                root.idleTime = root.formatIdleTime(seconds);
                 root._idleBuf = "";
             }
         }
@@ -165,8 +165,8 @@ Rectangle {
         onExited: function(code) {
             if (root.inhibiting && code !== 0) {
                 root.inhibiting = false;
-                sendNotif("error", "Error al bloquear idle", "systemd-inhibit falló");
-                saveState({ inhibiting: false });
+                root.sendNotif("error", "Error al bloquear idle", "systemd-inhibit falló");
+                root.saveState({ inhibiting: false });
             }
         }
     }
@@ -223,12 +223,12 @@ Rectangle {
             
             if (root.inhibiting) {
                 inhibitProc.running = true
-                sendNotif("critical", "☕ Idle bloqueado", "La pantalla no se apagará automáticamente");
-                saveState({ inhibiting: true });
+                root.sendNotif("critical", "☕ Idle bloqueado", "La pantalla no se apagará automáticamente");
+                root.saveState({ inhibiting: true });
             } else {
                 inhibitProc.running = false
-                sendNotif("normal", "Idle restaurado", "El sistema volverá al comportamiento normal");
-                saveState({ inhibiting: false });
+                root.sendNotif("normal", "Idle restaurado", "El sistema volverá al comportamiento normal");
+                root.saveState({ inhibiting: false });
             }
         }
     }
