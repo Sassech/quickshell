@@ -141,6 +141,7 @@ Rectangle {
                 ]
 
                 Rectangle {
+                    id: batStatCard
                     required property var modelData
                     width: (parent.width - 12) / 3
                     height: 48; radius: 8; color: Theme.surface3
@@ -148,13 +149,13 @@ Rectangle {
                         anchors.centerIn: parent; spacing: 3
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: modelData.value
+                            text: batStatCard.modelData.value
                             font.pixelSize: 12; font.weight: Font.DemiBold
-                            color: modelData.color
+                            color: batStatCard.modelData.color
                         }
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: modelData.label
+                            text: batStatCard.modelData.label
                             font.pixelSize: 9; color: Theme.muted2
                         }
                     }

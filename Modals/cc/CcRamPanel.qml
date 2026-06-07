@@ -104,20 +104,21 @@ Rectangle {
                 ]
 
                 Rectangle {
+                    id: ramStatCard
                     required property var modelData
-                    width: (ramDetailCol.width - 12) / 3
+                    width: (parent.width - 12) / 3
                     height: 48; radius: 8; color: Theme.surface3
                     Column {
                         anchors.centerIn: parent; spacing: 3
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: modelData.value
+                            text: ramStatCard.modelData.value
                             font.pixelSize: 12; font.weight: Font.DemiBold
-                            color: modelData.color
+                            color: ramStatCard.modelData.color
                         }
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: modelData.label
+                            text: ramStatCard.modelData.label
                             font.pixelSize: 9; color: Theme.muted2
                         }
                     }

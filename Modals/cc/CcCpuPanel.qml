@@ -99,20 +99,21 @@ Rectangle {
                 ]
 
                 Rectangle {
+                    id: cpuStatCard
                     required property var modelData
-                    width: (cpuDetailCol.width - 12) / 3
+                    width: (parent.width - 12) / 3
                     height: 48; radius: 8; color: Theme.surface3
                     Column {
                         anchors.centerIn: parent; spacing: 3
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: modelData.value
+                            text: cpuStatCard.modelData.value
                             font.pixelSize: 12; font.weight: Font.DemiBold
-                            color: modelData.color
+                            color: cpuStatCard.modelData.color
                         }
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: modelData.label
+                            text: cpuStatCard.modelData.label
                             font.pixelSize: 9; color: Theme.muted2
                         }
                     }
