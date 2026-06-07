@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -196,13 +197,13 @@ PanelWindow {
                     text: "(" + imageModel.count + ")"
                     font.pixelSize: 13
                     color: Theme.muted3
-                    visible: !_loading
+                    visible: !root._loading
                 }
                 Text {
                     text: "cargando..."
                     font.pixelSize: 12
                     color: Theme.muted3
-                    visible: _loading
+                    visible: root._loading
                 }
 
                 Item { Layout.fillWidth: true }
@@ -296,7 +297,7 @@ PanelWindow {
                 Column {
                     anchors.centerIn: parent
                     spacing: 10
-                    visible: imageModel.count === 0 && !_loading
+                    visible: imageModel.count === 0 && !root._loading
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: "󰋯"
@@ -321,7 +322,7 @@ PanelWindow {
                 Column {
                     anchors.centerIn: parent
                     spacing: 10
-                    visible: _loading
+                    visible: root._loading
 
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
@@ -329,7 +330,7 @@ PanelWindow {
                         font.pixelSize: 32
                         color: Theme.accent2
                         RotationAnimation on rotation {
-                            running: _loading
+                            running: root._loading
                             from: 0; to: 360
                             duration: 1000
                             loops: Animation.Infinite
@@ -362,18 +363,19 @@ PanelWindow {
                     }
 
                     delegate: Item {
-                        width:  gridView.cellWidth
-                        height: gridView.cellHeight
+                        id: wpCell
+                        width:  GridView.view.cellWidth
+                        height: GridView.view.cellHeight
 
                         required property var   model
                         required property int   index
 
-                        property bool isActive: root.currentWallpaper === model.path
+                        property bool isActive: root.currentWallpaper === wpCell.model.path
 
                         // reuseItems: resetear source al entrar al pool para evitar
                         // que la imagen anterior quede visible mientras carga la nueva
                         ListView.onPooled:  { thumb.source = "" }
-                        ListView.onReused:  { thumb.source = model.thumb !== "" ? ("file://" + model.thumb) : "" }
+                        ListView.onReused:  { thumb.source = wpCell.model.thumb !== "" ? ("file://" + wpCell.model.thumb) : "" }
 
                         Rectangle {
                             id: cellBg
@@ -381,8 +383,8 @@ PanelWindow {
                             anchors.margins: 4
                             radius: 10
                             color: cellMa.containsMouse ? Theme.surface2 : Theme.cardBg3
-                            border.color: isActive ? Theme.accent2 : (cellMa.containsMouse ? Theme.surface3 : Theme.surface2)
-                            border.width: isActive ? 2 : 1
+                            border.color: wpCell.isActive ? Theme.accent2 : (cellMa.containsMouse ? Theme.surface3 : Theme.surface2)
+                            border.width: wpCell.isActive ? 2 : 1
                             clip: true
                             Behavior on border.color { ColorAnimation { duration: 100 } }
 
@@ -393,7 +395,7 @@ PanelWindow {
                                 anchors.left: parent.left
                                 anchors.right: parent.right
                                 height: 120
-                                source: model.thumb !== "" ? ("file://" + model.thumb) : ""
+                                source: wpCell.model.thumb !== "" ? ("file://" + wpCell.model.thumb) : ""
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
                                 cache: true
@@ -422,7 +424,7 @@ PanelWindow {
                                 anchors.margins: 6
                                 anchors.bottomMargin: 4
                                 height: 30
-                                text: model.name
+                                text: wpCell.model.name
                                 font.pixelSize: 10
                                 color: Theme.muted1
                                 elide: Text.ElideRight
@@ -431,7 +433,7 @@ PanelWindow {
 
                             // Badge "activo"
                             Rectangle {
-                                visible: isActive
+                                visible: wpCell.isActive
                                 anchors.top: parent.top
                                 anchors.right: parent.right
                                 anchors.margins: 6
@@ -449,7 +451,7 @@ PanelWindow {
                             Rectangle {
                                 anchors.fill: thumb
                                 color: Theme.hover2
-                                visible: cellMa.containsMouse && !isActive
+                                visible: cellMa.containsMouse && !wpCell.isActive
                                 radius: parent.radius
                                 Behavior on opacity { NumberAnimation { duration: 100 } }
                             }
@@ -461,7 +463,7 @@ PanelWindow {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                setProc.pending = model.path
+                                setProc.pending = wpCell.model.path
                                 setProc.running = true
                             }
                         }

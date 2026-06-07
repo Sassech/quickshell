@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -344,7 +345,7 @@ PanelWindow {
 
                     delegate: Rectangle {
                         id: row
-                        width: listView.width - 8
+                        width: ListView.view.width - 8
                         height: hasThumb ? 84 : 40
                         radius: 8
                         color: rowMa.containsMouse ? Theme.surface2 : "transparent"
@@ -360,8 +361,8 @@ PanelWindow {
                             anchors.fill: parent
                             anchors.leftMargin: 10
                             anchors.rightMargin: 6
-                            anchors.topMargin: hasThumb ? 6 : 0
-                            anchors.bottomMargin: hasThumb ? 6 : 0
+                            anchors.topMargin: row.hasThumb ? 6 : 0
+                            anchors.bottomMargin: row.hasThumb ? 6 : 0
                             spacing: 8
 
                             // Thumbnail de imagen

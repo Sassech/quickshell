@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -156,7 +157,7 @@ PanelWindow {
                              implicitHeight: 28
                              radius: 8
                              color: clearAllArea.containsMouse ? Theme.surface4 : Theme.surface3
-                             visible: notifModel && notifModel.count > 0
+                             visible: root.notifModel && root.notifModel.count > 0
 
                             Behavior on color { ColorAnimation { duration: 100 } }
 
@@ -166,7 +167,7 @@ PanelWindow {
                                 cursorShape: Qt.PointingHandCursor
                                 hoverEnabled: true
                                 onClicked: {
-                                    if (notifModel) notifModel.clear()
+                                    if (root.notifModel) root.notifModel.clear()
                                 }
                             }
 
@@ -203,7 +204,7 @@ PanelWindow {
                         Column {
                             anchors.centerIn: parent
                             spacing: 8
-                            visible: !notifModel || notifModel.count === 0
+                            visible: !root.notifModel || root.notifModel.count === 0
 
                             Text {
                                 anchors.horizontalCenter: parent.horizontalCenter
@@ -223,7 +224,7 @@ PanelWindow {
                         Flickable {
                             id: notifFlick
                             anchors.fill: parent
-                            visible: notifModel && notifModel.count > 0
+                            visible: root.notifModel && root.notifModel.count > 0
                             clip: true
                             contentHeight: notifColumn.implicitHeight
                         flickableDirection: Flickable.VerticalFlick
@@ -237,12 +238,13 @@ PanelWindow {
                             spacing: 6
 
                             Repeater {
-                                model: notifModel ? notifModel : []
+                                model: root.notifModel ? root.notifModel : []
 
                                 delegate: Rectangle {
                                     id: notifItem
                                     required property var modelData
-                                    width: notifColumn.width
+                                    required property int index
+                                    width: parent.width
                                     implicitHeight: notifRow.implicitHeight + 20
                                     radius: 10
                                     color: Theme.surface2
@@ -377,7 +379,7 @@ PanelWindow {
                                             hoverEnabled: true
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: {
-                                                if (notifModel) notifModel.remove(index)
+                                                if (root.notifModel) root.notifModel.remove(notifItem.index)
                                             }
                                         }
                                     }
@@ -535,6 +537,7 @@ PanelWindow {
                     Repeater {
                         model: ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
                         Text {
+                            required property var modelData
                             width: 48
                             text: modelData
                             color: Theme.muted2
@@ -558,19 +561,20 @@ PanelWindow {
                     Repeater {
                         model: calendarGrid.model
                         Rectangle {
+                            id: calDay
                             required property var modelData
                             width: 48; height: 30; radius: 6
-                            color: modelData.isToday ? Theme.accent
-                                   : modelData.otherMonth ? "transparent"
+                            color: calDay.modelData.isToday ? Theme.accent
+                                   : calDay.modelData.otherMonth ? "transparent"
                                    : Theme.surface3
-                            opacity: modelData.otherMonth ? 0.35 : 1.0
+                            opacity: calDay.modelData.otherMonth ? 0.35 : 1.0
 
                             Text {
                                 anchors.centerIn: parent
-                                text: modelData.day
+                                text: calDay.modelData.day
                                 font.pixelSize: 12
-                                color: modelData.isToday ? Theme.cardBg3
-                                       : modelData.otherMonth ? Theme.muted3
+                                color: calDay.modelData.isToday ? Theme.cardBg3
+                                       : calDay.modelData.otherMonth ? Theme.muted3
                                        : Theme.text
                             }
                         }
