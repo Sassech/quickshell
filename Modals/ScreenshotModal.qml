@@ -47,9 +47,11 @@ PanelWindow {
     Process {
         id: captureProc
         running: false
-        onExited: function(code) {
+        // qmllint disable signal-handler-parameters
+        onExited: function(exitCode) {
             root._running = false
         }
+        // qmllint enable signal-handler-parameters
     }
 
     function _capture(mode) {
