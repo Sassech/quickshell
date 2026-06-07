@@ -34,9 +34,11 @@ ShellRoot {
             }
         }
 
-        onExited: function(code) {
-            console.log("[Backend] exited with code " + code + " — restarting in 3s")
-            restartTimer.start()
+        onRunningChanged: {
+            if (!running) {
+                console.log("[Backend] exited — restarting in 3s")
+                restartTimer.start()
+            }
         }
     }
 
@@ -381,10 +383,7 @@ ShellRoot {
             splitMarker: "\n"
             onRead: monName => root.fifoScreenReader(monName, root.broadcastClipboard)
         }
-        onExited: function(code) {
-            console.log("[FIFO] clipboard exited (" + code + "), restarting")
-            clipboardFifo.running = true
-        }
+        onRunningChanged: if (!running) running = true
     }
 
     // ── WALLPAPER PICKER FIFO (SUPER+Y) ───────────────────────────────────
@@ -396,10 +395,7 @@ ShellRoot {
             splitMarker: "\n"
             onRead: monName => root.fifoScreenReader(monName, root.broadcastWallpaperPicker)
         }
-        onExited: function(code) {
-            console.log("[FIFO] wallpaper exited (" + code + "), restarting")
-            wallpaperFifo.running = true
-        }
+        onRunningChanged: if (!running) running = true
     }
 
     Variants {
@@ -455,10 +451,7 @@ ShellRoot {
             splitMarker: "\n"
             onRead: monName => root.fifoScreenReader(monName, root.broadcastOverview)
         }
-        onExited: function(code) {
-            console.log("[FIFO] overview exited (" + code + "), restarting")
-            overviewFifo.running = true
-        }
+        onRunningChanged: if (!running) running = true
     }
 
     // ── SPOTLIGHT FIFO ────────────────────────────────────────────────────
@@ -470,10 +463,7 @@ ShellRoot {
             splitMarker: "\n"
             onRead: monName => root.fifoScreenReader(monName, root.broadcastSpotlight)
         }
-        onExited: function(code) {
-            console.log("[FIFO] spotlight exited (" + code + "), restarting")
-            spotlightFifo.running = true
-        }
+        onRunningChanged: if (!running) running = true
     }
 
     Variants {
@@ -547,11 +537,6 @@ ShellRoot {
         }
     }
 
-    // ── LANGUAGE MODAL ────────────────────────────────────────────────────
-    Variants {
-        model: Quickshell.screens
-        // LanguageModal eliminado — ahora abre ControlCenter con _activePanel = "language"
-    }
 
 
     // ── CONTROL CENTER ────────────────────────────────────────────────────
@@ -621,10 +606,7 @@ ShellRoot {
             splitMarker: "\n"
             onRead: monName => root.fifoScreenReader(monName, root.broadcastScreenshot)
         }
-        onExited: function(code) {
-            console.log("[FIFO] screenshot exited (" + code + "), restarting")
-            screenshotFifo.running = true
-        }
+        onRunningChanged: if (!running) running = true
     }
 
     Variants {

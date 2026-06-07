@@ -148,13 +148,14 @@ Rectangle {
                 Row {
                     id: fanRow
                     required property var modelData
+                    width: parent.width
                     spacing: 6
                     Text {
                         text: fanRow.modelData.label; font.pixelSize: 9; color: Theme.muted1
                         width: 16; anchors.verticalCenter: parent.verticalCenter
                     }
                     Item {
-                        width: parent.width - 80 - 16 - 6 - 6; height: 6
+                        width: fanRow.width - 80 - 16 - 6 - 6; height: 6
                         anchors.verticalCenter: parent.verticalCenter
                         Rectangle { anchors.fill: parent; radius: 3; color: Theme.surface3 }
                         Rectangle {

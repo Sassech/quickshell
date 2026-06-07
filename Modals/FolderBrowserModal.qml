@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -242,6 +243,8 @@ PanelWindow {
                             model: root.quickAccess
 
                             Rectangle {
+                                id: qaItem
+                                required property var modelData
                                 width: parent.width
                                 height: 34
                                 color: qaMa.containsMouse ? Theme.surface2 : "transparent"
@@ -254,13 +257,13 @@ PanelWindow {
                                     spacing: 8
 
                                     Text {
-                                        text: modelData.icon
+                                        text: qaItem.modelData.icon
                                         font.pixelSize: 15
                                         color: Theme.muted3
                                     }
                                     Text {
                                         Layout.fillWidth: true
-                                        text: modelData.label
+                                        text: qaItem.modelData.label
                                         font.pixelSize: 12
                                         color: Theme.muted1
                                         elide: Text.ElideRight
@@ -272,7 +275,7 @@ PanelWindow {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.navigate(modelData.path)
+                                    onClicked: root.navigate(qaItem.modelData.path)
                                 }
                             }
                         }
@@ -296,14 +299,14 @@ PanelWindow {
                     Column {
                         anchors.centerIn: parent
                         spacing: 10
-                        visible: _loading
+                        visible: root._loading
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: "󰔟"
                             font.pixelSize: 28
                             color: Theme.accent2
                             RotationAnimation on rotation {
-                                running: _loading
+                                running: root._loading
                                 from: 0; to: 360; duration: 800
                                 loops: Animation.Infinite
                             }
@@ -314,7 +317,7 @@ PanelWindow {
                     Column {
                         anchors.centerIn: parent
                         spacing: 8
-                        visible: !_loading && entryModel.count === 0
+                        visible: !root._loading && entryModel.count === 0
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: "󰉖"; font.pixelSize: 32; color: Theme.surface2
@@ -332,7 +335,7 @@ PanelWindow {
                         clip: true
                         model: entryModel
                         spacing: 1
-                        visible: !_loading && entryModel.count > 0
+                        visible: !root._loading && entryModel.count > 0
 
                         ScrollBar.vertical: ScrollBar {
                             policy: ScrollBar.AsNeeded
@@ -359,21 +362,21 @@ PanelWindow {
                                 spacing: 10
 
                                 Text {
-                                    text: model.isDir ? "󰉋" : "󰈙"
+                                    text: row.model.isDir ? "󰉋" : "󰈙"
                                     font.pixelSize: 15
-                                    color: model.isDir ? Theme.accent : Theme.muted3
+                                    color: row.model.isDir ? Theme.accent : Theme.muted3
                                 }
 
                                 Text {
                                     Layout.fillWidth: true
-                                    text: model.name
+                                    text: row.model.name
                                     font.pixelSize: 13
-                                    color: model.isDir ? Theme.text : Theme.muted3
+                                    color: row.model.isDir ? Theme.text : Theme.muted3
                                     elide: Text.ElideRight
                                 }
 
                                 Text {
-                                    visible: model.isDir && rowMa.containsMouse
+                                    visible: row.model.isDir && rowMa.containsMouse
                                     text: "󰁔"
                                     font.pixelSize: 13
                                     color: Theme.muted3
@@ -384,9 +387,9 @@ PanelWindow {
                                 id: rowMa
                                 anchors.fill: parent
                                 hoverEnabled: true
-                                cursorShape: model.isDir ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                cursorShape: row.model.isDir ? Qt.PointingHandCursor : Qt.ArrowCursor
                                 onClicked: {
-                                    if (model.isDir) root.navigate(model.path)
+                                    if (row.model.isDir) root.navigate(row.model.path)
                                 }
                             }
                         }

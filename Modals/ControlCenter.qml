@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -280,7 +282,7 @@ PanelWindow {
     // Gate: solo escanea nodos cuando el panel de audio está activo y visible
     property var audioSinks: {
         _pwRev; _audioSinkAvail
-        if (!root.visible || root._activePanel !== "audio") return root.audioSinks ?? []
+        if (!root.visible || root._activePanel !== "audio") return []
         var activeName = root.defaultSink?.name ?? ""
         var out = []
         var all = Pipewire.nodes.values
@@ -303,7 +305,7 @@ PanelWindow {
 
     property var audioSources: {
         _pwRev; _audioSourceAvail
-        if (!root.visible || root._activePanel !== "audio") return root.audioSources ?? []
+        if (!root.visible || root._activePanel !== "audio") return []
         var activeName = root.defaultSource?.name ?? ""
         var out = []
         var all = Pipewire.nodes.values
@@ -488,7 +490,7 @@ PanelWindow {
     Timer {
         interval: 1000
         repeat: true
-        running: root.visible && root.mprisPlayer?.isPlaying
+        running: root.visible && (root.mprisPlayer?.isPlaying ?? false)
         onTriggered: {
             root.playerPos += 1   // 1 segundo
             root._posSync++
@@ -845,12 +847,12 @@ PanelWindow {
         delegate: Connections {
             required property var modelData
             target: modelData
-            function onPairedChanged()     { btRefreshDebounce.restart() }
-            function onConnectedChanged()  { btRefreshDebounce.restart() }
-            function onTrustedChanged()    { btRefreshDebounce.restart() }
-            function onNameChanged()       { btRefreshDebounce.restart() }
-            function onDeviceNameChanged() { btRefreshDebounce.restart() }
-            function onStateChanged()      { btRefreshDebounce.restart() }
+            function onPairedChanged()     { root.btRefreshDeviceLists() }
+            function onConnectedChanged()  { root.btRefreshDeviceLists() }
+            function onTrustedChanged()    { root.btRefreshDeviceLists() }
+            function onNameChanged()       { root.btRefreshDeviceLists() }
+            function onDeviceNameChanged() { root.btRefreshDeviceLists() }
+            function onStateChanged()      { root.btRefreshDeviceLists() }
         }
     }
 
@@ -955,6 +957,12 @@ PanelWindow {
     }
 
     // ── WiFi functions ────────────────────────────────────────────────────
+    function _wifiIsNormalDisconnectReason(reason) {
+        return reason === NMConnectionStateReason.None
+            || reason === NMConnectionStateReason.UserDisconnected
+            || reason === NMConnectionStateReason.DeviceDisconnected
+    }
+
     function wifiSignalIcon(strength) {
         // strength es 0.0–1.0 de WifiNetwork.signalStrength
         if (strength >= 0.80) return "󰤨"
@@ -1073,35 +1081,22 @@ PanelWindow {
             target: modelData
             function onConnectedChanged() {
                 if (modelData.connected) {
-                    root._wifiWorking   = false
-                    root._wifiTargetNet = null
-                    root._wifiStatusMsg = "✓ Conectado"
-                    root._wifiSelectedIdx = -1
+                    root._wifiWorking         = false
+                    root._wifiTargetNet       = null
+                    root._wifiStatusMsg       = "✓ Conectado"
+                    root._wifiSelectedIdx     = -1
                     root._wifiPasswordByIndex = ({})
-                    wWifiInfoProc.running = true
+                    wWifiInfoProc.running     = true
                 } else if (root._wifiWorking && root._wifiTargetNet === null) {
-                    // Desconexión completada (wifiDisconnect no guarda targetNet)
                     root._wifiWorking   = false
                     root._wifiStatusMsg = "✓ Desconectado"
                 }
             }
             function onStateChanged() {
-                // Detectar fallo real de conexión.
-                // Requisitos para considerar un error genuino:
-                // 1. Es la red que estamos intentando conectar (modelData === _wifiTargetNet)
-                //    — sin esto, la red anterior que se desconecta al cambiar de red
-                //    también dispara este handler con _wifiWorking=true.
-                // 2. stateChanging === false — NM terminó de transicionar.
-                // 3. El reason no es una desconexión normal:
-                //    - None: sin razón (estado inicial)
-                //    - UserDisconnected: el usuario desconectó explícitamente
-                //    - DeviceDisconnected: NM desconectó la red vieja para conectar la nueva
                 if (!modelData.connected
                         && !modelData.stateChanging
                         && modelData === root._wifiTargetNet
-                        && modelData.nmReason !== NMConnectionStateReason.None
-                        && modelData.nmReason !== NMConnectionStateReason.UserDisconnected
-                        && modelData.nmReason !== NMConnectionStateReason.DeviceDisconnected
+                        && !root._wifiIsNormalDisconnectReason(modelData.nmReason)
                         && root._wifiWorking) {
                     root._wifiWorking   = false
                     root._wifiTargetNet = null
@@ -1266,7 +1261,7 @@ PanelWindow {
             rightMargin: 12
         }
         width: 360
-        height: Math.min(parent.height - 72, ccFlick.contentHeight + 24)
+        height: Math.min(parent.height - 72, Math.max(scrollContent.implicitHeight + 24, 100))
         radius: 16
         color: Theme.cardBg3
 
@@ -1287,14 +1282,12 @@ PanelWindow {
             id: ccFlick
             anchors { fill: parent; margins: 12 }
             contentWidth: width
-            contentHeight: scrollContent.height
+            contentHeight: scrollContent.implicitHeight
             clip: true
             boundsMovement: Flickable.StopAtBounds
 
             Column {
                 id: scrollContent
-                // height se enlaza al implicitHeight real + animaciones hijas
-                height: implicitHeight
                 width: ccFlick.width
                 spacing: 0
 
@@ -1327,9 +1320,9 @@ PanelWindow {
 
                                 Text {
                                     anchors.centerIn: parent
-                                    text: modelData.icon
+                                    text: pwBtn.modelData.icon
                                     font.pixelSize: 16
-                                    color: pwHov.containsMouse ? modelData.color : Theme.muted1
+                                    color: pwHov.containsMouse ? pwBtn.modelData.color : Theme.muted1
                                     Behavior on color { ColorAnimation { duration: 100 } }
                                 }
 
@@ -1339,13 +1332,13 @@ PanelWindow {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        if (modelData.critical) {
-                                            root._confirmLabel = modelData.label
-                                            root._confirmCmd   = modelData.cmd
+                                        if (pwBtn.modelData.critical) {
+                                            root._confirmLabel = pwBtn.modelData.label
+                                            root._confirmCmd   = pwBtn.modelData.cmd
                                             root._showConfirm  = true
                                         } else {
                                             root.visible = false
-                                            ccExecProc.runCmd(modelData.cmd)
+                                            ccExecProc.runCmd(pwBtn.modelData.cmd)
                                         }
                                     }
                                 }
@@ -2061,7 +2054,7 @@ PanelWindow {
                             required property var modelData
                             required property int index
                             property bool hov: false
-                            property bool expanded: root._activePanel === modelData.key
+                            property bool expanded: root._activePanel === metCard.modelData.key
 
                             width: (metricsRow.width - 12) / 3
                             height: 70
@@ -2082,7 +2075,7 @@ PanelWindow {
                                     anchors.horizontalCenter: parent.horizontalCenter
 
                                     // Live value — updates the canvas
-                                    property real arcPct: modelData.value / 100
+                                    property real arcPct: metCard.modelData.value / 100
                                     Behavior on arcPct { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
                                     onArcPctChanged: arcCanvas.requestPaint()
 
@@ -2124,7 +2117,7 @@ PanelWindow {
                                     // Icon as QML Text — Nerd Font renders correctly here
                                     Text {
                                         anchors.centerIn: parent
-                                        text: modelData.icon
+                                        text: metCard.modelData.icon
                                         font.pixelSize: 14
                                         color: arcItem.arcPct > 0.85 ? "#ff7b72"
                                              : arcItem.arcPct > 0.65 ? "#e3b341"
@@ -2134,10 +2127,10 @@ PanelWindow {
 
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    text: modelData.label + " " + Math.round(modelData.value) + "%"
+                                    text: metCard.modelData.label + " " + Math.round(metCard.modelData.value) + "%"
                                     font.pixelSize: 9; font.weight: Font.DemiBold
-                                    color: modelData.value > 85 ? "#ff7b72"
-                                         : modelData.value > 65 ? "#e3b341"
+                                    color: metCard.modelData.value > 85 ? "#ff7b72"
+                                         : metCard.modelData.value > 65 ? "#e3b341"
                                          : Theme.text
                                 }
                             }
@@ -2147,7 +2140,7 @@ PanelWindow {
                                 onEntered: metCard.hov = true
                                 onExited:  metCard.hov = false
                                 onClicked: {
-                                    var k = modelData.key
+                                    var k = metCard.modelData.key
                                     root._activePanel = (root._activePanel === k) ? "" : k
                                 }
                             }
@@ -2175,6 +2168,7 @@ PanelWindow {
                         ]
 
                         Rectangle {
+                            id: diskCard
                             required property var modelData
                             width: (parent.width - 6) / 2; height: 52; radius: 10
                             color: Theme.surface2
@@ -2184,9 +2178,9 @@ PanelWindow {
                                 spacing: 8
 
                                 Text {
-                                    text: modelData.icon; font.pixelSize: 18
-                                    color: modelData.pct >= 90 ? "#ff7b72"
-                                         : modelData.pct >= 75 ? "#e3b341"
+                                    text: diskCard.modelData.icon; font.pixelSize: 18
+                                    color: diskCard.modelData.pct >= 90 ? "#ff7b72"
+                                         : diskCard.modelData.pct >= 75 ? "#e3b341"
                                          : Theme.muted1
                                 }
 
@@ -2197,14 +2191,14 @@ PanelWindow {
                                     Row {
                                         spacing: 6
                                         Text {
-                                            text: modelData.label
+                                            text: diskCard.modelData.label
                                             font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text
                                         }
                                         Text {
-                                            text: modelData.pct + "%"
+                                            text: diskCard.modelData.pct + "%"
                                             font.pixelSize: 10
-                                            color: modelData.pct >= 90 ? "#ff7b72"
-                                                 : modelData.pct >= 75 ? "#e3b341"
+                                            color: diskCard.modelData.pct >= 90 ? "#ff7b72"
+                                                 : diskCard.modelData.pct >= 75 ? "#e3b341"
                                                  : Theme.muted1
                                         }
                                     }
@@ -2215,17 +2209,17 @@ PanelWindow {
                                         Rectangle { anchors.fill: parent; radius: 2; color: Theme.surface3 }
                                         Rectangle {
                                             anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                                            width: Math.max(4, modelData.pct / 100 * parent.width)
+                                            width: Math.max(4, diskCard.modelData.pct / 100 * parent.width)
                                             radius: 2
-                                            color: modelData.pct >= 90 ? "#ff7b72"
-                                                 : modelData.pct >= 75 ? "#e3b341"
+                                            color: diskCard.modelData.pct >= 90 ? "#ff7b72"
+                                                 : diskCard.modelData.pct >= 75 ? "#e3b341"
                                                  : Theme.accent
                                             Behavior on width { NumberAnimation { duration: 300 } }
                                         }
                                     }
 
                                     Text {
-                                        text: modelData.used + " / " + modelData.total + " GB"
+                                        text: diskCard.modelData.used + " / " + diskCard.modelData.total + " GB"
                                         font.pixelSize: 9; color: Theme.muted2
                                     }
                                 }
@@ -2360,14 +2354,15 @@ PanelWindow {
                                                 { icon: root.mprisPlayer?.isPlaying ? "󰏤" : "󰐊", action: "play" },
                                                 { icon: "󰒭", action: "next" }
                                             ]
-                                            Rectangle {
+                                             Rectangle {
+                                                id: pCtrlBtn
                                                 required property var modelData
                                                 width: 24; height: 24; radius: 6
                                                 color: pCtrlHov.containsMouse ? Theme.surface3 : "transparent"
                                                 Behavior on color { ColorAnimation { duration: 80 } }
                                                 Text {
                                                     anchors.centerIn: parent
-                                                    text: modelData.icon; font.pixelSize: 13; color: Theme.text
+                                                    text: pCtrlBtn.modelData.icon; font.pixelSize: 13; color: Theme.text
                                                 }
                                                 MouseArea {
                                                     id: pCtrlHov; anchors.fill: parent; hoverEnabled: true
@@ -2375,8 +2370,8 @@ PanelWindow {
                                                     onClicked: {
                                                         const p = root.mprisPlayer
                                                         if (!p) return
-                                                        if      (modelData.action === "prev") p.previous()
-                                                        else if (modelData.action === "next") p.next()
+                                                        if      (pCtrlBtn.modelData.action === "prev") p.previous()
+                                                        else if (pCtrlBtn.modelData.action === "next") p.next()
                                                         else p.togglePlaying()
                                                     }
                                                 }
