@@ -162,13 +162,15 @@ Rectangle {
         running: false
         stdout: SplitParser { splitMarker: "\n"; onRead: data => {} }
 
-        onExited: function(code) {
-            if (root.inhibiting && code !== 0) {
+        // qmllint disable signal-handler-parameters
+        onExited: function(exitCode) {
+            if (root.inhibiting && exitCode !== 0) {
                 root.inhibiting = false;
                 root.sendNotif("error", "Error al bloquear idle", "systemd-inhibit falló");
                 root.saveState({ inhibiting: false });
             }
         }
+        // qmllint enable signal-handler-parameters
     }
 
     Process {
