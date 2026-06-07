@@ -68,6 +68,7 @@ PanelWindow {
             splitMarker: ""
             onRead: d => root._buf += d
         }
+        // qmllint disable signal-handler-parameters
         onExited: {
             root._loading = false
             try {
@@ -80,6 +81,7 @@ PanelWindow {
             } catch(e) {}
             root._buf = ""
         }
+        // qmllint enable signal-handler-parameters
     }
 
     function navigate(p) {
