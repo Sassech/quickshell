@@ -41,7 +41,6 @@ HWMON_SMM  = ""
 HWMON_AWCC = ""
 PLATFORM_PROFILE = "/sys/class/platform-profile/platform-profile-0"
 
-_running = True
 _stop_event = threading.Event()
 _cpu_cursor = ""
 
@@ -89,8 +88,7 @@ def _emit(data: dict) -> None:
     try:
         print(json.dumps(data, separators=(",", ":")), flush=True)
     except BrokenPipeError:
-        global _running
-        _running = False
+        _stop_event.set()
     except Exception:
         pass
 
@@ -434,13 +432,11 @@ def _poll_network() -> None:
 
 
 def _signal_handler(signum, frame) -> None:
-    global _running
-    _running = False
     _stop_event.set()
 
 
 def main() -> None:
-    global _cpu_cursor, _running, HWMON_SMM, HWMON_AWCC, _gpu_card_path
+    global _cpu_cursor, HWMON_SMM, HWMON_AWCC, _gpu_card_path
 
     _log("Starting system data backend...")
 

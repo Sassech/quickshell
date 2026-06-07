@@ -22,9 +22,10 @@ PanelWindow {
 
     property var targetScreen: null   // renombrado para evitar conflicto con WindowInterface.screen
     property var notifModel: null
-    property int currentMonth: new Date().getMonth()
-    property int currentYear: new Date().getFullYear()
+    property int currentMonth: 0
+    property int currentYear: 0
     property bool use24hFormat: true
+    property string _dateText: ""
 
     // ── Timer para actualizar la hora en tiempo real ──────────────────────
     Timer {
@@ -37,6 +38,9 @@ PanelWindow {
 
     onVisibleChanged: {
         if (visible) {
+            const now = new Date()
+            currentMonth = now.getMonth()
+            currentYear  = now.getFullYear()
             updateCalendar()
             clockText.updateTime()
             Qt.callLater(function() { card.forceActiveFocus() })
@@ -417,6 +421,7 @@ PanelWindow {
                             const m = String(now.getMinutes()).padStart(2, "0")
                             _time = h + ":" + m + " " + ampm
                         }
+                        root._dateText = Qt.formatDateTime(now, "dddd, d 'de' MMMM")
                     }
 
                     Component.onCompleted: updateTime()
@@ -425,7 +430,7 @@ PanelWindow {
                 // ── Fecha completa ────────────────────────────────────────
                 Text {
                     Layout.alignment: Qt.AlignHCenter
-                    text: Qt.formatDateTime(new Date(), "dddd, d 'de' MMMM")
+                    text: root._dateText
                     font.pixelSize: 13
                     color: Theme.muted1
                 }

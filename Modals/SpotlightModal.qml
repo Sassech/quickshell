@@ -483,6 +483,7 @@ PanelWindow {
                     anchors.leftMargin: 16
                     anchors.rightMargin: 16
                     clip: true
+                    reuseItems: true
 
                     model: filteredModel
                     cellWidth:  root._cellSize
@@ -504,6 +505,10 @@ PanelWindow {
                         height: root._cellHeight
 
                         readonly property bool isSelected: gridCell.index === root.selectedIndex
+
+                        ListView.onPooled:  iconImage.source = ""
+                        ListView.onReused:  iconImage.source = (gridCell.model.iconPath !== "")
+                                            ? ("file://" + gridCell.model.iconPath) : ""
 
                         // Fondo hover/selected
                         Rectangle {
@@ -536,6 +541,7 @@ PanelWindow {
                                     anchors.horizontalCenter: parent.horizontalCenter
 
                                     Image {
+                                        id: iconImage
                                         anchors.fill: parent
                                         source: (gridCell.model.iconPath !== "")
                                                 ? ("file://" + gridCell.model.iconPath)

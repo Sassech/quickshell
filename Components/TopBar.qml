@@ -1,6 +1,5 @@
 import QtQuick
 import Quickshell
-import QtQuick.Layouts
 import Quickshell.Hyprland
 import "../Widgets"
 

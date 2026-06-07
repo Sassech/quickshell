@@ -41,7 +41,7 @@ def main() -> None:
 
         entries: list[dict] = []
         imagemagick = has_imagemagick()
-        thumb_tasks: list[tuple[int, str]] = []  # (index, entry_id)
+        thumb_tasks: list[tuple[int, str, str]] = []  # (index, entry_id, preview)
 
         for line in result.stdout.splitlines():
             if "\t" not in line:

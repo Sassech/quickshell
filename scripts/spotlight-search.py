@@ -15,7 +15,7 @@ list_apps_mode = "--list-apps" in args
 query_args = [a for a in args if not a.startswith("--")]
 query = query_args[0].strip() if query_args else ""
 query_low = query.lower()
-results = []
+results: list[dict[str, object]] = []
 
 # ── Resolución de iconos — caché persistente en disco ───────────────────
 _ICON_CACHE_PATH = os.path.expanduser("~/.cache/qs-icon-cache.json")
@@ -308,15 +308,15 @@ if calc_re.match(query) and query and any(c.isdigit() for c in query):
 # ── Aplicaciones ────────────────────────────────────────────────────────
 if query_low:
     apps = []
-    seen: set = set()
+    seen_query: set = set()
     for d in APP_DIRS:
         if not os.path.isdir(d):
             continue
         for f in glob.glob(f"{d}/*.desktop"):
             info = parse_desktop(f)
-            if not info or info["name"] in seen:
+            if not info or info["name"] in seen_query:
                 continue
-            seen.add(info["name"])
+            seen_query.add(info["name"])
             extra = " ".join(filter(None, [info["generic"], info["keywords"]]))
             score = fuzzy_score(query_low, info["name"], extra)
             if score == 0:
@@ -372,17 +372,23 @@ if query_low and len(query_low) >= 2 and len(results) < 12:
 
 
 # ── Comando de shell ─────────────────────────────────────────────────────
-# execArgs pasa la lista directamente a Quickshell para evitar injection via bash -c
+# Abre kitty interactivo con el query pre-cargado en el historial de bash.
+# El usuario confirma la ejecución (Enter) — nunca se ejecuta automáticamente.
+# Nota: query se pasa como argumento posicional a bash, no como -c <cmd>,
+# por lo que no hay riesgo de shell injection desde el proceso Python.
 if query and not calc_re.match(query):
-    results.append({
+    cmd_args: list[str] = ["kitty", "-e", "bash", "-i", "-c",
+                           f"history -s -- {query!r}; exec bash"]
+    cmd_entry: dict[str, object] = {
         "type": "cmd",
         "name": query,
         "detail": "Ejecutar en terminal",
         "exec": "",   # obsoleto — usar execArgs
-        "execArgs": ["kitty", "--hold", "-e", "bash", "-c", query],
+        "execArgs": cmd_args,
         "icon": "󰆍",
         "iconPath": "",
-    })
+    }
+    results.append(cmd_entry)
 
 if _icon_cache_dirty:
     _save_icon_cache()

@@ -1,11 +1,5 @@
 import QtQuick
-import QtQuick.Layouts
-import Quickshell
-import Quickshell.Services.UPower
-import Quickshell.Bluetooth
-import Quickshell.Networking
 import "."
-import "../../Components"
 
 // ── Overlay de paneles del Control Center ─────────────────────────────────────
 // Se coloca con z:200 dentro del PanelWindow principal.

@@ -18,8 +18,10 @@ folder = sys.argv[1]
 
 try:
     os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-    with open(CONFIG_PATH, "w") as f:
+    tmp = CONFIG_PATH + ".tmp"
+    with open(tmp, "w") as f:
         json.dump({"folder": folder}, f)
+    os.replace(tmp, CONFIG_PATH)
 except Exception as e:
     print(f"Error saving config: {e}", file=sys.stderr)
     sys.exit(1)
