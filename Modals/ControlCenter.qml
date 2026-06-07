@@ -828,6 +828,7 @@ PanelWindow {
             if (!root._btActionDevice || root._btActionType !== "connect") return
             root._btConnectRetries++
             root._btSawConnecting = false
+            root._btWorking = true   // garantizar spinner activo durante el reintento
             root._btActionDevice.connect()
             btActionTimeout.restart()
         }
