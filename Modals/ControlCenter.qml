@@ -390,6 +390,7 @@ PanelWindow {
         id: _audioSinkAvailProc
         command: ["bash", "-c", "LANG=C pactl --format=json list sinks 2>/dev/null"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._audioSinkBuf += d + "\n" }
+        // qmllint disable signal-handler-parameters
         onExited: {
             try {
                 var data = JSON.parse(root._audioSinkBuf)
@@ -410,12 +411,14 @@ PanelWindow {
             } catch(e) {}
             root._audioSinkBuf = ""
         }
+        // qmllint enable signal-handler-parameters
     }
 
     Process {
         id: _audioSourceAvailProc
         command: ["bash", "-c", "LANG=C pactl --format=json list sources 2>/dev/null"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._audioSourceBuf += d + "\n" }
+        // qmllint disable signal-handler-parameters
         onExited: {
             try {
                 var data = JSON.parse(root._audioSourceBuf)
@@ -437,6 +440,7 @@ PanelWindow {
             } catch(e) {}
             root._audioSourceBuf = ""
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // Mover streams al nuevo sink/source (pactl — necesario, no expuesto por API)
@@ -511,11 +515,13 @@ PanelWindow {
         id: getBrightnessProc
         command: ["bash", "-c", "brightnessctl -m | awk -F, '{print $4}' | tr -d '%'"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._buf += d }
+        // qmllint disable signal-handler-parameters
         onExited: {
             var v = parseInt(root._buf.trim())
             root._buf = ""
             if (!isNaN(v)) { root.brightness = v; root._brightnessReady = true }
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // Aplicar brillo
@@ -920,6 +926,7 @@ PanelWindow {
         id: btCodecProc
         command: ["bash", "-c", ""]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._btCodecBuf += d + "\n" }
+        // qmllint disable signal-handler-parameters
         onExited: {
             var output = root._btCodecBuf.trim()
             root._btCodecBuf = ""
@@ -931,22 +938,27 @@ PanelWindow {
             } catch(e) {}
             root.btRunNextCodecQuery()
         }
+        // qmllint enable signal-handler-parameters
     }
 
     Process {
         id: btSetCodecProc
         command: ["bash", "-c", ""]
+        // qmllint disable signal-handler-parameters
         onExited: function(ec) {
             root._btStatusMsg = ec === 0 ? root._btMsgCodecOk : root._btMsgCodecErr
             Qt.callLater(() => root.btRunNextCodecQuery())
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // ── WiFi functions ────────────────────────────────────────────────────
     function _wifiIsNormalDisconnectReason(reason) {
+        // qmllint disable unqualified
         return reason === NMConnectionStateReason.None
             || reason === NMConnectionStateReason.UserDisconnected
             || reason === NMConnectionStateReason.DeviceDisconnected
+        // qmllint enable unqualified
     }
 
     function wifiSignalIcon(strength) {
@@ -1112,6 +1124,7 @@ PanelWindow {
             + "ethtool \"$ETH_IFACE\" 2>/dev/null | grep \"Speed:\" | awk '{print $2}'; "
             + "else echo \"disconnected\"; fi"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._wEthBuf += d + "\n" }
+        // qmllint disable signal-handler-parameters
         onExited: {
             var lines = root._wEthBuf.trim().split("\n")
             root._wEthBuf = ""
@@ -1119,6 +1132,7 @@ PanelWindow {
             root._ethIp    = (lines[1] || "").trim()
             root._ethSpeed = (lines[2] || "").trim()
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // Connect new network with password
@@ -1127,6 +1141,7 @@ PanelWindow {
         property string _buf: ""
         command: ["bash", "-c", ""]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => wConnectProc._buf += d + "\n" }
+        // qmllint disable signal-handler-parameters
         onExited: function(exitCode) {
             var output = wConnectProc._buf.trim()
             wConnectProc._buf = ""
@@ -1142,6 +1157,7 @@ PanelWindow {
                 root._wifiStatusMsg = "✗ " + errMsg.substring(0, 40)
             }
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // Fetch IP/Gateway/DNS for connected WiFi (nmcli)
@@ -1156,6 +1172,7 @@ PanelWindow {
             + "nmcli -g IP4.DNS dev show \"$IFACE\" 2>/dev/null; "
             + "fi"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => wWifiInfoProc._buf += d + "\n" }
+        // qmllint disable signal-handler-parameters
         onExited: {
             var lines = wWifiInfoProc._buf.trim().split("\n")
             wWifiInfoProc._buf = ""
@@ -1163,6 +1180,7 @@ PanelWindow {
             root._wifiGateway = (lines[1] || "").trim()
             root._wifiDns     = (lines[2] || "").trim()
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // Reveal saved PSK (nmcli -s)
@@ -1171,11 +1189,13 @@ PanelWindow {
         property string _buf: ""
         command: ["bash", "-c", ""]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => wSharedPwFetchProc._buf += d }
+        // qmllint disable signal-handler-parameters
         onExited: {
             var pw = wSharedPwFetchProc._buf.trim()
             wSharedPwFetchProc._buf = ""
             ccPanelOverlay.wifiPasswordFetched(root._wifiPwFetchIdx, pw)
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // Copy password to clipboard (nmcli -s → wl-copy)
@@ -1184,6 +1204,7 @@ PanelWindow {
         property string _buf: ""
         command: ["bash", "-c", ""]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => wMenuCopyFetchProc._buf += d }
+        // qmllint disable signal-handler-parameters
         onExited: {
             var output = wMenuCopyFetchProc._buf.trim()
             wMenuCopyFetchProc._buf = ""
@@ -1199,14 +1220,17 @@ PanelWindow {
                 root._wifiStatusMsg = "✗ " + (errorMsg || "No se encontró la contraseña")
             }
         }
+        // qmllint enable signal-handler-parameters
     }
 
     Process {
         id: wMenuCopyExecProc
         command: ["bash", "-c", ""]
+        // qmllint disable signal-handler-parameters
         onExited: (ec) => {
             root._wifiStatusMsg = ec === 0 ? "✓ Contraseña copiada" : "✗ wl-copy error " + ec
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // ── Startup ────────────────────────────────────────────────────────────
@@ -1652,7 +1676,9 @@ PanelWindow {
         id: ccExecProc
         running: false
         function runCmd(cmd) { command = cmd; running = true }
+        // qmllint disable signal-handler-parameters
         onExited: running = false
+        // qmllint enable signal-handler-parameters
     }
 
     // ── CPU detail process ────────────────────────────────────────────────
@@ -1660,6 +1686,7 @@ PanelWindow {
         id: cpuDetailProc
         command: ["bash", Paths.scripts + "/cpu-detail.sh"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._cpuBuf += d + "\n" }
+        // qmllint disable signal-handler-parameters
         onExited: {
             var kv = {}
             root._cpuBuf.trim().split("\n").forEach(function(line) {
@@ -1675,6 +1702,7 @@ PanelWindow {
             if (kv["CORE_PCTS"])  root._cpuCorePcts = kv["CORE_PCTS"].split(",").map(function(s) { return parseInt(s) || 0 })
             root._cpuLoaded = true
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // Refrescar CPU mientras esté expandido
@@ -1689,6 +1717,7 @@ PanelWindow {
         id: gpuDetailProc
         command: ["bash", Paths.scripts + "/gpu-detail.sh"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._gpuBuf += d + "\n" }
+        // qmllint disable signal-handler-parameters
         onExited: {
             var kv = {}
             root._gpuBuf.trim().split("\n").forEach(function(line) {
@@ -1720,6 +1749,7 @@ PanelWindow {
             root._gpus = list
             root._gpuLoaded = true
         }
+        // qmllint enable signal-handler-parameters
     }
 
     Timer {
@@ -1733,6 +1763,7 @@ PanelWindow {
         id: fanProfilesProc
         command: ["bash", Paths.scripts + "/fan-control.sh", "list_profiles"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._fanBuf += d + "\n" }
+        // qmllint disable signal-handler-parameters
         onExited: {
             var lines = root._fanBuf.trim().split("\n")
             root._fanBuf = ""
@@ -1750,13 +1781,16 @@ PanelWindow {
             }
             if (profiles.length > 0) root._fanProfiles = profiles
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // Fan apply process
     Process {
         id: fanApplyProc
         running: false
+        // qmllint disable signal-handler-parameters
         onExited: running = false
+        // qmllint enable signal-handler-parameters
     }
 
     // ── Language processes ────────────────────────────────────────────────
@@ -1791,6 +1825,7 @@ PanelWindow {
         id: langLayoutProc
         command: ["sh", "-c", "timeout 3s localectl list-keymaps 2>/dev/null"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._langBuf += d + "\n" }
+        // qmllint disable signal-handler-parameters
         onExited: {
             var lines = root._langBuf.trim().split("\n")
             root._langBuf = ""
@@ -1802,13 +1837,16 @@ PanelWindow {
             }
             if (layouts.length > 0) root._langLayouts = layouts
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // Apply layout via Hyprland
     Process {
         id: langSetProc
         command: ["sh", "-c", ""]
+        // qmllint disable signal-handler-parameters
         onExited: Qt.callLater(() => langCurrentProc.running = true)
+        // qmllint enable signal-handler-parameters
     }
 
     // Available locales from localectl
@@ -1816,6 +1854,7 @@ PanelWindow {
         id: langLocaleListProc
         command: ["sh", "-c", "timeout 3s localectl list-locales 2>/dev/null"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._langLocaleBuf += d + "\n" }
+        // qmllint disable signal-handler-parameters
         onExited: {
             var lines = root._langLocaleBuf.trim().split("\n")
             root._langLocaleBuf = ""
@@ -1827,13 +1866,16 @@ PanelWindow {
             }
             if (locales.length > 0) root._langLocales = locales
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // Apply locale via localectl
     Process {
         id: langSetLocaleProc
         command: ["sh", "-c", ""]
+        // qmllint disable signal-handler-parameters
         onExited: langLocaleProc.running = true
+        // qmllint enable signal-handler-parameters
     }
 
     // ── Disk detail process (root + home) ─────────────────────────────────
@@ -1841,6 +1883,7 @@ PanelWindow {
         id: diskDetailProc
         command: ["bash", Paths.scripts + "/disk-detail.sh"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._diskBuf += d + "\n" }
+        // qmllint disable signal-handler-parameters
         onExited: {
             var kv = {}
             root._diskBuf.trim().split("\n").forEach(function(line) {
@@ -1855,6 +1898,7 @@ PanelWindow {
             if (kv["HOME_USED"])  root._homeUsed  = parseInt(kv["HOME_USED"])  || 0
             if (kv["HOME_TOTAL"]) root._homeTotal = parseInt(kv["HOME_TOTAL"]) || 0
         }
+        // qmllint enable signal-handler-parameters
     }
 
 }
