@@ -606,20 +606,6 @@ PanelWindow {
         langLocaleListProc.running = true
     }
 
-    function volIcon(vol, muted) {
-        if (muted || vol === 0) return "󰝟"
-        if (vol < 0.33) return "󰕿"
-        if (vol < 0.67) return "󰖀"
-        return "󰕾"
-    }
-
-    function brightIcon(pct) {
-        if (pct < 15) return "󰃞"
-        if (pct < 50) return "󰃝"
-        if (pct < 85) return "󰃟"
-        return "󰃠"
-    }
-
     // ── Bluetooth functions ───────────────────────────────────────────────
     function btSanitizeMac(mac) {
         return mac.replace(/[^0-9A-Fa-f:]/g, "")
@@ -1292,87 +1278,18 @@ PanelWindow {
                 spacing: 0
 
                 // ── POWER BAR ─────────────────────────────────────────────
-                Item {
-                    width: parent.width; height: 44
-
-                    // Power actions row — centered
-                    Row {
-                        anchors.centerIn: parent
-                        spacing: 8
-
-                        Repeater {
-                            model: [
-                                { icon: "⏻",  label: "Shut down",  cmd: ["systemctl", "poweroff"],        color: "#ff7b72", critical: true  },
-                                { icon: "󰜉",  label: "Reboot",     cmd: ["systemctl", "reboot"],          color: "#e3b341", critical: true  },
-                                { icon: "󰌾",  label: "Lock",       cmd: ["hyprlock"],                     color: "#79c0ff", critical: false },
-                                { icon: "󰍃",  label: "Log out",    cmd: ["hyprctl", "dispatch", "exit"],  color: "#d2a8ff", critical: false },
-                                { icon: "󰒲",  label: "Sleep",      cmd: ["systemctl", "suspend"],         color: "#7ee787", critical: false }
-                            ]
-
-                            Rectangle {
-                                id: pwBtn
-                                required property var modelData
-                                width: 36; height: 36; radius: 9
-                                color: pwHov.containsMouse
-                                    ? Qt.rgba(Theme.surface3.r, Theme.surface3.g, Theme.surface3.b, 1)
-                                    : Theme.surface2
-                                Behavior on color { ColorAnimation { duration: 100 } }
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: pwBtn.modelData.icon
-                                    font.pixelSize: 16
-                                    color: pwHov.containsMouse ? pwBtn.modelData.color : Theme.muted1
-                                    Behavior on color { ColorAnimation { duration: 100 } }
-                                }
-
-                                MouseArea {
-                                    id: pwHov
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (pwBtn.modelData.critical) {
-                                            root._confirmLabel = pwBtn.modelData.label
-                                            root._confirmCmd   = pwBtn.modelData.cmd
-                                            root._showConfirm  = true
-                                        } else {
-                                            root.visible = false
-                                            ccExecProc.runCmd(pwBtn.modelData.cmd)
-                                        }
-                                    }
-                                }
-
-                                // Tooltip label on hover
-                                Rectangle {
-                                    visible: pwHov.containsMouse
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    anchors.bottom: parent.top
-                                    anchors.bottomMargin: 4
-                                    width: tipText.implicitWidth + 10; height: 18
-                                    radius: 4; color: Theme.surface3
-
-                                    Text {
-                                        id: tipText
-                                        anchors.centerIn: parent
-                                        text: pwBtn.modelData.label
-                                        font.pixelSize: 9; color: Theme.text
-                                    }
-                                }
-                            }
-                        }
+                CcPowerBar {
+                    width: parent.width
+                    onShowConfirm: (label, cmd) => {
+                        root._confirmLabel = label
+                        root._confirmCmd   = cmd
+                        root._showConfirm  = true
                     }
-
-                    // Close button — top right
-                    Rectangle {
-                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                        width: 24; height: 24; radius: 6
-                        color: closeHov.containsMouse ? Theme.surface3 : "transparent"
-                        Behavior on color { ColorAnimation { duration: 100 } }
-                        Text { anchors.centerIn: parent; text: "󰅖"; font.pixelSize: 11; color: Theme.muted2 }
-                        MouseArea { id: closeHov; anchors.fill: parent; hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor; onClicked: root.visible = false }
+                    onRunCmd: cmd => {
+                        root.visible = false
+                        ccExecProc.runCmd(cmd)
                     }
+                    onClose: root.visible = false
                 }
 
                 // ── SEPARADOR ──────────────────────────────────────────────
@@ -1383,216 +1300,19 @@ PanelWindow {
                 // SECCIÓN 1 — Sliders de audio y brillo
                 // ══════════════════════════════════════════════════════════
 
-                // Slider volumen master
-                Item {
-                    width: parent.width; height: 36
-                    Row {
-                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                        spacing: 8
-                        // Ícono / botón mute
-                        Rectangle {
-                            width: 28; height: 28; radius: 8
-                            color: muteHov.containsMouse ? Theme.surface3 : Theme.surface2
-                            Behavior on color { ColorAnimation { duration: 100 } }
-                            Text {
-                                anchors.centerIn: parent
-                                text: root.volIcon(root.masterVolume, root.masterMuted)
-                                font.pixelSize: 14
-                                color: root.masterMuted ? Theme.muted2 : Theme.accent
-                            }
-                            MouseArea {
-                                id: muteHov; anchors.fill: parent; hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.toggleMasterMute()
-                            }
-                        }
-                    }
-
-                    // Track del slider
-                    Item {
-                        anchors {
-                            left: parent.left; leftMargin: 44
-                            right: parent.right; rightMargin: 44
-                            verticalCenter: parent.verticalCenter
-                        }
-                        height: 20
-
-                        Rectangle {
-                            id: volTrack
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: parent.width; height: 4; radius: 2
-                            color: Theme.surface3
-                        }
-                        Rectangle {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: Math.max(8, root.masterVolume * volTrack.width)
-                            height: 4; radius: 2
-                            color: root.masterMuted ? Theme.muted2 : Theme.accent
-                            Behavior on width { NumberAnimation { duration: 80 } }
-                        }
-                        // Thumb
-                        Rectangle {
-                            id: volThumb
-                            x: Math.min(root.masterVolume * volTrack.width - 6, volTrack.width - 12)
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 12; height: 12; radius: 6
-                            color: Theme.accent
-                            Behavior on x { NumberAnimation { duration: 80 } }
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onPositionChanged: mouse => {
-                                if (mouse.buttons & Qt.LeftButton) {
-                                    var v = Math.max(0, Math.min(1.5, mouse.x / volTrack.width))
-                                    root.setMasterVolume(v)
-                                }
-                            }
-                            onClicked: mouse => {
-                                var v = Math.max(0, Math.min(1.5, mouse.x / volTrack.width))
-                                root.setMasterVolume(v)
-                            }
-                        }
-                    }
-
-                    Text {
-                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                        text: root.masterMuted ? "Muted" : Math.round(root.masterVolume * 100) + "%"
-                        font.pixelSize: 10; color: root.masterMuted ? Theme.muted2 : Theme.muted1
-                        width: 36; horizontalAlignment: Text.AlignRight
-                    }
-                }
-
-                // Slider micrófono
-                Item {
-                    width: parent.width; height: 36
-                    Row {
-                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                        spacing: 8
-                        Rectangle {
-                            width: 28; height: 28; radius: 8
-                            color: micHov.containsMouse ? Theme.surface3 : Theme.surface2
-                            Behavior on color { ColorAnimation { duration: 100 } }
-                            Text {
-                                anchors.centerIn: parent
-                                text: root.micMuted ? "󰍭" : "󰍬"
-                                font.pixelSize: 14
-                                color: root.micMuted ? Theme.muted2 : Theme.accent
-                            }
-                            MouseArea {
-                                id: micHov; anchors.fill: parent; hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.toggleMicMute()
-                            }
-                        }
-                    }
-                    Item {
-                        anchors {
-                            left: parent.left; leftMargin: 44
-                            right: parent.right; rightMargin: 44
-                            verticalCenter: parent.verticalCenter
-                        }
-                        height: 20
-                        Rectangle {
-                            id: micTrack
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: parent.width; height: 4; radius: 2; color: Theme.surface3
-                        }
-                        Rectangle {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: Math.max(8, root.micVolume * micTrack.width)
-                            height: 4; radius: 2
-                            color: root.micMuted ? Theme.muted2 : Theme.accent
-                            Behavior on width { NumberAnimation { duration: 80 } }
-                        }
-                        Rectangle {
-                            x: Math.min(root.micVolume * micTrack.width - 6, micTrack.width - 12)
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 12; height: 12; radius: 6; color: Theme.accent
-                            Behavior on x { NumberAnimation { duration: 80 } }
-                        }
-                        MouseArea {
-                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onPositionChanged: mouse => {
-                                if (mouse.buttons & Qt.LeftButton) {
-                                    var v = Math.max(0, Math.min(1.5, mouse.x / micTrack.width))
-                                    root.setMicVol(v)
-                                }
-                            }
-                            onClicked: mouse => {
-                                var v = Math.max(0, Math.min(1.5, mouse.x / micTrack.width))
-                                root.setMicVol(v)
-                            }
-                        }
-                    }
-                    Text {
-                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                        text: root.micMuted ? "Muted" : Math.round(root.micVolume * 100) + "%"
-                        font.pixelSize: 10; color: root.micMuted ? Theme.muted2 : Theme.muted1
-                        width: 36; horizontalAlignment: Text.AlignRight
-                    }
-                }
-
-                // Slider brillo
-                Item {
-                    width: parent.width; height: 36
-                    Row {
-                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                        spacing: 8
-                        Rectangle {
-                            width: 28; height: 28; radius: 8; color: Theme.surface2
-                            Text {
-                                anchors.centerIn: parent
-                                text: root.brightIcon(root.brightness)
-                                font.pixelSize: 14; color: Theme.accent
-                            }
-                        }
-                    }
-                    Item {
-                        anchors {
-                            left: parent.left; leftMargin: 44
-                            right: parent.right; rightMargin: 44
-                            verticalCenter: parent.verticalCenter
-                        }
-                        height: 20
-                        Rectangle {
-                            id: briTrack
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: parent.width; height: 4; radius: 2; color: Theme.surface3
-                        }
-                        Rectangle {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: Math.max(8, (root.brightness / 100) * briTrack.width)
-                            height: 4; radius: 2; color: Theme.accent
-                            Behavior on width { NumberAnimation { duration: 80 } }
-                        }
-                        Rectangle {
-                            x: Math.min((root.brightness / 100) * briTrack.width - 6, briTrack.width - 12)
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 12; height: 12; radius: 6; color: Theme.accent
-                            Behavior on x { NumberAnimation { duration: 80 } }
-                        }
-                        MouseArea {
-                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onPositionChanged: mouse => {
-                                if (mouse.buttons & Qt.LeftButton) {
-                                    var v = Math.max(1, Math.min(100, Math.round(mouse.x / briTrack.width * 100)))
-                                    root.setBrightness(v)
-                                }
-                            }
-                            onClicked: mouse => {
-                                var v = Math.max(1, Math.min(100, Math.round(mouse.x / briTrack.width * 100)))
-                                root.setBrightness(v)
-                            }
-                        }
-                    }
-                    Text {
-                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                        text: root.brightness + "%"
-                        font.pixelSize: 10; color: Theme.muted1
-                        width: 36; horizontalAlignment: Text.AlignRight
-                    }
+                // ── Sliders audio + brillo ────────────────────────────────
+                CcSliders {
+                    width: parent.width
+                    masterVolume: root.masterVolume
+                    masterMuted:  root.masterMuted
+                    micVolume:    root.micVolume
+                    micMuted:     root.micMuted
+                    brightness:   root.brightness
+                    onSetMasterVolume: v => root.setMasterVolume(v)
+                    onToggleMasterMute: root.toggleMasterMute()
+                    onSetMicVol: v => root.setMicVol(v)
+                    onToggleMicMute: root.toggleMicMute()
+                    onSetBrightness: v => root.setBrightness(v)
                 }
 
                 // ── Apps de audio — header colapsable ──────────────────────
@@ -1601,794 +1321,83 @@ PanelWindow {
 
 
 
-                // ══════════════════════════════════════════════════════════
-                // SECCIÓN 2 — Conectividad y controles rápidos (grid 2×2)
-                // ══════════════════════════════════════════════════════════
-                Item { width: parent.width; height: 10 }
-                Rectangle { width: parent.width; height: 1; color: Theme.surface2 }
-                Item { width: parent.width; height: 8 }
-
-                Grid {
+                // ── Controles rápidos ─────────────────────────────────────
+                CcQuickToggles {
                     width: parent.width
-                    columns: 2
-                    rowSpacing: 6
-                    columnSpacing: 6
+                    activePanel:          root._activePanel
+                    btAdapter:            root.btAdapter
+                    btPowered:            root.btPowered
+                    btConnectedCount:     root.btConnectedCount
+                    btFirstConnectedName: root.btFirstConnectedName
+                    batAvailable:         root._batAvailableUP
+                    batPct:               root._batPctUP
+                    batCharging:          root._batChargingUP
+                    batFull:              root._batFullUP
+                    batTimeFull:          root._batTimeFull
+                    batTimeEmpty:         root._batTimeEmpty
+                    defaultSink:          root.defaultSink
+                    langLayout:           root._langLayout
+                    langLocale:           root._langLocale
+                    powerLabelFn:         root._powerLabel
+                    powerIconFn:          root._powerIcon
+                    fmtTimeFn:            root._fmtTime
+                    audioFormatDescFn:    root._audioFormatDesc
 
-                    // ── WiFi ──────────────────────────────────────────────
-                    Rectangle {
-                        id: wifiCard
-                        property bool hov: false
-                        width: (parent.width - 6) / 2; height: 52; radius: 10
-                         color: hov ? Theme.surface3
-                             : (root._activePanel === "wifi"
-                                    ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                                    : (SysData.netConnected
-                                           ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                                           : Theme.surface2))
-                        Behavior on color { ColorAnimation { duration: 100 } }
-
-                        // Barra lateral activo
-                        Rectangle {
-                            visible: SysData.netConnected || root._activePanel === "wifi"
-                            width: 3; height: 24; radius: 2
-                            anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
-                            color: Theme.accent
-                        }
-
-                        RowLayout {
-                            anchors {
-                                fill: parent
-                                leftMargin: (SysData.netConnected || root._activePanel === "wifi") ? 14 : 10
-                                rightMargin: 10
-                            }
-                            spacing: 8
-
-                            Text {
-                                text: {
-                                    if (SysData.netConnectionType === "ethernet") return "󰈀"
-                                    if (!SysData.netRadioOn)      return "󰤮"
-                                    if (!SysData.netConnected)    return "󰤭"
-                                    if (SysData.netSignal >= 80)  return "󰤨"
-                                    if (SysData.netSignal >= 60)  return "󰤥"
-                                    if (SysData.netSignal >= 40)  return "󰤢"
-                                    return "󰤟"
-                                }
-                                font.pixelSize: 18
-                                color: SysData.netConnected ? Theme.accent : Theme.muted2
-                            }
-
-                            Column {
-                                Layout.fillWidth: true
-                                spacing: 2
-                                Text {
-                                    text: "WiFi"
-                                    font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text
-                                }
-                                Text {
-                                    width: parent.width
-                                    text: {
-                                        if (SysData.netConnectionType === "ethernet") return "Ethernet"
-                                        if (!SysData.netRadioOn)      return "Radio off"
-                                        if (!SysData.netConnected)    return "Disconnected"
-                                        return (SysData.netSsid || "Connected") + " · " + SysData.netSignal + "%"
-                                    }
-                                    font.pixelSize: 9
-                                    color: SysData.netConnected ? Theme.muted1 : Theme.muted2
-                                    elide: Text.ElideRight
-                                }
-                            }
-
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onEntered: wifiCard.hov = true
-                            onExited:  wifiCard.hov = false
-                            onClicked: {
-                                root._activePanel         = "wifi"
-                                root._wifiStatusMsg       = ""
-                                root._wifiSelectedIdx     = -1
-                                root._wifiPasswordByIndex = ({})
-                                wEthProc.running          = true
-                                wWifiInfoProc.running     = root._wifiConnectedNet !== null
-                                if (root._nmWifiDev && root._wifiRadioOn)
-                                    root._nmWifiDev.scannerEnabled = true
-                            }
+                    onOpenWifi: {
+                        root._activePanel         = "wifi"
+                        root._wifiStatusMsg       = ""
+                        root._wifiSelectedIdx     = -1
+                        root._wifiPasswordByIndex = ({})
+                        wEthProc.running          = true
+                        wWifiInfoProc.running     = root._wifiConnectedNet !== null
+                        if (root._nmWifiDev && root._wifiRadioOn)
+                            root._nmWifiDev.scannerEnabled = true
+                    }
+                    onOpenBluetooth: {
+                        root._activePanel = "bluetooth"
+                        root._btStatusMsg = ""
+                        root.btRefreshDeviceLists()
+                        if (root._btPwrd && root._btAdapter) {
+                            root._btAdapter.discoverable = true
+                            root.btAutoConnectTrusted()
                         }
                     }
-
-                    // ── Bluetooth ─────────────────────────────────────────
-                    Rectangle {
-                        id: btCard
-                        property bool hov: false
-                        width: (parent.width - 6) / 2; height: 52; radius: 10
-                        color: hov ? Theme.surface3
-                             : (root._activePanel === "bluetooth"
-                                    ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                                    : (root.btConnectedCount > 0
-                                           ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                                           : Theme.surface2))
-                        Behavior on color { ColorAnimation { duration: 100 } }
-
-                        Rectangle {
-                            visible: root.btConnectedCount > 0 || root._activePanel === "bluetooth"
-                            width: 3; height: 24; radius: 2
-                            anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
-                            color: Theme.accent
-                        }
-
-                        RowLayout {
-                            anchors {
-                                fill: parent
-                                leftMargin: (root.btConnectedCount > 0 || root._activePanel === "bluetooth") ? 14 : 10
-                                rightMargin: 10
-                            }
-                            spacing: 8
-
-                            Text {
-                                text: root.btConnectedCount > 0 ? "󰂱"
-                                    : (root.btPowered ? "󰂯" : "󰂲")
-                                font.pixelSize: 18
-                                color: root.btConnectedCount > 0 ? Theme.accent
-                                     : (root.btPowered ? Theme.muted1 : Theme.muted2)
-                            }
-
-                            Column {
-                                Layout.fillWidth: true
-                                spacing: 2
-                                Text {
-                                    text: "Bluetooth"
-                                    font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text
-                                }
-                                Text {
-                                    width: parent.width
-                                    text: {
-                                        if (!root.btAdapter)               return "Not available"
-                                        if (!root.btPowered)               return "Disabled"
-                                        if (root.btConnectedCount > 0)     return root.btFirstConnectedName
-                                        return "No connections"
-                                    }
-                                    font.pixelSize: 9
-                                    color: root.btConnectedCount > 0 ? Theme.muted1 : Theme.muted2
-                                    elide: Text.ElideRight
-                                }
-                            }
-
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onEntered: btCard.hov = true
-                            onExited:  btCard.hov = false
-                            onClicked: {
-                                root._activePanel = "bluetooth"
-                                root._btStatusMsg = ""
-                                root.btRefreshDeviceLists()
-                                if (root._btPwrd && root._btAdapter) {
-                                    root._btAdapter.discoverable = true
-                                    // pairable ya tiene default=true per la API — no se fuerza
-                                    root.btAutoConnectTrusted()
-                                }
-                            }
-                        }
+                    onOpenPower: {
+                        root._activePanel = "power"
+                        if (root._fanProfiles.length === 0)
+                            fanProfilesProc.running = true
                     }
-
-                    // ── Power & Fans ──────────────────────────────────────
-                    Rectangle {
-                        id: powerCard
-                        property bool hov: false
-                        width: (parent.width - 6) / 2; height: 52; radius: 10
-                        color: hov ? Theme.surface3
-                             : (root._activePanel === "power"
-                                    ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                                    : Theme.surface2)
-                        Behavior on color { ColorAnimation { duration: 100 } }
-
-                        Rectangle {
-                            visible: root._activePanel === "power"
-                            width: 3; height: 24; radius: 2
-                            anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
-                            color: Theme.accent
-                        }
-
-                        RowLayout {
-                            anchors { fill: parent; leftMargin: root._activePanel === "power" ? 14 : 10; rightMargin: 10 }
-                            spacing: 8
-
-                            Text {
-                                text: root._powerIcon(PowerProfiles.profile)
-                                font.pixelSize: 18
-                                color: {
-                                    if (PowerProfiles.profile === PowerProfile.Performance) return "#ff7b72"
-                                    if (PowerProfiles.profile === PowerProfile.PowerSaver)  return "#79c0ff"
-                                    return Theme.accent
-                                }
-                            }
-
-                            Column {
-                                Layout.fillWidth: true
-                                spacing: 2
-                                Text { text: "Power & Fans"; font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text }
-                                Text {
-                                    width: parent.width
-                                    text: {
-                                        var p = root._powerLabel(PowerProfiles.profile)
-                                        if (SysData.fanAvailable && SysData.fan1Rpm > 0)
-                                            p += " · " + SysData.fan1Rpm + " rpm"
-                                        return p
-                                    }
-                                    font.pixelSize: 9; color: Theme.muted1
-                                    elide: Text.ElideRight
-                                }
-                            }
-
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onEntered: powerCard.hov = true
-                            onExited:  powerCard.hov = false
-                            onClicked: {
-                                root._activePanel = "power"
-                                if (root._fanProfiles.length === 0)
-                                    fanProfilesProc.running = true
-                            }
-                        }
+                    onOpenAudio: {
+                        root._activePanel = "audio"
+                        root.loadAudioDevices()
                     }
-
-                    // ── Audio — dispositivos ──────────────────────────────
-                    Rectangle {
-                        id: audioCard2
-                        property bool hov: false
-                        width: (parent.width - 6) / 2; height: 52; radius: 10
-                        color: hov ? Theme.surface3
-                             : (root._activePanel === "audio"
-                                    ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                                    : Theme.surface2)
-                        Behavior on color { ColorAnimation { duration: 100 } }
-
-                        Rectangle {
-                            visible: root._activePanel === "audio"
-                            width: 3; height: 24; radius: 2
-                            anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
-                            color: Theme.accent
-                        }
-
-                        RowLayout {
-                            anchors {
-                                fill: parent
-                                leftMargin: root._activePanel === "audio" ? 14 : 10
-                                rightMargin: 10
-                            }
-                            spacing: 8
-
-                            Text { text: "󰕾"; font.pixelSize: 18; color: Theme.accent }
-
-                            Column {
-                                Layout.fillWidth: true
-                                spacing: 2
-                                Text { text: "Audio"; font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text }
-                                Text {
-                                    width: parent.width
-                                    text: {
-                                        var sink = root.defaultSink
-                                        if (!sink) return "No output"
-                                        return root._audioFormatDesc(sink.description, sink.name ?? "")
-                                    }
-                                    font.pixelSize: 9; color: Theme.muted1; elide: Text.ElideRight
-                                }
-                            }
-
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onEntered: audioCard2.hov = true
-                            onExited:  audioCard2.hov = false
-                            onClicked: {
-                                root._activePanel = "audio"
-                                root.loadAudioDevices()
-                            }
-                        }
-                    }
-
-                    // ── Battery — UPower ──────────────────────────────────
-                    Rectangle {
-                        id: batCard
-                        property bool hov: false
-                        width: (parent.width - 6) / 2; height: 52; radius: 10
-                        color: hov ? Theme.surface3
-                             : (root._activePanel === "battery"
-                                    ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                                    : Theme.surface2)
-                        Behavior on color { ColorAnimation { duration: 100 } }
-
-                        Rectangle {
-                            visible: root._activePanel === "battery"
-                            width: 3; height: 24; radius: 2
-                            anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
-                            color: Theme.accent
-                        }
-
-                        RowLayout {
-                            anchors { fill: parent; leftMargin: root._activePanel === "battery" ? 14 : 10; rightMargin: 10 }
-                            spacing: 8
-
-                            Text {
-                                text: {
-                                    if (!root._batAvailableUP) return "󰂑"
-                                    if (root._batFullUP)       return "󰁹"
-                                    if (root._batChargingUP)   return "󰂄"
-                                    var p = root._batPctUP
-                                    if (p > 80) return "󰁹"
-                                    if (p > 60) return "󰂁"
-                                    if (p > 40) return "󰁿"
-                                    if (p > 20) return "󰁽"
-                                    return "󰂃"
-                                }
-                                font.pixelSize: 18
-                                color: {
-                                    if (!root._batAvailableUP)  return Theme.muted2
-                                    if (root._batChargingUP || root._batFullUP) return Theme.success
-                                    if (root._batPctUP > 50)    return Theme.accent
-                                    if (root._batPctUP > 20)    return Theme.yellow
-                                    return Theme.error
-                                }
-                            }
-
-                            Column {
-                                Layout.fillWidth: true
-                                spacing: 2
-                                Text { text: "Battery"; font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text }
-                                Text {
-                                    text: {
-                                        if (!root._batAvailableUP) return "Not available"
-                                        var pct = Math.round(root._batPctUP) + "%"
-                                        if (root._batFullUP)     return "Full"
-                                        if (root._batChargingUP) {
-                                            var tf = root._fmtTime(root._batTimeFull)
-                                            return pct + " · Charging" + (tf ? " · " + tf : "")
-                                        }
-                                        var te = root._fmtTime(root._batTimeEmpty)
-                                        return pct + (te ? " · " + te : "")
-                                    }
-                                    font.pixelSize: 9
-                                    color: root._batPctUP <= 20 && !root._batChargingUP ? Theme.error : Theme.muted1
-                                    elide: Text.ElideRight; width: parent.width
-                                }
-                            }
-
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onEntered: batCard.hov = true
-                            onExited:  batCard.hov = false
-                            onClicked: root._activePanel = "battery"
-                        }
-                    }
-
-                    // ── Language ──────────────────────────────────────────
-                    Rectangle {
-                        id: langCard
-                        property bool hov: false
-                        width: (parent.width - 6) / 2; height: 52; radius: 10
-                        color: hov ? Theme.surface3
-                             : (root._activePanel === "language"
-                                    ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                                    : Theme.surface2)
-                        Behavior on color { ColorAnimation { duration: 100 } }
-
-                        Rectangle {
-                            visible: root._activePanel === "language"
-                            width: 3; height: 24; radius: 2
-                            anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
-                            color: Theme.accent
-                        }
-
-                        RowLayout {
-                            anchors { fill: parent; leftMargin: root._activePanel === "language" ? 14 : 10; rightMargin: 10 }
-                            spacing: 8
-
-                            Text { text: "󰌌"; font.pixelSize: 18; color: Theme.accent }
-
-                            Column {
-                                Layout.fillWidth: true
-                                spacing: 2
-                                Text { text: "Language"; font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text }
-                                Text {
-                                    text: root._langLayout !== "—" ? root._langLayout + " · " + root._langLocale : "Loading…"
-                                    font.pixelSize: 9; color: Theme.muted1
-                                    elide: Text.ElideRight; width: parent.width
-                                }
-                            }
-
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onEntered: langCard.hov = true
-                            onExited:  langCard.hov = false
-                            onClicked: {
-                                root._activePanel = "language"
-                                root.langRefresh()
-                            }
-                        }
+                    onOpenBattery: root._activePanel = "battery"
+                    onOpenLanguage: {
+                        root._activePanel = "language"
+                        root.langRefresh()
                     }
                 }
 
-
-                // ══════════════════════════════════════════════════════════
-                 // ══════════════════════════════════════════════════════════
-                 // SECCIÓN 3 — Métricas del sistema (expandibles inline)
-                // ══════════════════════════════════════════════════════════
-                Item { width: parent.width; height: 10 }
-                Rectangle { width: parent.width; height: 1; color: Theme.surface2 }
-                Item { width: parent.width; height: 8 }
-
-                Text {
-                    text: "System"
-                    font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.muted1
-                }
-                Item { width: parent.width; height: 6 }
-
-                // ── Grid CPU / RAM / GPU ───────────────────────────────────
-                Row {
-                    id: metricsRow
+                // ── Métricas del sistema ──────────────────────────────────
+                CcSystemSection {
                     width: parent.width
-                    spacing: 6
-
-                    Repeater {
-                        model: [
-                            { key: "cpu", label: "CPU", icon: "󰻠",
-                              value: SysData.cpuPercent, temp: SysData.cpuTemp },
-                            { key: "ram", label: "RAM", icon: "󰘚",
-                              value: SysData.ramPercent, temp: -1 },
-                            { key: "gpu", label: "GPU", icon: "󰟵",
-                              value: SysData.gpuPercent >= 0 ? SysData.gpuPercent : 0,
-                              temp: SysData.gpuTemp }
-                        ]
-
-                        Rectangle {
-                            id: metCard
-                            required property var modelData
-                            required property int index
-                            property bool hov: false
-                            property bool expanded: root._activePanel === metCard.modelData.key
-
-                            width: (metricsRow.width - 12) / 3
-                            height: 70
-                            radius: 12
-                            color: expanded
-                                ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                                : (hov ? Theme.surface3 : Theme.surface2)
-                            Behavior on color { ColorAnimation { duration: 100 } }
-
-                            Column {
-                                anchors.centerIn: parent
-                                spacing: 4
-
-                                // ── Arc gauge: Canvas for arc + Text for icon ──────
-                                Item {
-                                    id: arcItem
-                                    width: 42; height: 42
-                                    anchors.horizontalCenter: parent.horizontalCenter
-
-                                    // Live value — updates the canvas
-                                    property real arcPct: metCard.modelData.value / 100
-                                    Behavior on arcPct { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
-                                    onArcPctChanged: arcCanvas.requestPaint()
-
-                                    Canvas {
-                                        id: arcCanvas
-                                        anchors.fill: parent
-
-                                        onPaint: {
-                                            var ctx = getContext("2d")
-                                            ctx.clearRect(0, 0, width, height)
-                                            var cx = width / 2, cy = height / 2, r = 16
-
-                                            // Track
-                                            ctx.beginPath()
-                                            ctx.arc(cx, cy, r, -Math.PI * 0.75, Math.PI * 0.75)
-                                            ctx.strokeStyle = Theme.surface3.toString()
-                                            ctx.lineWidth = 3.5
-                                            ctx.lineCap = "round"
-                                            ctx.stroke()
-
-                                            // Fill
-                                            if (arcItem.arcPct > 0) {
-                                                var end = -Math.PI * 0.75 + Math.PI * 1.5 * Math.min(arcItem.arcPct, 1)
-                                                ctx.beginPath()
-                                                ctx.arc(cx, cy, r, -Math.PI * 0.75, end)
-                                                ctx.strokeStyle = arcItem.arcPct > 0.85 ? "#ff7b72"
-                                                                : arcItem.arcPct > 0.65 ? "#e3b341"
-                                                                : Theme.accent.toString()
-                                                ctx.lineWidth = 3.5
-                                                ctx.lineCap = "round"
-                                                ctx.stroke()
-                                            }
-                                        }
-
-                                        // Initial paint + repaint on theme/visibility changes
-                                        Component.onCompleted: requestPaint()
-                                    }
-
-                                    // Icon as QML Text — Nerd Font renders correctly here
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: metCard.modelData.icon
-                                        font.pixelSize: 14
-                                        color: arcItem.arcPct > 0.85 ? "#ff7b72"
-                                             : arcItem.arcPct > 0.65 ? "#e3b341"
-                                             : Theme.muted1
-                                    }
-                                }
-
-                                Text {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    text: metCard.modelData.label + " " + Math.round(metCard.modelData.value) + "%"
-                                    font.pixelSize: 9; font.weight: Font.DemiBold
-                                    color: metCard.modelData.value > 85 ? "#ff7b72"
-                                         : metCard.modelData.value > 65 ? "#e3b341"
-                                         : Theme.text
-                                }
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onEntered: metCard.hov = true
-                                onExited:  metCard.hov = false
-                                onClicked: {
-                                    var k = metCard.modelData.key
-                                    root._activePanel = (root._activePanel === k) ? "" : k
-                                }
-                            }
-                        }
+                    activePanel: root._activePanel
+                    diskPct:    root._diskPct
+                    diskUsed:   root._diskUsed
+                    diskTotal:  root._diskTotal
+                    homePct:    root._homePct
+                    homeUsed:   root._homeUsed
+                    homeTotal:  root._homeTotal
+                    onTogglePanel: function(key) {
+                        root._activePanel = (root._activePanel === key) ? "" : key
                     }
                 }
 
-                // CPU / RAM / GPU: detalle ahora en CcCpuPanel / CcRamPanel / CcGpuPanel (overlay)
-
-                // ── Disco: Root + Home ─────────────────────────────────────
-                Item { width: parent.width; height: 8 }
-
-                Grid {
+                // ── Media player ──────────────────────────────────────────
+                CcMediaPlayer {
                     width: parent.width
-                    columns: 2
-                    rowSpacing: 6
-                    columnSpacing: 6
-
-                    Repeater {
-                        model: [
-                            { label: "Root", icon: "󰋊",
-                              pct: root._diskPct, used: root._diskUsed, total: root._diskTotal },
-                            { label: "Home", icon: "󰋞",
-                              pct: root._homePct, used: root._homeUsed, total: root._homeTotal }
-                        ]
-
-                        Rectangle {
-                            id: diskCard
-                            required property var modelData
-                            width: (parent.width - 6) / 2; height: 52; radius: 10
-                            color: Theme.surface2
-
-                            RowLayout {
-                                anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
-                                spacing: 8
-
-                                Text {
-                                    text: diskCard.modelData.icon; font.pixelSize: 18
-                                    color: diskCard.modelData.pct >= 90 ? "#ff7b72"
-                                         : diskCard.modelData.pct >= 75 ? "#e3b341"
-                                         : Theme.muted1
-                                }
-
-                                Column {
-                                    Layout.fillWidth: true
-                                    spacing: 4
-
-                                    Row {
-                                        spacing: 6
-                                        Text {
-                                            text: diskCard.modelData.label
-                                            font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text
-                                        }
-                                        Text {
-                                            text: diskCard.modelData.pct + "%"
-                                            font.pixelSize: 10
-                                            color: diskCard.modelData.pct >= 90 ? "#ff7b72"
-                                                 : diskCard.modelData.pct >= 75 ? "#e3b341"
-                                                 : Theme.muted1
-                                        }
-                                    }
-
-                                    // Barra de uso
-                                    Item {
-                                        width: parent.width; height: 4
-                                        Rectangle { anchors.fill: parent; radius: 2; color: Theme.surface3 }
-                                        Rectangle {
-                                            anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                                            width: Math.max(4, diskCard.modelData.pct / 100 * parent.width)
-                                            radius: 2
-                                            color: diskCard.modelData.pct >= 90 ? "#ff7b72"
-                                                 : diskCard.modelData.pct >= 75 ? "#e3b341"
-                                                 : Theme.accent
-                                            Behavior on width { NumberAnimation { duration: 300 } }
-                                        }
-                                    }
-
-                                    Text {
-                                        text: diskCard.modelData.used + " / " + diskCard.modelData.total + " GB"
-                                        font.pixelSize: 9; color: Theme.muted2
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // ══════════════════════════════════════════════════════════
-                // Media player — always at the bottom
-                // ══════════════════════════════════════════════════════════
-                Item { width: parent.width; height: 10 }
-                Rectangle {
-                    width: parent.width; height: 1; color: Theme.surface2
-                }
-
-                Item {
-                    width: parent.width
-                    height: innerPlayer.height + 16
-
-                    Rectangle {
-                        id: innerPlayer
-                        anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: 8 }
-                        height: 90; radius: 10; color: Theme.surface2
-
-                        // ── Helper: formatear segundos → m:ss ─────────────
-                        function fmtSec(sec) {
-                            if (!sec || sec <= 0) return "0:00"
-                            const s = Math.floor(sec)
-                            const m = Math.floor(s / 60)
-                            return m + ":" + String(s % 60).padStart(2, "0")
-                        }
-
-                        RowLayout {
-                            anchors { fill: parent; margins: 10 }
-                            spacing: 10
-
-                            // ── Artwork ───────────────────────────────────
-                            Rectangle {
-                                Layout.preferredWidth: 56; Layout.preferredHeight: 56
-                                Layout.alignment: Qt.AlignVCenter
-                                radius: 8; color: Theme.surface3; clip: true
-                                Image {
-                                    id: ccArtwork
-                                    anchors.fill: parent
-                                    source: root.mprisPlayer?.trackArtUrl ?? ""
-                                    fillMode: Image.PreserveAspectCrop
-                                    visible: status === Image.Ready
-                                }
-                                Text {
-                                    anchors.centerIn: parent
-                                    visible: !ccArtwork.visible
-                                    text: "󰝚"; font.pixelSize: 22; color: Theme.muted2
-                                }
-                            }
-
-                            // ── Info + barra + controles ──────────────────
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                spacing: 4
-
-                                // Título + ícono de app
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 4
-
-                                    Column {
-                                        Layout.fillWidth: true
-                                        spacing: 1
-                                        Text {
-                                            width: parent.width
-                                            text: root.mprisPlayer?.trackTitle ?? "Sin reproductor"
-                                            font.pixelSize: 12; font.weight: Font.DemiBold
-                                            color: Theme.text; elide: Text.ElideRight
-                                        }
-                                        Text {
-                                            width: parent.width
-                                            text: root.mprisPlayer?.trackArtist ?? ""
-                                            font.pixelSize: 10; color: Theme.muted1; elide: Text.ElideRight
-                                        }
-                                    }
-
-                                    Text {
-                                        text: "󰓇"
-                                        font.pixelSize: 14
-                                        color: Theme.muted2
-                                        visible: root.mprisPlayer !== null
-                                    }
-                                }
-
-                                // Barra de progreso (solo visual)
-                                Item {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 3
-
-                                    property real progress: {
-                                        const p = root.mprisPlayer
-                                        if (!p || !p.lengthSupported || p.length <= 0) return 0
-                                        return Math.max(0, Math.min(1, root.playerPos / p.length))
-                                    }
-
-                                    Rectangle {
-                                        anchors.fill: parent; radius: 2
-                                        color: Theme.surface3
-                                    }
-                                    Rectangle {
-                                        width: parent.width * parent.progress
-                                        height: parent.height; radius: 2
-                                        color: Theme.accent
-                                    }
-                                }
-
-                                // Tiempo | controles | duración
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 0
-
-                                    Text {
-                                        text: innerPlayer.fmtSec(root.playerPos)
-                                        font.pixelSize: 9; color: Theme.muted2
-                                    }
-
-                                    Item { Layout.fillWidth: true }
-
-                                    // Controles
-                                    Row {
-                                        spacing: 2
-                                        Repeater {
-                                            model: [
-                                                { icon: "󰒮", action: "prev" },
-                                                { icon: root.mprisPlayer?.isPlaying ? "󰏤" : "󰐊", action: "play" },
-                                                { icon: "󰒭", action: "next" }
-                                            ]
-                                             Rectangle {
-                                                id: pCtrlBtn
-                                                required property var modelData
-                                                width: 24; height: 24; radius: 6
-                                                color: pCtrlHov.containsMouse ? Theme.surface3 : "transparent"
-                                                Behavior on color { ColorAnimation { duration: 80 } }
-                                                Text {
-                                                    anchors.centerIn: parent
-                                                    text: pCtrlBtn.modelData.icon; font.pixelSize: 13; color: Theme.text
-                                                }
-                                                MouseArea {
-                                                    id: pCtrlHov; anchors.fill: parent; hoverEnabled: true
-                                                    cursorShape: Qt.PointingHandCursor
-                                                    onClicked: {
-                                                        const p = root.mprisPlayer
-                                                        if (!p) return
-                                                        if      (pCtrlBtn.modelData.action === "prev") p.previous()
-                                                        else if (pCtrlBtn.modelData.action === "next") p.next()
-                                                        else p.togglePlaying()
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    Item { Layout.fillWidth: true }
-
-                                    Text {
-                                        text: innerPlayer.fmtSec(root.mprisPlayer?.length ?? 0)
-                                        font.pixelSize: 9; color: Theme.muted2
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    mprisPlayer: root.mprisPlayer
+                    playerPos:   root.playerPos
                 }
 
                 Item { width: parent.width; height: 8 }
