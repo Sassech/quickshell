@@ -457,31 +457,8 @@ PanelWindow {
     property var  btAdapter: Bluetooth.defaultAdapter
     property bool btPowered: btAdapter ? btAdapter.enabled : false
 
-    // Lista de dispositivos: conectados primero, luego emparejados
-    property var btDeviceList: {
-        _btRev
-        var devs = btAdapter ? btAdapter.devices.values : []
-        var conn = [], paired = []
-        for (var i = 0; i < devs.length; i++) {
-            var d = devs[i]
-            if (!d) continue
-            var isPaired = d.bonded || d.paired || d.trusted
-            var isConn   = d.connected
-            var entry = {
-                name:      d.name || d.deviceName || d.address || "Device",
-                address:   d.address || "",
-                connected: isConn,
-                paired:    isPaired,
-                icon:      _btDeviceIcon(d)
-            }
-            if (isConn)        conn.push(entry)
-            else if (isPaired) paired.push(entry)
-        }
-        return conn.concat(paired)
-    }
-
+    // Derivado reactivo desde _btPairedList — sin _btRev, sin loop adicional
     property int btConnectedCount: {
-        _btRev
         var n = 0
         for (var i = 0; i < root._btPairedList.length; i++) {
             if (root._btPairedList[i].connected) n++
@@ -489,16 +466,13 @@ PanelWindow {
         return n
     }
 
-    function _btDeviceIcon(d) {
-        var name = (d.name || d.deviceName || "").toLowerCase()
-        if (name.includes("headphone") || name.includes("headset") || name.includes("earphone") || name.includes("airpod")) return "󰋋"
-        if (name.includes("speaker")) return "󰓃"
-        if (name.includes("keyboard")) return "󰌌"
-        if (name.includes("mouse"))    return "󰍽"
-        if (name.includes("phone") || name.includes("iphone") || name.includes("android")) return "󰄜"
-        if (name.includes("watch"))    return "󰢗"
-        if (name.includes("pad") || name.includes("tablet")) return "󰓶"
-        return "󰂱"
+    // Nombre del primer dispositivo conectado para la tarjeta resumen
+    readonly property string btFirstConnectedName: {
+        for (var i = 0; i < root._btPairedList.length; i++) {
+            var d = root._btPairedList[i]
+            if (d.connected) return d.name || d.deviceName || d.address || ""
+        }
+        return ""
     }
 
     // ── MPRIS — reproductor ───────────────────────────────────────────────
@@ -1782,14 +1756,9 @@ PanelWindow {
                                 Text {
                                     width: parent.width
                                     text: {
-                                        if (!root.btAdapter)           return "Not available"
-                                        if (!root.btPowered)           return "Disabled"
-                                        if (root.btConnectedCount > 0) {
-                                            for (var i = 0; i < root.btDeviceList.length; i++) {
-                                                if (root.btDeviceList[i].connected)
-                                                    return root.btDeviceList[i].name
-                                            }
-                                        }
+                                        if (!root.btAdapter)               return "Not available"
+                                        if (!root.btPowered)               return "Disabled"
+                                        if (root.btConnectedCount > 0)     return root.btFirstConnectedName
                                         return "No connections"
                                     }
                                     font.pixelSize: 9
