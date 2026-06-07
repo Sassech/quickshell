@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -100,6 +102,7 @@ PanelWindow {
             splitMarker: "\n"
             onRead: data => root._searchBuf += data + "\n"
         }
+        // qmllint disable signal-handler-parameters
         onExited: {
             root._searching = false
             var items = []
@@ -107,6 +110,7 @@ PanelWindow {
             root._results = items
             root.rebuildFiltered()
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // Debounce 150ms
@@ -220,7 +224,7 @@ PanelWindow {
             return searchBar.height
                  + tabBar.height
                  + (rows > 0 ? rows * root._cellHeight + 16 : 0)
-                 + (filteredModel.count === 0 && !_searching ? 72 : 0)
+                 + (filteredModel.count === 0 && !root._searching ? 72 : 0)
                  + 2
         }
 
@@ -275,12 +279,12 @@ PanelWindow {
                             anchors.left: parent.left
                             anchors.leftMargin: 12
                             anchors.verticalCenter: parent.verticalCenter
-                            text: _searching ? "󰔟" : "󰍉"
+                            text: root._searching ? "󰔟" : "󰍉"
                             font.pixelSize: 22
                             color: searchInput.text !== "" ? Theme.accent2 : Theme.muted3
 
                             RotationAnimation on rotation {
-                                running: _searching
+                                running: root._searching
                                 from: 0; to: 360
                                 duration: 1000
                                 loops: Animation.Infinite
@@ -410,12 +414,13 @@ PanelWindow {
                     Repeater {
                         model: root.tabs
                         delegate: Rectangle {
+                            id: tabDelegate
                             required property var modelData
                             height: 26
                             width: tabInner.implicitWidth + 20
                             anchors.verticalCenter: parent.verticalCenter
                             radius: 7
-                            color: root.activeTab === modelData.id
+                            color: root.activeTab === tabDelegate.modelData.id
                                    ? Theme.accentSurface : "transparent"
                             Behavior on color { ColorAnimation { duration: 100 } }
 
@@ -424,18 +429,18 @@ PanelWindow {
                                 anchors.centerIn: parent
                                 spacing: 5
                                 Text {
-                                    text: modelData.icon
+                                    text: tabDelegate.modelData.icon
                                     font.pixelSize: 12
                                     verticalAlignment: Text.AlignVCenter
-                                    color: root.activeTab === modelData.id
+                                    color: root.activeTab === tabDelegate.modelData.id
                                            ? Theme.accent : Theme.muted3
                                     Behavior on color { ColorAnimation { duration: 100 } }
                                 }
                                 Text {
-                                    text: modelData.label
+                                    text: tabDelegate.modelData.label
                                     font.pixelSize: 12
                                     verticalAlignment: Text.AlignVCenter
-                                    color: root.activeTab === modelData.id
+                                    color: root.activeTab === tabDelegate.modelData.id
                                            ? Theme.accent : Theme.muted3
                                     Behavior on color { ColorAnimation { duration: 100 } }
                                 }
@@ -443,7 +448,7 @@ PanelWindow {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: root.activeTab = modelData.id
+                                onClicked: root.activeTab = tabDelegate.modelData.id
                             }
                         }
                     }
@@ -589,7 +594,7 @@ PanelWindow {
             Item {
                 width: parent.width
                 height: 72
-                visible: filteredModel.count === 0 && !_searching
+                visible: filteredModel.count === 0 && !root._searching
 
                 Column {
                     anchors.centerIn: parent
