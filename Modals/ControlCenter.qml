@@ -94,7 +94,6 @@ PanelWindow {
     property bool   _btWorking:   false
     property string _btStatusMsg: ""
 
-    property var    _btDevices:      []
     property var    _btPairedList:   []
     property var    _btNearbyList:   []
     property int    _btPairedCount:  0
@@ -457,22 +456,15 @@ PanelWindow {
     property var  btAdapter: Bluetooth.defaultAdapter
     property bool btPowered: btAdapter ? btAdapter.enabled : false
 
-    // Derivado reactivo desde _btPairedList — sin _btRev, sin loop adicional
-    property int btConnectedCount: {
-        var n = 0
-        for (var i = 0; i < root._btPairedList.length; i++) {
-            if (root._btPairedList[i].connected) n++
-        }
-        return n
-    }
+    // Bluetooth.devices expone SOLO los dispositivos actualmente conectados (doc oficial)
+    // Más preciso y reactivo que iterar _btPairedList manualmente
+    property int btConnectedCount: Bluetooth.devices.values.length
 
-    // Nombre del primer dispositivo conectado para la tarjeta resumen
     readonly property string btFirstConnectedName: {
-        for (var i = 0; i < root._btPairedList.length; i++) {
-            var d = root._btPairedList[i]
-            if (d.connected) return d.name || d.deviceName || d.address || ""
-        }
-        return ""
+        const devs = Bluetooth.devices.values
+        if (devs.length === 0) return ""
+        const d = devs[0]
+        return d.name || d.deviceName || d.address || ""
     }
 
     // ── MPRIS — reproductor ───────────────────────────────────────────────
@@ -662,6 +654,7 @@ PanelWindow {
     }
 
     function btRefreshDeviceLists() {
+        // btAdapter.devices es el ObjectModel completo — sin necesidad de _btDevices
         var source  = root._btAdapter ? root._btAdapter.devices.values : []
         var paired  = []
         var nearby  = []
@@ -671,7 +664,6 @@ PanelWindow {
             if (isPaired) paired.push(d)
             else nearby.push(d)
         }
-        root._btDevices     = source
         root._btPairedList  = paired
         root._btNearbyList  = nearby
         root._btPairedCount = paired.length
@@ -682,9 +674,11 @@ PanelWindow {
         if (!root._btAvailable || !root._btPwrd) return
         if (root._btAutoConnRunning) return
         btRefreshDeviceLists()
+        // Usar _btAdapter.devices.values directamente — source of truth sin cache intermedio
+        var source = root._btAdapter ? root._btAdapter.devices.values : []
         var q = []
-        for (var i = 0; i < root._btDevices.length; i++) {
-            var d = root._btDevices[i]
+        for (var i = 0; i < source.length; i++) {
+            var d = source[i]
             if (d.paired && d.trusted && d.state !== BluetoothDeviceState.Connecting && !d.connected)
                 q.push(d)
         }
