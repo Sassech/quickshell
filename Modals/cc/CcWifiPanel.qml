@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -265,8 +267,8 @@ Rectangle {
                     Connections {
                         target: root
                         function onPasswordFetched(idx, pw) {
-                            if (idx !== index) return
-                            if (root._fetchingIdx !== index) return   // resultado obsoleto
+                            if (idx !== wNetRow.index) return
+                            if (root._fetchingIdx !== wNetRow.index) return   // resultado obsoleto
                             wNetRow.realPassword = pw
                             wNetRow.fetchingPw   = false
                             root._fetchingIdx    = -1
@@ -278,8 +280,8 @@ Rectangle {
                     Rectangle {
                         width: parent.width; height: 36; radius: 8
                         color: {
-                            if (wNetRow.modelData.connected)          return Theme.accentSurface
-                            if (root.wifiSelectedIdx === index)       return Theme.surface3
+                            if (wNetRow.modelData.connected)                    return Theme.accentSurface
+                            if (root.wifiSelectedIdx === wNetRow.index)         return Theme.surface3
                             return wRowMA.containsMouse ? Theme.surface3 : Theme.surface2
                         }
                         Behavior on color { ColorAnimation { duration: 100 } }
@@ -319,7 +321,7 @@ Rectangle {
                                 Layout.preferredHeight: 22; radius: 6
                                 Layout.preferredWidth: wNetRow.modelData.connected ? 78 : 64
                                 color: wNetRow.modelData.connected ? Theme.error
-                                     : (root.wifiSelectedIdx === index ? Theme.accent : Theme.surface3)
+                                     : (root.wifiSelectedIdx === wNetRow.index ? Theme.accent : Theme.surface3)
                                 Behavior on color { ColorAnimation { duration: 100 } }
                                 Text {
                                     anchors.centerIn: parent
@@ -331,13 +333,13 @@ Rectangle {
                                     onClicked: {
                                         if (wNetRow.modelData.connected) {
                                             root.disconnectNet(wNetRow.modelData)
-                                        } else if (root.wifiSelectedIdx !== index) {
-                                            root.selectNetwork(index)
-                                            root.passwordChanged(index, "")
+                                        } else if (root.wifiSelectedIdx !== wNetRow.index) {
+                                            root.selectNetwork(wNetRow.index)
+                                            root.passwordChanged(wNetRow.index, "")
                                             wNetRow.showPwText = false
                                         } else {
                                             var needsPw = !root.wifiIsOpen(wNetRow.modelData.security)
-                                            var pw = root.wifiPasswordByIndex[index] || ""
+                                            var pw = root.wifiPasswordByIndex[wNetRow.index] || ""
                                             if (!needsPw || wNetRow.modelData.known) {
                                                 root.connectKnown(wNetRow.modelData)
                                             } else if (pw !== "") {
@@ -356,10 +358,10 @@ Rectangle {
                             anchors.fill: parent; hoverEnabled: true; z: -1
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                var next = (root.wifiSelectedIdx === index) ? -1 : index
+                                var next = (root.wifiSelectedIdx === wNetRow.index) ? -1 : wNetRow.index
                                 root.selectNetwork(next)
-                                if (next === index) {
-                                    root.passwordChanged(index, "")
+                                if (next === wNetRow.index) {
+                                    root.passwordChanged(wNetRow.index, "")
                                     wNetRow.showPwText = false
                                 }
                             }
@@ -368,7 +370,7 @@ Rectangle {
 
                     // ── Expanded panel ────────────────────────────────────
                     Rectangle {
-                        visible: root.wifiSelectedIdx === index
+                        visible: root.wifiSelectedIdx === wNetRow.index
                         width: parent.width
                         height: visible ? wExpandCol.implicitHeight + 20 : 0
                         radius: 8; color: Theme.surface3; clip: true
@@ -409,13 +411,13 @@ Rectangle {
                                         id: wPwInput
                                         anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
                                         visible: !wNetRow.modelData.known
-                                        text: root.wifiPasswordByIndex[index] || ""
-                                        onTextChanged: root.passwordChanged(index, text)
+                                        text: root.wifiPasswordByIndex[wNetRow.index] || ""
+                                        onTextChanged: root.passwordChanged(wNetRow.index, text)
                                         echoMode: wNetRow.showPwText ? TextInput.Normal : TextInput.Password
                                         color: Theme.text; font.pixelSize: 11
                                         verticalAlignment: TextInput.AlignVCenter
                                         Keys.onReturnPressed: {
-                                            var pw = root.wifiPasswordByIndex[index] || ""
+                                            var pw = root.wifiPasswordByIndex[wNetRow.index] || ""
                                             if (pw !== "") root.connectNew(wNetRow.modelData.name, pw)
                                         }
                                     }
