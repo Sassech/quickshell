@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -76,33 +77,34 @@ Rectangle {
                     { id: "locale",   icon: "󰗊", label: "Locale"   }
                 ]
                 Rectangle {
+                    id: tabBtn
                     required property var modelData
                     height: 24
                     width: langTabInner.implicitWidth + 16
                     radius: 6
-                    color: root.langTab === modelData.id ? Theme.accentSurface : "transparent"
+                    color: root.langTab === tabBtn.modelData.id ? Theme.accentSurface : "transparent"
                     Behavior on color { ColorAnimation { duration: 80 } }
                     Row {
                         id: langTabInner
                         anchors.centerIn: parent
                         spacing: 4
                         Text {
-                            text: modelData.icon; font.pixelSize: 10
+                            text: tabBtn.modelData.icon; font.pixelSize: 10
                             anchors.verticalCenter: parent.verticalCenter
-                            color: root.langTab === modelData.id ? Theme.accent : Theme.muted3
+                            color: root.langTab === tabBtn.modelData.id ? Theme.accent : Theme.muted3
                             Behavior on color { ColorAnimation { duration: 80 } }
                         }
                         Text {
-                            text: modelData.label; font.pixelSize: 10
+                            text: tabBtn.modelData.label; font.pixelSize: 10
                             anchors.verticalCenter: parent.verticalCenter
-                            color: root.langTab === modelData.id ? Theme.accent : Theme.muted3
+                            color: root.langTab === tabBtn.modelData.id ? Theme.accent : Theme.muted3
                             Behavior on color { ColorAnimation { duration: 80 } }
                         }
                     }
                     MouseArea {
                         anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            root.tabChanged(modelData.id)
+                            root.tabChanged(tabBtn.modelData.id)
                             root.searchChanged("")
                         }
                     }
@@ -160,36 +162,37 @@ Rectangle {
                 }
 
                 delegate: Rectangle {
+                    id: langItem
                     required property var modelData
                     required property int index
                     width: ListView.view.width; height: 30; radius: 7
                     property bool isActive: {
                         var layout = (root.langLayout || "").toLowerCase()
-                        var code   = (modelData.code   || "").toLowerCase()
+                        var code   = (langItem.modelData.code || "").toLowerCase()
                         return layout.indexOf(code) >= 0 || code.indexOf(layout) >= 0
                     }
                     color: langItemHov.containsMouse
                         ? Theme.surface3
-                        : (isActive ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15) : "transparent")
+                        : (langItem.isActive ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15) : "transparent")
                     Behavior on color { ColorAnimation { duration: 80 } }
 
                     Rectangle {
-                        visible: isActive
+                        visible: langItem.isActive
                         width: 3; height: 14; radius: 2
                         anchors { left: parent.left; leftMargin: 4; verticalCenter: parent.verticalCenter }
                         color: Theme.accent
                     }
 
                     RowLayout {
-                        anchors { fill: parent; leftMargin: isActive ? 12 : 8; rightMargin: 8 }
+                        anchors { fill: parent; leftMargin: langItem.isActive ? 12 : 8; rightMargin: 8 }
                         Text {
                             Layout.fillWidth: true
-                            text: modelData.code
+                            text: langItem.modelData.code
                             font.pixelSize: 10; color: Theme.text
                             elide: Text.ElideRight
                         }
                         Text {
-                            visible: isActive
+                            visible: langItem.isActive
                             text: "󰄬"; font.pixelSize: 10; color: Theme.accent
                         }
                     }
@@ -198,7 +201,7 @@ Rectangle {
                         id: langItemHov
                         anchors.fill: parent; hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: root.setLayout(modelData.code)
+                        onClicked: root.setLayout(langItem.modelData.code)
                     }
                 }
             }
@@ -223,36 +226,37 @@ Rectangle {
                 }
 
                 delegate: Rectangle {
+                    id: localeItem
                     required property var modelData
                     required property int index
                     width: ListView.view.width; height: 30; radius: 7
                     property bool isActive: {
-                        var locale = (root.langLocale  || "").toLowerCase()
-                        var value  = (modelData.value  || "").toLowerCase()
+                        var locale = (root.langLocale || "").toLowerCase()
+                        var value  = (localeItem.modelData.value || "").toLowerCase()
                         return locale.indexOf(value) >= 0 || value.indexOf(locale) >= 0
                     }
                     color: localeItemHov.containsMouse
                         ? Theme.surface3
-                        : (isActive ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15) : "transparent")
+                        : (localeItem.isActive ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15) : "transparent")
                     Behavior on color { ColorAnimation { duration: 80 } }
 
                     Rectangle {
-                        visible: isActive
+                        visible: localeItem.isActive
                         width: 3; height: 14; radius: 2
                         anchors { left: parent.left; leftMargin: 4; verticalCenter: parent.verticalCenter }
                         color: Theme.accent
                     }
 
                     RowLayout {
-                        anchors { fill: parent; leftMargin: isActive ? 12 : 8; rightMargin: 8 }
+                        anchors { fill: parent; leftMargin: localeItem.isActive ? 12 : 8; rightMargin: 8 }
                         Text {
                             Layout.fillWidth: true
-                            text: modelData.value
+                            text: localeItem.modelData.value
                             font.pixelSize: 10; color: Theme.text
                             elide: Text.ElideRight
                         }
                         Text {
-                            visible: isActive
+                            visible: localeItem.isActive
                             text: "󰄬"; font.pixelSize: 10; color: Theme.accent
                         }
                     }
@@ -261,7 +265,7 @@ Rectangle {
                         id: localeItemHov
                         anchors.fill: parent; hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: root.setLocale(modelData.value)
+                        onClicked: root.setLocale(localeItem.modelData.value)
                     }
                 }
             }

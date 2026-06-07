@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell.Services.UPower
 import "../../Components"
@@ -90,7 +91,7 @@ Rectangle {
 
                     width: {
                         var n = PowerProfiles.hasPerformanceProfile ? 3 : 2
-                        return (powerDetailCol.width - 6 * (n - 1)) / n
+                        return (parent.width - 6 * (n - 1)) / n
                     }
                     height: 36; radius: 8
                     color: active
@@ -145,25 +146,26 @@ Rectangle {
                 ]
 
                 Row {
+                    id: fanRow
                     required property var modelData
                     spacing: 6
                     Text {
-                        text: modelData.label; font.pixelSize: 9; color: Theme.muted1
+                        text: fanRow.modelData.label; font.pixelSize: 9; color: Theme.muted1
                         width: 16; anchors.verticalCenter: parent.verticalCenter
                     }
                     Item {
-                        width: powerDetailCol.width - 80; height: 6
+                        width: parent.width - 80 - 16 - 6 - 6; height: 6
                         anchors.verticalCenter: parent.verticalCenter
                         Rectangle { anchors.fill: parent; radius: 3; color: Theme.surface3 }
                         Rectangle {
                             anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                            width: Math.max(4, modelData.pct / 100 * parent.width)
-                            radius: 3; color: modelData.color
+                            width: Math.max(4, fanRow.modelData.pct / 100 * parent.width)
+                            radius: 3; color: fanRow.modelData.color
                             Behavior on width { NumberAnimation { duration: 300 } }
                         }
                     }
                     Text {
-                        text: modelData.rpm + " rpm"; font.pixelSize: 9; color: Theme.muted2
+                        text: fanRow.modelData.rpm + " rpm"; font.pixelSize: 9; color: Theme.muted2
                         anchors.verticalCenter: parent.verticalCenter
                     }
                 }
@@ -181,13 +183,14 @@ Rectangle {
                     { label: "GPU", temp: SysData.fanGpuTemp }
                 ]
                 Row {
+                    id: tempRow
                     required property var modelData
                     spacing: 4
-                    Text { text: modelData.label + ":"; font.pixelSize: 9; color: Theme.muted2 }
+                    Text { text: tempRow.modelData.label + ":"; font.pixelSize: 9; color: Theme.muted2 }
                     Text {
-                        text: modelData.temp + " °C"; font.pixelSize: 9
-                        color: modelData.temp >= 85 ? "#ff7b72"
-                             : modelData.temp >= 70 ? "#e3b341"
+                        text: tempRow.modelData.temp + " °C"; font.pixelSize: 9
+                        color: tempRow.modelData.temp >= 85 ? "#ff7b72"
+                             : tempRow.modelData.temp >= 70 ? "#e3b341"
                              : Theme.muted1
                     }
                 }
