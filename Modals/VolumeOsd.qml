@@ -61,6 +61,7 @@ PanelWindow {
         id: readVolProc
         command: ["bash", "-c", "wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._buf += d }
+        // qmllint disable signal-handler-parameters
         onExited: {
             const s = root._buf.trim()
             root._buf = ""
@@ -71,6 +72,7 @@ PanelWindow {
                 root.muted = !!m[2]
             }
         }
+        // qmllint enable signal-handler-parameters
     }
 
     function show() {
