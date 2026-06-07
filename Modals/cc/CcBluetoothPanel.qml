@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Bluetooth
 import Quickshell.Widgets
 import "../../Components"
 
@@ -253,26 +254,64 @@ Rectangle {
                                     font.pixelSize: 11; color: Theme.text
                                     elide: Text.ElideRight; width: parent.width
                                 }
-                                Text {
-                                    text: btPairedEntry.modelData.address
-                                    font.pixelSize: 8; color: Theme.muted2
+                                Row {
+                                    spacing: 6
+                                    Text {
+                                        text: btPairedEntry.modelData.address
+                                        font.pixelSize: 8; color: Theme.muted2
+                                    }
+                                    // Batería nativa via BluetoothDevice.batteryAvailable / .battery
+                                    Row {
+                                        visible: btPairedEntry.modelData.batteryAvailable
+                                        spacing: 2
+                                        Text {
+                                            text: "󰁹"
+                                            font.pixelSize: 8
+                                            color: btPairedEntry.modelData.battery < 0.2
+                                                ? Theme.error
+                                                : Theme.muted1
+                                        }
+                                        Text {
+                                            text: Math.round(btPairedEntry.modelData.battery * 100) + "%"
+                                            font.pixelSize: 8
+                                            color: btPairedEntry.modelData.battery < 0.2
+                                                ? Theme.error
+                                                : Theme.muted2
+                                        }
+                                    }
                                 }
                             }
 
                             Rectangle {
+                                id: btConnBtn
                                 Layout.preferredHeight: 24; radius: 6
                                 Layout.preferredWidth: btConnBtnText.implicitWidth + 16
-                                color: btPairedEntry.modelData.connected ? Theme.error : Theme.accent
+
+                                // Estado exacto via BluetoothDeviceState
+                                property int  _devState:       btPairedEntry.modelData.state
+                                property bool _isConnecting:   _devState === BluetoothDeviceState.Connecting
+                                property bool _isDisconnecting: _devState === BluetoothDeviceState.Disconnecting
+                                property bool _isTransitioning: _isConnecting || _isDisconnecting
+
+                                color: btPairedEntry.modelData.connected
+                                    ? Theme.error
+                                    : (_isTransitioning ? Theme.surface3 : Theme.accent)
                                 Behavior on color { ColorAnimation { duration: 150 } }
+
                                 Text {
                                     id: btConnBtnText; anchors.centerIn: parent
-                                    text: btPairedEntry.modelData.connected ? "Desconectar" : "Conectar"
+                                    text: btConnBtn._isConnecting    ? "Conectando…"
+                                        : btConnBtn._isDisconnecting ? "Desconectando…"
+                                        : btPairedEntry.modelData.connected ? "Desconectar"
+                                        : "Conectar"
                                     font.pixelSize: 9; color: "white"
+                                    Behavior on opacity { NumberAnimation { duration: 100 } }
                                 }
                                 MouseArea {
                                     anchors.fill: parent
-                                    enabled: !root.btWorking
-                                    cursorShape: root.btWorking ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                    enabled: !root.btWorking && !btConnBtn._isTransitioning
+                                    cursorShape: (root.btWorking || btConnBtn._isTransitioning)
+                                        ? Qt.ArrowCursor : Qt.PointingHandCursor
                                     onClicked: {
                                         if (btPairedEntry.modelData.connected)
                                             root.disconnectDevice(btPairedEntry.modelData)
