@@ -498,8 +498,11 @@ ShellRoot {
     NotificationServer {
         id: notifServer
         keepOnReload: true
+        imageSupported: true
 
         onNotification: notification => {
+            notification.tracked = true   // MUST be first — prevents discard
+            if (notification.lastGeneration) return  // skip re-emitted notifications on reload
             const icon     = notification.image !== "" ? notification.image : notification.appIcon
             const urgent   = notification.urgency === NotificationUrgency.Critical
             const category = root.classifyExternalNotification(notification, urgent)
