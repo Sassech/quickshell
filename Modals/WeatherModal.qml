@@ -1,3 +1,4 @@
+// qmllint disable uncreatable-type
 pragma ComponentBehavior: Bound
 
 import QtQuick
