@@ -1,3 +1,4 @@
+// qmllint disable uncreatable-type
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
@@ -34,12 +35,14 @@ PanelWindow {
         right:  position === "top-right"    || position === "bottom-right"
         left:   position === "top-left"     || position === "bottom-left"
     }
+    // qmllint disable unqualified unresolved-type
     margins {
         top:    position === "top-right"    || position === "top-left"    ? marginTop    : 0
         bottom: position === "bottom-right" || position === "bottom-left" ? marginTop    : 0
         right:  position === "top-right"    || position === "bottom-right" ? marginRight : 0
         left:   position === "top-left"     || position === "bottom-left"  ? marginRight : 0
     }
+    // qmllint enable unqualified unresolved-type
 
     mask: Region { item: card }
 

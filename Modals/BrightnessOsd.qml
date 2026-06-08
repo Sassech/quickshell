@@ -1,3 +1,4 @@
+// qmllint disable uncreatable-type
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -18,7 +19,9 @@ PanelWindow {
     anchors.bottom: true
     implicitWidth:  276
     implicitHeight: 60
+    // qmllint disable unqualified unresolved-type
     margins.bottom: 48
+    // qmllint enable unqualified unresolved-type
 
     mask: Region { item: osdCard }
 
