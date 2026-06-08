@@ -11,23 +11,34 @@
   },
   "showMediaPopups": false,
   "mediaApps": [
-    "spotify",
-    "rmpc",
-    "mpd",
-    "music player daemon",
-    "mpv",
-    "vlc",
-    "lollypop",
-    "rhythmbox",
-    "clementine",
-    "audacious",
-    "cmus",
-    "amberol"
+    "spotify", "rmpc", "mpd", "music player daemon", "mpv", "vlc",
+    "lollypop", "rhythmbox", "clementine", "audacious", "cmus", "amberol"
   ],
   "mediaPhrases": [
-    "now playing",
-    "reproduciendo",
-    "track changed",
-    "song changed"
-  ]
+    "now playing", "reproduciendo", "track changed", "song changed"
+  ],
+  "messageApps": [
+    "telegram", "discord", "slack", "signal", "whatsapp", "thunderbird"
+  ],
+  "networkApps": [
+    "networkmanager", "nm-applet", "nm-tray", "blueman"
+  ],
+  "networkPhrases": [
+    "wifi", "network", "ethernet", "vpn", "bluetooth", "conectado", "desconectado"
+  ],
+  "popup": {
+    "dismissMs": 4000,
+    "position": "top-right",
+    "marginTop": 25,
+    "marginRight": 25,
+    "width": 400,
+    "animInMs": 200,
+    "animOutMs": 200
+  },
+  "battery": {
+    "criticalThreshold": 20,
+    "warnThresholds": [40, 30],
+    "resetThreshold": 45,
+    "debounceMs": 1500
+  }
 }
