@@ -9,26 +9,41 @@ PanelWindow {
     visible: false
     color: "transparent"
 
-    // Tamaño de la tarjeta
-    implicitWidth:  400
-    implicitHeight: 110
+    // ── Config properties (set from shell.qml) ────────────────────────────
+    property int    dismissMs:   4000
+    property int    animInMs:    200
+    property int    animOutMs:   200
+    property int    marginTop:   25
+    property int    marginRight: 25
+    property int    popupWidth:  400
+    property string position:    "top-right"
 
-    // Anclar top-right, debajo de la barra
+    // ── Computed layout ───────────────────────────────────────────────────
+    readonly property int _cardHeight:   100
+    readonly property int _slideOffset:  popupWidth + marginRight + 20
+
+    implicitWidth:  popupWidth
+    implicitHeight: _cardHeight + 10
+
     WlrLayershell.layer:         WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+
     anchors {
-        top:   true
-        right: true
+        top:    position === "top-right"    || position === "top-left"
+        bottom: position === "bottom-right" || position === "bottom-left"
+        right:  position === "top-right"    || position === "bottom-right"
+        left:   position === "top-left"     || position === "bottom-left"
     }
-    // Margen desde la barra
     margins {
-        top:   25
-        right: 25
+        top:    position === "top-right"    || position === "top-left"    ? marginTop    : 0
+        bottom: position === "bottom-right" || position === "bottom-left" ? marginTop    : 0
+        right:  position === "top-right"    || position === "bottom-right" ? marginRight : 0
+        left:   position === "top-left"     || position === "bottom-left"  ? marginRight : 0
     }
 
     mask: Region { item: card }
 
-    // ── API pública ───────────────────────────────────────────────────
+    // ── API pública ───────────────────────────────────────────────────────
     property string notifTitle:   ""
     property string notifBody:    ""
     property string notifIcon:    "☕"
@@ -36,7 +51,6 @@ PanelWindow {
     property bool   notifIsMedia: false
 
     function show(title, body, icon, active, isMedia) {
-        // Cancelar cualquier cierre en progreso
         hideAnim.stop()
         dismissTimer.stop()
 
@@ -46,27 +60,27 @@ PanelWindow {
         notifActive  = active
         notifIsMedia = isMedia ?? false
         root.visible = true
-        card.x = 420
+        card.x = _slideOffset
         slideAnim.restart()
         dismissTimer.restart()
     }
 
-    // ── Dismiss automático ────────────────────────────────────────────
+    // ── Dismiss automático ────────────────────────────────────────────────
     Timer {
         id: dismissTimer
-        interval: 4000
+        interval: root.dismissMs
         onTriggered: hideAnim.start()
     }
 
-    // ── Animaciones ───────────────────────────────────────────────
+    // ── Animaciones ───────────────────────────────────────────────────────
     NumberAnimation {
         id: slideAnim
         target:   card
         property: "x"
-        from:     420
+        from:     root._slideOffset
         to:       0
-    duration: 200
-    easing.type: Easing.OutCubic
+        duration: root.animInMs
+        easing.type: Easing.OutCubic
     }
 
     NumberAnimation {
@@ -74,17 +88,17 @@ PanelWindow {
         target:   card
         property: "x"
         from:     0
-        to:       420
-    duration: 200
-    easing.type: Easing.InCubic
+        to:       root._slideOffset
+        duration: root.animOutMs
+        easing.type: Easing.InCubic
         onFinished: root.visible = false
     }
 
-    // ── Tarjeta ────────────────────────────────────────────────────
+    // ── Tarjeta ────────────────────────────────────────────────────────────
     Rectangle {
         id: card
-        width:  400
-        height: 100
+        width:  root.popupWidth
+        height: root._cardHeight
         radius: 12
         color:  Theme.cardBg3
         border.color: root.notifIsMedia ? Theme.accent
@@ -126,7 +140,7 @@ PanelWindow {
             }
             spacing: 14
 
-            // Icono: imagen real si está disponible, emoji como fallback
+            // Ícono
             Item {
                 width:  56
                 height: 56
@@ -138,16 +152,13 @@ PanelWindow {
                     source: {
                         const ic = root.notifIcon
                         if (!ic || ic.length === 0) return ""
-                        // Ruta absoluta directa
                         if (ic.startsWith("/") || ic.startsWith("file://")
                                 || ic.startsWith("http://") || ic.startsWith("https://")) return ic
-                        // Icono themed con custom path (ej: "image://icon/spotify-linux-32?path=/usr/share/spotify/icons")
                         if (ic.includes("?path=")) {
                             const parts = ic.split("?path=")
                             const name = parts[0].replace(/^image:\/\/icon\//, "")
                             return "file://" + parts[1] + "/" + name + ".png"
                         }
-                        // Icono themed estándar
                         if (ic.length > 4) return "image://theme/" + ic
                         return ""
                     }
@@ -168,7 +179,9 @@ PanelWindow {
             Column {
                 spacing: 4
                 anchors.verticalCenter: parent.verticalCenter
-// Tamaño de la letra de la notificación
+                // Ancho disponible: card - iconWidth - leftMargin - spacing - rightPadding
+                readonly property int _textWidth: root.popupWidth - 56 - 16 - 14 - 34
+
                 Text {
                     text:           root.notifTitle
                     color:          Theme.text
@@ -181,7 +194,7 @@ PanelWindow {
                     text:           root.notifBody
                     color:          Theme.muted1
                     font.pixelSize: 18
-                    width:          280
+                    width:          parent._textWidth
                     wrapMode:       Text.WordWrap
                 }
             }
@@ -205,14 +218,13 @@ PanelWindow {
             }
         }
 
-        // Click en body — feedback visual con opacidad
+        // Click en body
         MouseArea {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: hideAnim.start()
 
-            // Overlay de hover sutil
             Rectangle {
                 anchors.fill: parent
                 radius: card.radius
