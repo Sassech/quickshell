@@ -76,6 +76,21 @@ ShellRoot {
         "wifi", "network", "ethernet", "vpn", "bluetooth", "conectado", "desconectado"
     ]
 
+    // ── Notification popup config (from notifications.json) ───────────────────
+    property int    _notifDismissMs:    4000
+    property int    _notifAnimInMs:     200
+    property int    _notifAnimOutMs:    200
+    property int    _notifMarginTop:    25
+    property int    _notifMarginRight:  25
+    property int    _notifWidth:        400
+    property string _notifPosition:     "top-right"
+
+    // ── Battery alert config (from notifications.json) ────────────────────────
+    property int    _batCritical:       20
+    property var    _batWarnThresholds: [40, 30]
+    property int    _batReset:          45
+    property int    _batDebounceMs:     1500
+
     // ── Helpers ───────────────────────────────────────────────
     function getScreenFromMonName(monName) {
         const name = monName.trim()
@@ -209,7 +224,7 @@ ShellRoot {
     function loadNotificationConfig() {
         notifConfigProc.command = [
             "bash", "-c",
-            "cat \"" + root._configPath + "/notifications.json\" 2>/dev/null || echo '{\"categoryModes\":{},\"showMediaPopups\":false,\"mediaApps\":[],\"mediaPhrases\":[]}'"
+            "cat \"" + root._configPath + "/notifications.json\" 2>/dev/null || echo '{\"categoryModes\":{},\"showMediaPopups\":false,\"mediaApps\":[],\"mediaPhrases\":[],\"messageApps\":[],\"networkApps\":[],\"networkPhrases\":[],\"popup\":{},\"battery\":{}}'"
         ]
         notifConfigProc.running = true
     }
@@ -237,6 +252,39 @@ ShellRoot {
 
                     const mediaPhrases = root._normalizeStringArray(cfg.mediaPhrases)
                     if (mediaPhrases.length > 0) root._mediaPhrases = mediaPhrases
+
+                    const messageApps = root._normalizeStringArray(cfg.messageApps)
+                    if (messageApps.length > 0) root._messageApps = messageApps
+
+                    const networkApps = root._normalizeStringArray(cfg.networkApps)
+                    if (networkApps.length > 0) root._networkApps = networkApps
+
+                    const networkPhrases = root._normalizeStringArray(cfg.networkPhrases)
+                    if (networkPhrases.length > 0) root._networkPhrases = networkPhrases
+
+                    // Popup config
+                    if (cfg.popup) {
+                        const p = cfg.popup
+                        if (typeof p.dismissMs   === "number") root._notifDismissMs   = p.dismissMs
+                        if (typeof p.animInMs    === "number") root._notifAnimInMs    = p.animInMs
+                        if (typeof p.animOutMs   === "number") root._notifAnimOutMs   = p.animOutMs
+                        if (typeof p.marginTop   === "number") root._notifMarginTop   = p.marginTop
+                        if (typeof p.marginRight === "number") root._notifMarginRight = p.marginRight
+                        if (typeof p.width       === "number") root._notifWidth       = p.width
+                        if (typeof p.position    === "string") root._notifPosition    = p.position
+                    }
+
+                    // Battery config
+                    if (cfg.battery) {
+                        const b = cfg.battery
+                        if (typeof b.criticalThreshold === "number") root._batCritical    = b.criticalThreshold
+                        if (Array.isArray(b.warnThresholds))          root._batWarnThresholds = b.warnThresholds
+                        if (typeof b.resetThreshold    === "number") root._batReset       = b.resetThreshold
+                        if (typeof b.debounceMs        === "number") {
+                            root._batDebounceMs  = b.debounceMs
+                            _batStateDebounce.interval = b.debounceMs
+                        }
+                    }
                 } catch (e) {
                     console.log("[Notifications] Config inválida, usando defaults")
                 }
@@ -531,6 +579,13 @@ ShellRoot {
             id: notifPopup
             property var modelData
             screen: modelData
+            dismissMs:   root._notifDismissMs
+            animInMs:    root._notifAnimInMs
+            animOutMs:   root._notifAnimOutMs
+            marginTop:   root._notifMarginTop
+            marginRight: root._notifMarginRight
+            popupWidth:  root._notifWidth
+            position:    root._notifPosition
             Connections {
                 target: root
                 function onBroadcastNotify(title, body, icon, active, isMedia) {
@@ -706,7 +761,7 @@ ShellRoot {
     // Debounce timer — state changes can fire in bursts (HW quirk)
     Timer {
         id: _batStateDebounce
-        interval: 1500
+        interval: root._batDebounceMs
         onTriggered: root._handleBatStateChange()
     }
 
@@ -768,31 +823,33 @@ ShellRoot {
 
             // Notify once per threshold crossing, reset when charging
             // Each threshold fires only once until the battery recharges past it
-            if (pct <= 20 && root._upBatLastLow < 20) {
-                root._upBatLastLow = 20
+            // Critical threshold
+            if (pct <= root._batCritical && root._upBatLastLow < root._batCritical) {
+                root._upBatLastLow = root._batCritical
                 root.broadcastNotify(
                     "󰂃 Batería crítica",
                     "Solo queda " + pct + "% — conectá el cargador",
                     "battery-caution", true, false
                 )
-            } else if (pct <= 30 && root._upBatLastLow < 30) {
-                root._upBatLastLow = 30
-                root.broadcastNotify(
-                    "󰁽 Batería baja",
-                    "Queda " + pct + "% de batería",
-                    "battery-low", false, false
-                )
-            } else if (pct <= 40 && root._upBatLastLow < 40) {
-                root._upBatLastLow = 40
-                root.broadcastNotify(
-                    "󰁿 Batería baja",
-                    "Queda " + pct + "% de batería",
-                    "battery-low", false, false
-                )
+            } else {
+                // Warn thresholds (sorted descending, e.g. [40, 30])
+                const thresholds = root._batWarnThresholds
+                for (let i = 0; i < thresholds.length; i++) {
+                    const t = thresholds[i]
+                    if (pct <= t && root._upBatLastLow < t) {
+                        root._upBatLastLow = t
+                        const icon = t <= 30 ? "battery-low" : "battery-caution"
+                        root.broadcastNotify(
+                            "󰁽 Batería baja",
+                            "Queda " + pct + "% de batería",
+                            icon, false, false
+                        )
+                        break
+                    }
+                }
             }
-            // Reset threshold tracker when battery recovers above 45%
-            // (gives margin so it doesn't re-notify immediately after plugging in briefly)
-            if (pct > 45 && root._upBatLastLow > 0) {
+            // Reset threshold tracker when battery recovers above reset threshold
+            if (pct > root._batReset && root._upBatLastLow > 0) {
                 root._upBatLastLow = 0
             }
         }
