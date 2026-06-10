@@ -2,6 +2,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Widgets
 import "../Components"
 
 PanelWindow {
@@ -149,9 +150,11 @@ PanelWindow {
                 height: 56
                 anchors.verticalCenter: parent.verticalCenter
 
-                Image {
+                IconImage {
                     id: notifIconImg
                     anchors.fill: parent
+                    implicitSize: 56
+                    mipmap:       true
                     source: {
                         const ic = root.notifIcon
                         if (!ic || ic.length === 0) return ""
@@ -162,13 +165,11 @@ PanelWindow {
                             const name = parts[0].replace(/^image:\/\/icon\//, "")
                             return "file://" + parts[1] + "/" + name + ".png"
                         }
-                        if (ic.length > 4) return "image://theme/" + ic
+                        if (ic.startsWith("image://theme/")) return ic.replace("image://theme/", "")
+                        if (ic.length > 4) return ic
                         return ""
                     }
-                    fillMode:    Image.PreserveAspectFit
-                    smooth:      true
-                    mipmap:      true
-                    visible:     status === Image.Ready
+                    visible: status === Image.Ready
                 }
 
                 Text {
