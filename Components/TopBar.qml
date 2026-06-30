@@ -69,6 +69,7 @@ PanelWindow {
             SystemTrayWidget {
                 iconSize: 18
                 spacing: 4
+                panelWindow: root
             }
             
             ClipboardWidget {

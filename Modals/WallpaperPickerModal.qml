@@ -112,10 +112,7 @@ PanelWindow {
     Process {
         id: setProc
         property string pending: ""
-        command: ["bash",
-            Paths.scripts + "/wallpaper-set.sh",
-            pending
-        ]
+        command: ["bash", Paths.scripts + "/wallpaper-set.sh", ""]
         // qmllint disable signal-handler-parameters
         onExited: {
             root.currentWallpaper = pending
@@ -471,6 +468,7 @@ PanelWindow {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 setProc.pending = wpCell.model.path
+                                setProc.command = ["bash", Paths.scripts + "/wallpaper-set.sh", wpCell.model.path]
                                 setProc.running = true
                             }
                         }

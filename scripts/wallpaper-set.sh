@@ -65,6 +65,7 @@ BASE_COLOR=$(grep   'readonly property color _bg:'    "$THEME_FILE" | awk -F'"' 
 ACCENT_COLOR=$(grep 'readonly property color accent:' "$THEME_FILE" | awk -F'"' '{print $2}')
 TEXT_COLOR=$(grep   'readonly property color text:'   "$THEME_FILE" | awk -F'"' '{print $2}')
 
+mkdir -p "$(dirname "$MAKO_CONFIG")"
 cat > "$MAKO_CONFIG" <<EOF
 background-color=$BASE_COLOR
 border-color=$ACCENT_COLOR

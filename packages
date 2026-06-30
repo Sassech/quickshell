@@ -4,6 +4,4 @@ quickshell
 # Validar sintaxis con qmllint-qt6
 qt6-qtdeclarative-devel
 
-# verificar sintaxis
-qt6-qtdeclarative-devel
 qt6-qtpositioning

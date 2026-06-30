@@ -411,8 +411,21 @@ Rectangle {
                                         id: wPwInput
                                         anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
                                         visible: !wNetRow.modelData.known
-                                        text: root.wifiPasswordByIndex[wNetRow.index] || ""
-                                        onTextChanged: root.passwordChanged(wNetRow.index, text)
+                                        property bool _updatingFromModel: false
+                                        Component.onCompleted: text = root.wifiPasswordByIndex[wNetRow.index] || ""
+                                        Connections {
+                                            target: root
+                                            function onWifiPasswordByIndexChanged() {
+                                                if (wPwInput._updatingFromModel) return
+                                                wPwInput._updatingFromModel = true
+                                                wPwInput.text = root.wifiPasswordByIndex[wNetRow.index] || ""
+                                                wPwInput._updatingFromModel = false
+                                            }
+                                        }
+                                        onTextChanged: {
+                                            if (!_updatingFromModel)
+                                                root.passwordChanged(wNetRow.index, text)
+                                        }
                                         echoMode: wNetRow.showPwText ? TextInput.Normal : TextInput.Password
                                         color: Theme.text; font.pixelSize: 11
                                         verticalAlignment: TextInput.AlignVCenter

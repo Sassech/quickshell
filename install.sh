@@ -2,8 +2,33 @@
 # install.sh — QuickShell configuration and package installer
 set -euo pipefail
 
+# Require root — re-launch with sudo automatically
+if [[ "$EUID" -ne 0 ]]; then
+    exec sudo bash "$0" "$@"
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CURRENT_USER="${SUDO_USER:-$USER}"
+USER_HOME="$(getent passwd "$CURRENT_USER" | cut -d: -f6)"
+USER_UID="$(id -u "$CURRENT_USER")"
+LOG_FILE="/tmp/quickshell-install.log"
+export LOG_FILE
+
+# Start with a fresh log for this run
+: > "$LOG_FILE"
+echo "QuickShell install log — $(date)" >> "$LOG_FILE"
+echo "" >> "$LOG_FILE"
+
+# Run a systemd --user command as the original (non-root) user.
+# Uses runuser (no login shell) to avoid sourcing .bashrc/.zshrc which can
+# hang waiting for Wayland sockets or display servers.
+# Full output goes to LOG_FILE; only errors are shown on terminal.
+user_systemctl() {
+    runuser -u "$CURRENT_USER" -- \
+        env XDG_RUNTIME_DIR="/run/user/${USER_UID}" \
+        DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${USER_UID}/bus" \
+        systemctl --user "$@" >> "$LOG_FILE" 2>&1
+}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -12,73 +37,65 @@ ok()   { echo "✅ $*"; }
 warn() { echo "⚠️  $*"; }
 info() { echo "   $*"; }
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # 0. Install packages
 # ─────────────────────────────────────────────────────────────────────────────
-"${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/packages.sh"
+"$SCRIPT_DIR/packages.sh" || true
+# packages.sh always exits 0; failures are reported in its summary.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. sudoers rules for quickshell scripts
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 
-# set-power-mode.sh
 echo "$CURRENT_USER ALL=(ALL) NOPASSWD: $SCRIPT_DIR/scripts/set-power-mode.sh" \
-    | sudo tee /etc/sudoers.d/quickshell-power > /dev/null
+    | tee /etc/sudoers.d/quickshell-power > /dev/null
 
-# fan-control.sh
 echo "$CURRENT_USER ALL=(ALL) NOPASSWD: $SCRIPT_DIR/scripts/fan-control.sh" \
-    | sudo tee /etc/sudoers.d/quickshell-fan > /dev/null
+    | tee /etc/sudoers.d/quickshell-fan > /dev/null
 
-sudo chmod 440 /etc/sudoers.d/quickshell-power /etc/sudoers.d/quickshell-fan
+chmod 440 /etc/sudoers.d/quickshell-power /etc/sudoers.d/quickshell-fan
 
-if sudo visudo -c &>/dev/null; then
+# Validate only the files we just wrote, not the entire sudoers config
+if visudo -c -f /etc/sudoers.d/quickshell-power &>/dev/null \
+&& visudo -c -f /etc/sudoers.d/quickshell-fan &>/dev/null; then
     ok "Reglas sudoers instaladas."
 else
-    echo "sudoers syntax error."
+    echo "sudoers syntax error in quickshell files."
     exit 1
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2. quickshell-backend — systemd user service to 
+# 2. quickshell-backend — systemd user service
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "▶ Installing systemd user service..."
 
 BACKEND_SERVICE_SRC="$SCRIPT_DIR/config/systemd/user/quickshell-backend.service"
-BACKEND_SERVICE_DST="$HOME/.config/systemd/user/quickshell-backend.service"
+BACKEND_SERVICE_DST="$USER_HOME/.config/systemd/user/quickshell-backend.service"
 
-mkdir -p "$HOME/.config/systemd/user"
-
-# Replace __SCRIPT_DIR__ placeholder with actual path in the service file
+mkdir -p "$USER_HOME/.config/systemd/user"
 sed "s|__SCRIPT_DIR__|$SCRIPT_DIR|g" "$BACKEND_SERVICE_SRC" > "$BACKEND_SERVICE_DST"
 
-if [ "$EUID" -eq 0 ]; then
-    sudo -u "$CURRENT_USER" systemctl --user daemon-reload
-    sudo -u "$CURRENT_USER" systemctl --user enable quickshell-backend.service
-    sudo -u "$CURRENT_USER" systemctl --user restart quickshell-backend.service
-else
-    systemctl --user daemon-reload
-    systemctl --user enable quickshell-backend.service
-    systemctl --user restart quickshell-backend.service
-fi
+user_systemctl daemon-reload || true
+user_systemctl enable quickshell-backend.service || true
+# --no-block: fire-and-forget start; don't wait for service to reach active state.
+# This prevents hanging when DBus/display is not available during install.
+user_systemctl start --no-block quickshell-backend.service || true
 ok "QuickShell backend service installed and started."
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4. mpDris2  —  bridge MPD → MPRIS2 (required for rmpc and other MPD clients)
+# 3. mpDris2 — bridge MPD → MPRIS2
 # ─────────────────────────────────────────────────────────────────────────────
 
-# mpDris2 configuration
-MPDRIS2_CONF_DIR="$HOME/.config/mpDris2"
+MPDRIS2_CONF_DIR="$USER_HOME/.config/mpDris2"
 MPDRIS2_CONF="$MPDRIS2_CONF_DIR/mpDris2.conf"
 
 if [ ! -f "$MPDRIS2_CONF" ]; then
     mkdir -p "$MPDRIS2_CONF_DIR"
 
-    # Try to detect music_directory from mpd.conf, fallback to ~/Música if not found
     MPD_MUSIC_DIR=""
-    MPD_CONF="$HOME/.config/mpd/mpd.conf"
+    MPD_CONF="$USER_HOME/.config/mpd/mpd.conf"
     if [ -f "$MPD_CONF" ]; then
         MPD_MUSIC_DIR=$(grep -E '^\s*music_directory' "$MPD_CONF" | head -1 \
             | sed 's/.*music_directory[[:space:]]*"//;s/".*//')
@@ -102,12 +119,10 @@ else
     ok "Configuración de mpDris2 ya existe, no se sobreescribe."
 fi
 
-# Enable and start mpDris2 service (with Restart=always)
 echo ""
 echo "▶ Habilitando servicio mpDris2 (systemd user)..."
 
-# Drop-in: reinicio automático si el proceso muere
-DROPIN_DIR="$HOME/.config/systemd/user/mpDris2.service.d"
+DROPIN_DIR="$USER_HOME/.config/systemd/user/mpDris2.service.d"
 mkdir -p "$DROPIN_DIR"
 cat > "$DROPIN_DIR/restart.conf" <<'EOF'
 [Service]
@@ -115,20 +130,14 @@ Restart=always
 RestartSec=2
 EOF
 
-# Execute as current user if running as root, otherwise just run normally
-if [ "$EUID" -eq 0 ]; then
-    sudo -u "$CURRENT_USER" systemctl --user daemon-reload
-    sudo -u "$CURRENT_USER" systemctl --user enable mpDris2.service
-    sudo -u "$CURRENT_USER" systemctl --user restart mpDris2.service
-else
-    systemctl --user daemon-reload
-    systemctl --user enable mpDris2.service
-    systemctl --user restart mpDris2.service
-fi
+user_systemctl daemon-reload || true
+user_systemctl enable mpDris2.service || true
+# --no-block: don't wait for mpDris2 to fully start (MPD may not be running yet)
+user_systemctl start --no-block mpDris2.service || true
 ok "Servicio mpDris2 habilitado e iniciado (Restart=always)."
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 5. Geoclue2 — location provider for weather info
+# 4. Geoclue2 — location provider for weather info
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "▶ Configuring geoclue2..."
@@ -138,25 +147,21 @@ GEOCLUE_CONF="$GEOCLUE_CONF_DIR/quickshell.conf"
 
 if [ -d "$GEOCLUE_CONF_DIR" ]; then
     if [ ! -f "$GEOCLUE_CONF" ]; then
-        echo "[quickshell]
-enable=true" | sudo tee "$GEOCLUE_CONF" > /dev/null
+        printf '[quickshell]\nenable=true\n' > "$GEOCLUE_CONF"
         ok "Configuration created at $GEOCLUE_CONF"
     else
         ok "Configuration for geoclue2 already exists."
     fi
-    
-    # Configure beaconDB as location provider (more accurate than Google)
+
     BEACONDB_CONF="$GEOCLUE_CONF_DIR/99-beacondb.conf"
     if [ ! -f "$BEACONDB_CONF" ]; then
-        echo "[wifi]
-enable=true
-url=https://api.beacondb.net/v1/geolocate" | sudo tee "$BEACONDB_CONF" > /dev/null
+        printf '[wifi]\nenable=true\nurl=https://api.beacondb.net/v1/geolocate\n' > "$BEACONDB_CONF"
         ok "Configuration for beaconDB created at $BEACONDB_CONF"
     else
         ok "Configuration for beaconDB already exists."
     fi
-    
-    sudo systemctl try-restart geoclue 2>/dev/null || sudo systemctl restart geoclue 2>/dev/null || true
+
+    systemctl try-restart geoclue 2>/dev/null || systemctl restart geoclue 2>/dev/null || true
     ok "Service geoclue restarted."
 else
     warn "Directory $GEOCLUE_CONF_DIR does not exist. Install geoclue2 if you need location services."
@@ -165,3 +170,6 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 ok "Installation complete. Restart your session if this is a new environment."
+
+# Mark installation as done so .zshrc doesn't re-run this script
+touch "$USER_HOME/.config/quickshell/config/.installed"

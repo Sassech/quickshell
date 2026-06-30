@@ -8,6 +8,7 @@ import "../Components"
 Item {
     id: root
     
+    required property var panelWindow
     property int iconSize: 20
     property int spacing: 4
     
@@ -31,6 +32,7 @@ Item {
                 required property var modelData
                 trayItem: modelData
                 size: root.iconSize
+                panelWindow: root.panelWindow
             }
         }
     }

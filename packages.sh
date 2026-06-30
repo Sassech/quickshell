@@ -1,110 +1,153 @@
 #!/usr/bin/env bash
-# packages.sh — Install necessary packages for quickshell to work
-# Each entry is: [cmd_to_check]="real_package_name_in_dnf|real_package_name_in_pacman|real_package_name_in_apt"
-# If command and package have the same name, you can use the short form of the array (see SIMPLE_PKGS below).
+# packages.sh — Install necessary packages for quickshell (Fedora/dnf only)
+set -uo pipefail
+# Note: set -e intentionally omitted — we collect failures and report at the end
+# instead of aborting mid-run. The caller (install.sh) checks exit code.
 
-set -euo pipefail
-IFS=$'\n\t'
+# Require root for package installation
+if [[ "$EUID" -ne 0 ]]; then
+    echo "⚠️  This script needs root to install packages."
+    echo "   Run: sudo $0"
+    exit 1
+fi
 
-# ── Packages where command name == package name ────────────────────────────────
+LOG_FILE="${LOG_FILE:-/tmp/quickshell-install.log}"
+
+# ── Packages where binary name == dnf package name ────────────────────────────
+# swww=wallpaper daemon, matugen=Material You colors, cava=audio visualizer,
+# grim/slurp=screenshot, mako=notifications, brightnessctl=backlight,
+# curl=HTTP client, kitty=terminal
 SIMPLE_PKGS=(
-  swww               # Wallpaper daemon
-  matugen            # Material You color generation
-  cava               # Audio visualizer
-  grimblast          # Screenshot wrapper sobre grim
-  grim               # Screenshot
-  slurp              # Screenshot selection
-  mako               # Notification daemon
-  brightnessctl      # Brightness control
-  curl               # HTTP client (WeatherProvider, geolocalizacion)
-  kitty              # Terminal (usado por SpotlightModal para comandos de shell)
-  geoclue2           # Location service (weather info)
+  swww
+  matugen
+  cava
+  grimblast
+  grim
+  slurp
+  mako
+  brightnessctl
+  curl
+  kitty
 )
 
-# ── Packages where cmd != name of package in the package manager ────────────────────
-# Format: ["binary_command"]="dnf_pkg|pacman_pkg|apt_pkg"
-#   - Use the same name in all if it matches
-#   - Use "*" if it doesn't apply to that distribution
+# ── Packages where binary != dnf package name ─────────────────────────────────
+# Format: ["binary_to_check"]="dnf_package_name"
 declare -A MAPPED_PKGS=(
-
-  # fd — usado en spotlight-search.py for file searching
-  ["fd"]="fd|fd|fd-find"
-  
-  # quickshell_backend.py, cpu-detail.sh, disk-detail.sh
-  ["dgop"]="dgop|dgop|dgop"
-
-  # Bluetooth nativo QML (Quickshell.Bluetooth) — the real package is bluez
-  ["bluetoothctl"]="bluez|bluez|bluez"
-
-  # wl-clipboard provee los comandos wl-copy y wl-paste
-  ["wl-copy"]="wl-clipboard|wl-clipboard|wl-clipboard"
-
-  # cliphist — clipboard history tool
-  ["cliphist"]="cliphist|cliphist|cliphist"
-
-  # ImageMagick: "magick" v7, "convert" v6
-  ["magick"]="ImageMagick|imagemagick|imagemagick"
-
-  # mpDris2 — puente MPD → MPRIS2
-  ["mpDris2"]="mpDris2|mpdris2|mpdris2"
-
-  # pciutils (lspci) — used in gpu-detail.sh to get GPU info from PCI bus
-  ["lspci"]="pciutils|pciutils|pciutils"
-
-  # libnotify — notify-send — used in screenshot.sh
-  ["notify-send"]="libnotify|libnotify|libnotify"
-
-  # NetworkManager — nmcli — red WiFi/Ethernet in  backend and CcWifiPanel
-  ["nmcli"]="NetworkManager|networkmanager|network-manager"
-
-  # xdg-utils — xdg-open — used in spotlight-search.py
-  ["xdg-open"]="xdg-utils|xdg-utils|xdg-utils"
+  ["fd"]="fd"                    # spotlight-search.py file search
+  ["bluetoothctl"]="bluez"       # Quickshell.Bluetooth native QML
+  ["wl-copy"]="wl-clipboard"     # clipboard (wl-copy / wl-paste)
+  ["cliphist"]="cliphist"        # clipboard history
+  ["magick"]="ImageMagick"       # image processing (v7)
+  ["lspci"]="pciutils"           # gpu-detail.sh
+  ["notify-send"]="libnotify"    # screenshot.sh notifications
+  ["nmcli"]="NetworkManager"     # WiFi/Ethernet backend
+  ["xdg-open"]="xdg-utils"      # spotlight-search.py
 )
 
-_install_pkg() {
-    local dnf_pkg="$1" pac_pkg="$2" apt_pkg="$3"
-    if command -v dnf &>/dev/null; then
-        [[ "$dnf_pkg" != "*" ]] && sudo dnf install -y "$dnf_pkg" && return
-    elif command -v pacman &>/dev/null; then
-        [[ "$pac_pkg" != "*" ]] && sudo pacman -S --noconfirm "$pac_pkg" && return
-    elif command -v apt &>/dev/null; then
-        [[ "$apt_pkg" != "*" ]] && sudo apt install -y "$apt_pkg" && return
-    fi
-    echo "Package manager not recognized or package not available." >&2
-    return 1
-}
+# ── Packages with no binary — checked via systemd service ─────────────────────
+# Format: ["systemd_service_name"]="dnf_package_name"
+declare -A SERVICE_PKGS=(
+  ["geoclue"]="geoclue2"         # location service for weather
+  ["mpDris2"]="mpDris2"          # MPD → MPRIS2 bridge (Python app, service-based)
+)
+
+# ── Packages not in standard Fedora repos — manual install required ────────────
+# These are skipped by dnf but flagged with instructions at the end.
+declare -A MANUAL_PKGS=(
+  ["dgop"]="https://github.com/niceDev0/dgop — dgop (disk/gpu info tool, build from source)"
+)
+
+# ── dnf options — quiet + timeout prevents hanging on slow/dead mirrors ────────
+# Full output goes to LOG_FILE; only ✅/❌/⚠️ lines shown on terminal.
+DNF_OPTS=(-y -q --setopt=timeout=30 --setopt=minrate=1000)
+
+# ──────────────────────────────────────────────────────────────────────────────
 
 failed=0
 total=0
+skipped_manual=()
+
+# Helper: safe increment — avoids set -e footgun with (( var++ )) when var=0
+inc() { eval "$1=$(( ${!1} + 1 ))"; }
+
+# Helper: run dnf silently on terminal, full output to log
+dnf_install() {
+    local pkg="$1"
+    dnf install "${DNF_OPTS[@]}" "$pkg" >> "$LOG_FILE" 2>&1
+}
 
 echo "Verifying and installing packages..."
+echo "   (full dnf output → $LOG_FILE)"
 echo ""
 
 for pkg in "${SIMPLE_PKGS[@]}"; do
-    ((total++))
+    inc total
     if command -v "$pkg" &>/dev/null; then
         echo "   ✅ $pkg"
     else
         echo "   ⬇  $pkg — installing..."
-        _install_pkg "$pkg" "$pkg" "$pkg" || { ((failed++)); echo "   ❌ $pkg failed"; }
+        if dnf_install "$pkg"; then
+            echo "   ✅ $pkg installed"
+        else
+            inc failed
+            echo "   ❌ $pkg — install failed (see $LOG_FILE)"
+        fi
     fi
 done
 
-# ── Packages where cmd != name of package in the package manager ────────────────────
 for cmd in "${!MAPPED_PKGS[@]}"; do
-    ((total++))
-    IFS='|' read -r dnf_pkg pac_pkg apt_pkg <<< "${MAPPED_PKGS[$cmd]}"
+    inc total
+    pkg="${MAPPED_PKGS[$cmd]}"
     if command -v "$cmd" &>/dev/null; then
         echo "   ✅ $cmd"
     else
-        echo "   ⬇  $cmd — installing..."
-        _install_pkg "$dnf_pkg" "$pac_pkg" "$apt_pkg" || { ((failed++)); echo "   ❌ $cmd failed"; }
+        echo "   ⬇  $cmd ($pkg) — installing..."
+        if dnf_install "$pkg"; then
+            echo "   ✅ $cmd installed"
+        else
+            inc failed
+            echo "   ❌ $cmd ($pkg) — install failed (see $LOG_FILE)"
+        fi
+    fi
+done
+
+for svc in "${!SERVICE_PKGS[@]}"; do
+    inc total
+    pkg="${SERVICE_PKGS[$svc]}"
+    if systemctl list-unit-files "${svc}.service" 2>/dev/null | grep -q "$svc"; then
+        echo "   ✅ $svc (service)"
+    else
+        echo "   ⬇  $svc ($pkg) — installing..."
+        if dnf_install "$pkg"; then
+            echo "   ✅ $svc installed"
+        else
+            inc failed
+            echo "   ❌ $svc ($pkg) — install failed (see $LOG_FILE)"
+        fi
+    fi
+done
+
+for tool in "${!MANUAL_PKGS[@]}"; do
+    inc total
+    if command -v "$tool" &>/dev/null; then
+        echo "   ✅ $tool"
+    else
+        skipped_manual+=("$tool — ${MANUAL_PKGS[$tool]}")
+        echo "   ⚠️  $tool — not in Fedora repos, manual install needed (see summary)"
     fi
 done
 
 echo ""
 echo "════════════════════════════════════════"
 echo "  Packages: $total total, $failed failed"
+if [[ ${#skipped_manual[@]} -gt 0 ]]; then
+    echo "  Manual installs needed:"
+    for entry in "${skipped_manual[@]}"; do
+        echo "    • $entry"
+    done
+fi
 echo "════════════════════════════════════════"
 
-exit "$failed"
+# Exit 0 always — install.sh must not abort due to optional package failures.
+# Failed count is shown in the summary above for the user to act on.
+exit 0

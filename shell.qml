@@ -117,10 +117,21 @@ ShellRoot {
         const name = (monName ?? "").trim()
         const targetScreen = name.length > 0
             ? root.getScreenFromMonName(name)
-            : Quickshell.screens[0]
+            : root._getFocusedScreen()
         if (typeof broadcaster === "function") {
             broadcaster(targetScreen)
         }
+    }
+
+    function _getFocusedScreen() {
+        // Fallback cuando el script no retorna un nombre válido.
+        // Quickshell.screens no garantiza orden, así que devolvemos
+        // el primero disponible (el script siempre debería retornar algo).
+        for (var i = 0; i < Quickshell.screens.length; i++) {
+            if (Quickshell.screens[i] !== undefined)
+                return Quickshell.screens[i]
+        }
+        return Quickshell.screens[0]
     }
 
     function _containsAny(text, needles) {
