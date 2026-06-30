@@ -1,8 +1,9 @@
 [Unit]
 Description=Quickshell system metrics backend
-# Arrancar después de que la sesión gráfica Wayland esté activa
+# Start after the graphical session is active, but don't bind lifetime to it.
+# PartOf intentionally removed: it would stop this service if the session target
+# stopped, and it prevents 'enable' from working without an active session.
 After=graphical-session.target
-PartOf=graphical-session.target
 
 [Service]
 Type=simple
@@ -45,4 +46,4 @@ CapabilityBoundingSet=
 AmbientCapabilities=
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=default.target
