@@ -79,12 +79,24 @@ PanelWindow {
         saveConfigProc.running = false
     }
 
+    // Safety net: si wallpaper-list.py cuelga, desbloquea _loading
+    Timer {
+        id: loadSafetyTimer
+        interval: 10000
+        onTriggered: root._loading = false
+    }
+
     // ── Carga imágenes ─────────────────────────────────────────
     function loadImages() {
-        if (_loading) return
+        // Si ya hay una carga en curso, la cancela y reintenta
+        if (_loading) {
+            listProc.running = false
+            root._loading = false
+        }
         _loading = true
         _listBuf = ""
         imageModel.clear()
+        loadSafetyTimer.restart()
         listProc.running = true
     }
 
@@ -100,6 +112,7 @@ PanelWindow {
         }
         // qmllint disable signal-handler-parameters
         onExited: {
+            loadSafetyTimer.stop()
             root._loading = false
             var items = []
             try { items = JSON.parse(root._listBuf) } catch(e) {}
@@ -112,7 +125,7 @@ PanelWindow {
     Process {
         id: setProc
         property string pending: ""
-        command: ["bash", Paths.scripts + "/wallpaper-set.sh", ""]
+        running: false
         // qmllint disable signal-handler-parameters
         onExited: {
             root.currentWallpaper = pending
