@@ -20,7 +20,7 @@ case "$MODE" in
 
     active|window)
         # Overlay interactivo: hover sobre ventana la ilumina, click la captura
-        grimblast --freeze copysave area "$FILE"
+        grimblast --freeze copysave active "$FILE"
         ;;
 
     region|*)
