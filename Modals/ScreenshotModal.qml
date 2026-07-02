@@ -37,6 +37,7 @@ PanelWindow {
         root.visible = true
         root._running = false
         fadeIn.start()
+        slideIn.start()
         card.forceActiveFocus()
     }
 
@@ -49,14 +50,26 @@ PanelWindow {
         id: captureProc
         running: false
         // qmllint disable signal-handler-parameters
-        onExited: function(exitCode) {
+        onExited: function(exitCode, exitStatus) {
             root._running = false
+            safetyTimer.stop()
         }
         // qmllint enable signal-handler-parameters
     }
 
+    // Safety net: si grimblast cuelga o falla sin emitir onExited, desbloquea el modal
+    Timer {
+        id: safetyTimer
+        interval: 8000
+        onTriggered: root._running = false
+    }
+
     function _capture(mode) {
-        if (root._running) return
+        // Si el proceso anterior colgó, lo matamos antes de continuar
+        if (root._running) {
+            captureProc.running = false
+            root._running = false
+        }
         root._running = true
         root.close()
         delayTimer.mode = mode
@@ -69,6 +82,7 @@ PanelWindow {
         interval: 250
         property string mode: "region"
         onTriggered: {
+            safetyTimer.restart()
             captureProc.command = ["bash", root._scriptsPath + "/screenshot.sh", mode]
             captureProc.running = true
         }
@@ -204,7 +218,6 @@ PanelWindow {
 
         Component.onCompleted: {
             opacity = 0
-            slideIn.start()
         }
     }
 
