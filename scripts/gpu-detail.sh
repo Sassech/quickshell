@@ -77,11 +77,29 @@ for entry in "${GPU_ENTRIES[@]:-}"; do
         [ -z "$name" ] && name=$(lspci 2>/dev/null | awk '/Intel.*VGA|Intel.*UHD|Intel.*Iris|Intel.*Arc/{sub(/.*: /,""); sub(/ \(rev[^)]*\)/,""); gsub(/^[[:space:]]+|[[:space:]]+$/,""); print; exit}')
         [ -z "$name" ] && name="Intel GPU"
 
-        # Frequency
-        freq=0
-        for f in "${card}gt_cur_freq_mhz" "${card}gt_act_freq_mhz" "${card}device/gt_cur_freq_mhz"; do
-            [ -f "$f" ] && freq=$(< "$f") && break
+        # GT base path — kernel ≥6.2 uses gt/gt0/, older uses card root
+        gt_base=""
+        for try in "${card}gt/gt0" "${card}gt0" "${card}device/gt0" "${card}"; do
+            [ -r "${try}/rps_act_freq_mhz" ] && gt_base="$try" && break
+            [ -r "${try}/gt_act_freq_mhz"  ] && gt_base="$try" && break
         done
+
+        freq_act=0; freq_cur=0; freq_max=0; freq_min=0
+        rc6=0; throttle=0; power_state="unknown"
+
+        if [ -n "$gt_base" ]; then
+            [ -r "${gt_base}/rps_act_freq_mhz" ] && freq_act=$(< "${gt_base}/rps_act_freq_mhz")
+            [ -r "${gt_base}/gt_act_freq_mhz"  ] && freq_act=$(< "${gt_base}/gt_act_freq_mhz")
+            [ -r "${gt_base}/rps_cur_freq_mhz" ] && freq_cur=$(< "${gt_base}/rps_cur_freq_mhz")
+            [ -r "${gt_base}/gt_cur_freq_mhz"  ] && freq_cur=$(< "${gt_base}/gt_cur_freq_mhz")
+            [ -r "${gt_base}/rps_max_freq_mhz" ] && freq_max=$(< "${gt_base}/rps_max_freq_mhz")
+            [ -r "${gt_base}/gt_max_freq_mhz"  ] && freq_max=$(< "${gt_base}/gt_max_freq_mhz")
+            [ -r "${gt_base}/rps_min_freq_mhz" ] && freq_min=$(< "${gt_base}/rps_min_freq_mhz")
+            [ -r "${gt_base}/rc6_enable"              ] && rc6=$(< "${gt_base}/rc6_enable")
+            [ -r "${gt_base}/throttle_reason_status"  ] && throttle=$(< "${gt_base}/throttle_reason_status")
+        fi
+
+        [ -r "${card}device/power_state" ] && power_state=$(< "${card}device/power_state")
 
         # Temperature via hwmon (i915 or xe)
         temp=0
@@ -95,9 +113,15 @@ for entry in "${GPU_ENTRIES[@]:-}"; do
 
         echo "${prefix}_VENDOR:intel"
         echo "${prefix}_NAME:$name"
-        echo "${prefix}_FREQ:${freq:-0}"
+        echo "${prefix}_FREQ:${freq_act:-${freq_cur:-0}}"
+        echo "${prefix}_FREQ_CUR:${freq_cur:-0}"
+        echo "${prefix}_FREQ_MAX:${freq_max:-0}"
+        echo "${prefix}_FREQ_MIN:${freq_min:-0}"
         echo "${prefix}_TEMP:$temp"
         echo "${prefix}_UTIL:-1"
+        echo "${prefix}_RC6:${rc6:-0}"
+        echo "${prefix}_THROTTLE:${throttle:-0}"
+        echo "${prefix}_POWER_STATE:${power_state:-unknown}"
         ;;
 
     # ── AMD ────────────────────────────────────────────────────────────────

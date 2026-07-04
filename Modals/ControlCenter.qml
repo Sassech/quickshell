@@ -1522,13 +1522,9 @@ PanelWindow {
         swapTotalGb:  SysData.swapTotalGb
         swapFreeGb:   SysData.swapFreeGb
 
-        // GPU
-        gpuAvailable:   SysData.gpuAvailable
-        gpuPercent:     SysData.gpuPercent >= 0 ? SysData.gpuPercent : 0
-        gpuTemp:        SysData.gpuTemp
-        gpuName:        SysData.gpuName
-        gpuVramUsedMb:  SysData.gpuVramUsedMb
-        gpuVramTotalMb: SysData.gpuVramTotalMb
+        // GPU — array completo del detail process + flag de carga
+        gpus:       root._gpus
+        gpuLoaded:  root._gpuLoaded
 
         // Language
         filteredLayouts: root._filteredLayouts
@@ -1751,18 +1747,28 @@ PanelWindow {
             for (var i = 1; i <= count; i++) {
                 var p = "GPU" + i + "_"
                 var vendor = (kv[p + "VENDOR"] || "").toLowerCase()
+                // Para Intel: freq activa puede ser 0 (idle) → usar cur como fallback
+                var freqAct = parseInt(kv[p + "FREQ"]) || 0
+                var freqCur = parseInt(kv[p + "FREQ_CUR"]) || 0
                 var obj = {
-                    vendor:     vendor,
-                    name:       kv[p + "NAME"]   || "",
-                    status:     kv[p + "STATUS"] || "active",
-                    util:       parseInt(kv[p + "UTIL"])       || 0,
-                    temp:       parseInt(kv[p + "TEMP"])       || parseInt(kv[p + "TEMP_EDGE"]) || 0,
-                    tempJun:    parseInt(kv[p + "TEMP_JUN"])   || 0,
-                    freq:       parseInt(kv[p + "FREQ"])       || 0,
-                    power:      parseFloat(kv[p + "POWER"])    || 0,
-                    vramUsed:   parseInt(kv[p + "VRAM_USED"])  || 0,
-                    vramTotal:  parseInt(kv[p + "VRAM_TOTAL"]) || 0,
-                    driver:     kv[p + "DRIVER"] || ""
+                    vendor:      vendor,
+                    name:        kv[p + "NAME"]   || "",
+                    status:      kv[p + "STATUS"] || "active",
+                    util:        parseInt(kv[p + "UTIL"])        || 0,
+                    temp:        parseInt(kv[p + "TEMP"])        || parseInt(kv[p + "TEMP_EDGE"]) || 0,
+                    tempJun:     parseInt(kv[p + "TEMP_JUN"])    || 0,
+                    freq:        freqAct > 0 ? freqAct : freqCur,
+                    freqMem:     parseInt(kv[p + "FREQ_MEM"])    || 0,
+                    freqMax:     parseInt(kv[p + "FREQ_MAX"])    || 0,
+                    freqMin:     parseInt(kv[p + "FREQ_MIN"])    || 0,
+                    power:       parseFloat(kv[p + "POWER"])     || 0,
+                    powerLimit:  parseFloat(kv[p + "POWER_LIMIT"]) || 0,
+                    vramUsed:    parseInt(kv[p + "VRAM_USED"])   || 0,
+                    vramTotal:   parseInt(kv[p + "VRAM_TOTAL"])  || 0,
+                    driver:      kv[p + "DRIVER"]       || "",
+                    rc6:         parseInt(kv[p + "RC6"]) || 0,
+                    throttle:    parseInt(kv[p + "THROTTLE"]) || 0,
+                    powerState:  kv[p + "POWER_STATE"]  || ""
                 }
                 list.push(obj)
             }
@@ -1774,8 +1780,11 @@ PanelWindow {
 
     Timer {
         interval: 1500; repeat: true
-        running: root.visible && root._expandedMetric === "gpu"
+        running: root.visible && root._activePanel === "gpu"
         onTriggered: { root._gpuBuf = ""; gpuDetailProc.running = true }
+        onRunningChanged: {
+            if (running) { root._gpuBuf = ""; gpuDetailProc.running = true }
+        }
     }
 
     // ── Fan profiles process — reads available profiles dynamically ────────

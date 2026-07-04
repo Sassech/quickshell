@@ -83,12 +83,8 @@ Item {
     required property real swapFreeGb
 
     // GPU
-    required property bool   gpuAvailable
-    required property int    gpuPercent
-    required property int    gpuTemp
-    required property string gpuName
-    required property int    gpuVramUsedMb
-    required property int    gpuVramTotalMb
+    required property var  gpus
+    required property bool gpuLoaded
 
     // Language
     required property var    filteredLayouts
@@ -311,12 +307,8 @@ Item {
         CcGpuPanel {
             visible: root.activePanel === "gpu"
 
-            gpuAvailable:  root.gpuAvailable
-            gpuPercent:    root.gpuPercent
-            gpuTemp:       root.gpuTemp
-            gpuName:       root.gpuName
-            gpuVramUsedMb: root.gpuVramUsedMb
-            gpuVramTotalMb: root.gpuVramTotalMb
+            gpus:      root.gpus
+            gpuLoaded: root.gpuLoaded
 
             onCloseRequested: root.closePanel()
         }
