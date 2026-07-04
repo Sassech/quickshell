@@ -59,9 +59,16 @@ Item {
     required property real  batTimeFull
 
     // CPU
-    required property bool cpuAvailable
-    required property int  cpuPercent
-    required property int  cpuTemp
+    required property bool   cpuAvailable
+    required property int    cpuPercent
+    required property int    cpuTemp
+    required property string cpuModel
+    required property int    cpuAvgFreq
+    required property string cpuGov
+    required property int    cpuNcores
+    required property var    cpuCorePcts
+    required property var    cpuCoreTemps
+    required property bool   cpuLoaded
 
     // RAM
     required property bool ramAvailable
@@ -264,9 +271,16 @@ Item {
         CcCpuPanel {
             visible: root.activePanel === "cpu"
 
-            cpuAvailable: root.cpuAvailable
-            cpuPercent:   root.cpuPercent
-            cpuTemp:      root.cpuTemp
+            cpuAvailable:  root.cpuAvailable
+            cpuPercent:    root.cpuPercent
+            cpuTemp:       root.cpuTemp
+            cpuModel:      root.cpuModel
+            cpuAvgFreq:    root.cpuAvgFreq
+            cpuGov:        root.cpuGov
+            cpuNcores:     root.cpuNcores
+            cpuCorePcts:   root.cpuCorePcts
+            cpuCoreTemps:  root.cpuCoreTemps
+            cpuLoaded:     root.cpuLoaded
 
             onCloseRequested: root.closePanel()
         }
