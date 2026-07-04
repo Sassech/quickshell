@@ -147,32 +147,46 @@ def fetch_ram() -> dict:
     except FileNotFoundError:
         return {}
 
-    mem_total = mem_avail = swap_total = swap_free = 0
+    mem_total = mem_free = mem_avail = 0
+    buffers = cached = shmem = s_reclaimable = 0
+    swap_total = swap_free = 0
+
     for line in lines.splitlines():
         parts = line.split()
         if len(parts) < 2:
             continue
         key, val = parts[0], int(parts[1])
-        if key == "MemTotal:":
-            mem_total = val
-        elif key == "MemAvailable:":
-            mem_avail = val
-        elif key == "SwapTotal:":
-            swap_total = val
-        elif key == "SwapFree:":
-            swap_free = val
+        if   key == "MemTotal:":       mem_total      = val
+        elif key == "MemFree:":        mem_free       = val
+        elif key == "MemAvailable:":   mem_avail      = val
+        elif key == "Buffers:":        buffers        = val
+        elif key == "Cached:":         cached         = val
+        elif key == "Shmem:":          shmem          = val
+        elif key == "SReclaimable:":   s_reclaimable  = val
+        elif key == "SwapTotal:":      swap_total     = val
+        elif key == "SwapFree:":       swap_free      = val
 
     if mem_total <= 0 or mem_avail <= 0:
         return {}
 
-    used = mem_total - mem_avail
+    # Misma fórmula que htop/free -h
+    cache_kb = buffers + cached + s_reclaimable - shmem
+    apps_kb  = mem_total - mem_free - buffers - cached - s_reclaimable + shmem
+    apps_kb  = max(0, apps_kb)
+    used     = mem_total - mem_avail
+    GB       = 1048576
+
     return {
-        "t": "ram",
-        "p": round(used * 100 / mem_total),
-        "ug": round(used / 1048576, 1),
-        "tg": round(mem_total / 1048576, 1),
-        "ag": round(mem_avail / 1048576, 1),
-        "sp": round((swap_total - swap_free) * 100 / swap_total) if swap_total > 0 else 0,
+        "t":   "ram",
+        "p":   round(used * 100 / mem_total),
+        "ug":  round(used      / GB, 1),
+        "tg":  round(mem_total / GB, 1),
+        "ag":  round(mem_avail / GB, 1),
+        "cg":  round(cache_kb  / GB, 1),
+        "xg":  round(apps_kb   / GB, 1),
+        "sp":  round((swap_total - swap_free) * 100 / swap_total) if swap_total > 0 else 0,
+        "stg": round(swap_total / GB, 1),
+        "sfg": round(swap_free  / GB, 1),
     }
 
 
