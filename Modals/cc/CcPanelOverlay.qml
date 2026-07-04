@@ -76,7 +76,11 @@ Item {
     required property real ramUsedGb
     required property real ramTotalGb
     required property real ramAvailGb
+    required property real ramCacheGb
+    required property real ramAppsGb
     required property int  swapPercent
+    required property real swapTotalGb
+    required property real swapFreeGb
 
     // GPU
     required property bool   gpuAvailable
@@ -294,7 +298,11 @@ Item {
             ramUsedGb:    root.ramUsedGb
             ramTotalGb:   root.ramTotalGb
             ramAvailGb:   root.ramAvailGb
+            ramCacheGb:   root.ramCacheGb
+            ramAppsGb:    root.ramAppsGb
             swapPercent:  root.swapPercent
+            swapTotalGb:  root.swapTotalGb
+            swapFreeGb:   root.swapFreeGb
 
             onCloseRequested: root.closePanel()
         }

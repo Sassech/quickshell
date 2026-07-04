@@ -2,18 +2,19 @@ import QtQuick
 import "../../Components"
 
 // ── CcRamPanel ───────────────────────────────────────────────────────────────
-// Panel de detalle de RAM: uso %, GB usados/total/disponibles + swap.
+// Panel de detalle de RAM: desglose Apps / Caché / Libre + Swap.
 Rectangle {
     id: root
-    implicitWidth: 300
-    implicitHeight: ramDetailCol.implicitHeight + 32
+    implicitWidth: 320
+    implicitHeight: ramCol.implicitHeight + 32
     radius: 14
     color: Theme.cardBg3
 
     // Borde sutil
     Rectangle {
         anchors.fill: parent; radius: parent.radius; color: "transparent"
-        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2); border.width: 1
+        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)
+        border.width: 1
     }
 
     // ── Inputs ────────────────────────────────────────────────────────────
@@ -22,24 +23,29 @@ Rectangle {
     required property real ramUsedGb
     required property real ramTotalGb
     required property real ramAvailGb
+    required property real ramCacheGb
+    required property real ramAppsGb
     required property int  swapPercent
+    required property real swapTotalGb
+    required property real swapFreeGb
 
     // ── Outputs ───────────────────────────────────────────────────────────
     signal closeRequested()
 
-    // ── Color helper ─────────────────────────────────────────────────────
-    property color _accentColor: {
+    // ── Helpers ──────────────────────────────────────────────────────────
+    function usageColor(pct) {
         if (!root.ramAvailable) return Theme.muted2
-        if (root.ramPercent >= 90) return Theme.error
-        if (root.ramPercent >= 75) return Theme.warning
-        if (root.ramPercent >= 60) return Theme.yellow
+        if (pct >= 90) return Theme.error
+        if (pct >= 75) return Theme.warning
+        if (pct >= 60) return Theme.yellow
         return Theme.accent
     }
 
+    // ── Layout ────────────────────────────────────────────────────────────
     Column {
-        id: ramDetailCol
+        id: ramCol
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
-        spacing: 6
+        spacing: 10
 
         // ── Header ────────────────────────────────────────────────────────
         Item {
@@ -63,66 +69,171 @@ Rectangle {
             }
         }
 
-        // ── Uso % bar ─────────────────────────────────────────────────────
-        Item {
-            width: parent.width; height: 6
-            Rectangle { anchors.fill: parent; radius: 3; color: Theme.surface3 }
-            Rectangle {
-                anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                width: Math.max(4, root.ramPercent / 100 * parent.width)
-                radius: 3; color: root._accentColor
-                Behavior on width { NumberAnimation { duration: 300 } }
-            }
+        // ── Sub-línea: total ───────────────────────────────────────────────
+        Text {
+            text: root.ramTotalGb.toFixed(0) + " GB total"
+            font.pixelSize: 10; color: Theme.muted2
         }
 
-        // ── Porcentaje + GB usados ─────────────────────────────────────────
-        Row {
-            spacing: 16
-            Text {
-                text: root.ramPercent + "%"
-                font.pixelSize: 13; font.weight: Font.DemiBold; color: Theme.text
-            }
-            Text {
-                text: root.ramUsedGb.toFixed(1) + " / " + root.ramTotalGb.toFixed(1) + " GB"
-                font.pixelSize: 11; color: Theme.muted1
-                anchors.verticalCenter: parent.verticalCenter
-            }
-        }
-
-        // ── Mini cards ────────────────────────────────────────────────────
+        // ── 2 cards: Usado + Libre ─────────────────────────────────────────
         Row {
             width: parent.width; spacing: 6
 
             Repeater {
                 model: [
-                    { value: root.ramUsedGb.toFixed(1) + " GB",   label: "Usada",      color: root._accentColor },
-                    { value: root.ramAvailGb.toFixed(1) + " GB",  label: "Disponible", color: Theme.accent },
-                    { value: root.swapPercent + "%",               label: "Swap",
-                      color: root.swapPercent >= 80 ? Theme.error
-                           : root.swapPercent >= 50 ? Theme.yellow
-                           : Theme.muted1 }
+                    {
+                        value: root.ramUsedGb.toFixed(1) + " GB",
+                        label: "Usado",
+                        color: root.usageColor(root.ramPercent)
+                    },
+                    {
+                        value: root.ramAvailGb.toFixed(1) + " GB",
+                        label: "Libre",
+                        color: Theme.accent
+                    }
                 ]
 
                 Rectangle {
-                    id: ramStatCard
+                    id: summaryCard
                     required property var modelData
-                    width: (parent.width - 12) / 3
+                    width: (parent.width - 6) / 2
                     height: 48; radius: 8; color: Theme.surface3
                     Column {
                         anchors.centerIn: parent; spacing: 3
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: ramStatCard.modelData.value
-                            font.pixelSize: 12; font.weight: Font.DemiBold
-                            color: ramStatCard.modelData.color
+                            text: summaryCard.modelData.value
+                            font.pixelSize: 13; font.weight: Font.DemiBold
+                            color: summaryCard.modelData.color
                         }
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: ramStatCard.modelData.label
+                            text: summaryCard.modelData.label
                             font.pixelSize: 9; color: Theme.muted2
                         }
                     }
                 }
+            }
+        }
+
+        // ── Desglose Apps / Caché / Libre ─────────────────────────────────
+        Column {
+            width: parent.width
+            spacing: 6
+
+            Repeater {
+                model: [
+                    {
+                        label: "Apps",
+                        gb:    root.ramAppsGb,
+                        pct:   root.ramTotalGb > 0 ? root.ramAppsGb / root.ramTotalGb : 0,
+                        color: root.usageColor(root.ramPercent)
+                    },
+                    {
+                        label: "Caché",
+                        gb:    root.ramCacheGb,
+                        pct:   root.ramTotalGb > 0 ? root.ramCacheGb / root.ramTotalGb : 0,
+                        color: Theme.muted1
+                    },
+                    {
+                        label: "Libre",
+                        gb:    root.ramAvailGb,
+                        pct:   root.ramTotalGb > 0 ? root.ramAvailGb / root.ramTotalGb : 0,
+                        color: Theme.accent
+                    }
+                ]
+
+                Item {
+                    id: segRow
+                    required property var modelData
+                    required property int index
+                    width: ramCol.width
+                    height: 16
+
+                    // Label
+                    Text {
+                        id: segLabel
+                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                        text: segRow.modelData.label
+                        font.pixelSize: 10; color: Theme.muted2
+                        width: 38
+                    }
+
+                    // Barra
+                    Item {
+                        id: segBarItem
+                        anchors {
+                            left: segLabel.right; leftMargin: 8
+                            right: segGbText.left; rightMargin: 8
+                            verticalCenter: parent.verticalCenter
+                        }
+                        height: 5
+
+                        Rectangle { anchors.fill: parent; radius: 3; color: Theme.surface3 }
+                        Rectangle {
+                            anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                            width: Math.max(3, segRow.modelData.pct * parent.width)
+                            radius: 3
+                            color: segRow.modelData.color
+                            Behavior on width { NumberAnimation { duration: 300 } }
+                        }
+                    }
+
+                    // GB
+                    Text {
+                        id: segGbText
+                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                        text: segRow.modelData.gb.toFixed(1) + " GB"
+                        font.pixelSize: 10; color: Theme.text
+                        width: 50; horizontalAlignment: Text.AlignRight
+                    }
+                }
+            }
+        }
+
+        // ── Swap ──────────────────────────────────────────────────────────
+        Item {
+            width: parent.width; height: 16
+            visible: root.swapTotalGb > 0
+
+            Text {
+                id: swapLabel
+                anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                text: "Swap"
+                font.pixelSize: 10; color: Theme.muted2
+                width: 38
+            }
+
+            Item {
+                anchors {
+                    left: swapLabel.right; leftMargin: 8
+                    right: swapGbText.left; rightMargin: 8
+                    verticalCenter: parent.verticalCenter
+                }
+                height: 5
+
+                property real pct: root.swapTotalGb > 0
+                                   ? (root.swapTotalGb - root.swapFreeGb) / root.swapTotalGb
+                                   : 0
+
+                Rectangle { anchors.fill: parent; radius: 3; color: Theme.surface3 }
+                Rectangle {
+                    anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                    width: Math.max(parent.pct > 0 ? 3 : 0, parent.pct * parent.width)
+                    radius: 3
+                    color: root.swapPercent >= 80 ? Theme.error
+                         : root.swapPercent >= 50 ? Theme.yellow
+                         : Theme.muted1
+                    Behavior on width { NumberAnimation { duration: 300 } }
+                }
+            }
+
+            Text {
+                id: swapGbText
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                text: (root.swapTotalGb - root.swapFreeGb).toFixed(1) + " / " + root.swapTotalGb.toFixed(0) + " GB"
+                font.pixelSize: 10; color: Theme.text
+                width: 70; horizontalAlignment: Text.AlignRight
             }
         }
     }
