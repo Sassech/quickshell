@@ -204,6 +204,8 @@ PanelWindow {
     property string _cpuGov:       ""
     property string _cpuEpp:       ""
     property var    _cpuCorePcts:  []
+    property var    _cpuCoreTemps: []
+    property int    _cpuNcores:    0
     property string _cpuBuf:       ""
 
     // GPU detail — list of GPU objects parsed from gpu-detail.sh
@@ -1497,9 +1499,16 @@ PanelWindow {
         batTimeFull:   root._batTimeFull
 
         // CPU
-        cpuAvailable: SysData.cpuAvailable
-        cpuPercent:   SysData.cpuPercent
-        cpuTemp:      SysData.cpuTemp
+        cpuAvailable:   SysData.cpuAvailable
+        cpuPercent:     SysData.cpuPercent
+        cpuTemp:        SysData.cpuTemp
+        cpuModel:       root._cpuModel
+        cpuAvgFreq:     root._cpuAvgFreq
+        cpuGov:         root._cpuGov
+        cpuNcores:      root._cpuNcores
+        cpuCorePcts:    root._cpuCorePcts
+        cpuCoreTemps:   root._cpuCoreTemps
+        cpuLoaded:      root._cpuLoaded
 
         // RAM
         ramAvailable: SysData.ramAvailable
@@ -1700,17 +1709,23 @@ PanelWindow {
             if (kv["AVG_FREQ"])   root._cpuAvgFreq  = parseInt(kv["AVG_FREQ"])  || 0
             if (kv["GOV"])        root._cpuGov      = kv["GOV"]
             if (kv["EPP"])        root._cpuEpp      = kv["EPP"]
-            if (kv["CORE_PCTS"])  root._cpuCorePcts = kv["CORE_PCTS"].split(",").map(function(s) { return parseInt(s) || 0 })
+            if (kv["CORE_PCTS"])   root._cpuCorePcts   = kv["CORE_PCTS"].split(",").map(function(s) { return parseInt(s) || 0 })
+            if (kv["CORE_TEMPS"])  root._cpuCoreTemps  = kv["CORE_TEMPS"].split(",").map(function(s) { return parseInt(s) || 0 })
+            if (kv["NCORES"])      root._cpuNcores     = parseInt(kv["NCORES"]) || 0
             root._cpuLoaded = true
         }
         // qmllint enable signal-handler-parameters
     }
 
-    // Refrescar CPU mientras esté expandido
+    // Refrescar CPU mientras el panel esté abierto
     Timer {
         interval: 1500; repeat: true
-        running: root.visible && root._expandedMetric === "cpu"
+        running: root.visible && root._activePanel === "cpu"
         onTriggered: { root._cpuBuf = ""; cpuDetailProc.running = true }
+        onRunningChanged: {
+            // Primera ejecución inmediata al abrir el panel
+            if (running) { root._cpuBuf = ""; cpuDetailProc.running = true }
+        }
     }
 
     // ── GPU detail process — multi-vendor parser ──────────────────────────
