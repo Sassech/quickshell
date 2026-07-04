@@ -1516,7 +1516,11 @@ PanelWindow {
         ramUsedGb:    SysData.ramUsedGb
         ramTotalGb:   SysData.ramTotalGb
         ramAvailGb:   SysData.ramAvailGb
+        ramCacheGb:   SysData.ramCacheGb
+        ramAppsGb:    SysData.ramAppsGb
         swapPercent:  SysData.swapPercent
+        swapTotalGb:  SysData.swapTotalGb
+        swapFreeGb:   SysData.swapFreeGb
 
         // GPU
         gpuAvailable:   SysData.gpuAvailable

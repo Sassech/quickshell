@@ -23,7 +23,11 @@ QtObject {
     property real ramUsedGb: 0.0
     property real ramTotalGb: 0.0
     property real ramAvailGb: 0.0
-    property int swapPercent: 0
+    property int  swapPercent:  0
+    property real ramCacheGb:   0.0
+    property real ramAppsGb:    0.0
+    property real swapTotalGb:  0.0
+    property real swapFreeGb:   0.0
     property bool ramAvailable: false
 
     // ── GPU ────────────────────────────────────────────────────────────────
@@ -86,11 +90,15 @@ QtObject {
             data.cpuAvailable = true
             break
         case "ram":
-            data.ramPercent = msg.p
-            data.ramUsedGb = msg.ug
-            data.ramTotalGb = msg.tg
-            data.ramAvailGb = msg.ag
+            data.ramPercent  = msg.p
+            data.ramUsedGb   = msg.ug
+            data.ramTotalGb  = msg.tg
+            data.ramAvailGb  = msg.ag
             data.swapPercent = msg.sp
+            data.ramCacheGb  = msg.cg  || 0.0
+            data.ramAppsGb   = msg.xg  || 0.0
+            data.swapTotalGb = msg.stg || 0.0
+            data.swapFreeGb  = msg.sfg || 0.0
             data.ramAvailable = true
             break
         case "gpu":
