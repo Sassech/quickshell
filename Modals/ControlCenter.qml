@@ -1596,9 +1596,10 @@ PanelWindow {
             _langSearchDebounce.restart()
         }
         onLangSetLayout: (code) => {
-            var cmd = "hyprctl keyword input:kb_layout " + code +
-                      " 2>/dev/null && sleep 0.4 && hyprctl dispatch switchxkblayout all 0"
-            langSetProc.command = ["sh", "-c", cmd]
+            // Use array form to avoid shell injection and pass the layout name safely.
+            // hyprctl keyword input:kb_layout expects an XKB layout identifier (e.g. "es", "us", "latam").
+            // After setting, reload the config so Hyprland picks it up cleanly.
+            langSetProc.command = ["hyprctl", "keyword", "input:kb_layout", code]
             if (!langSetProc.running) langSetProc.running = true
             root._langLayout = code
         }
@@ -1823,12 +1824,12 @@ PanelWindow {
     }
 
     // ── Language processes ────────────────────────────────────────────────
-    // Current layout from Hyprland
+    // Current layout from Hyprland — reads the XKB layout code (e.g. "es", "us")
+    // via getoption so it matches the identifiers in list-x11-keymap-layouts.
     Process {
         id: langCurrentProc
         command: ["sh", "-c",
-            "hyprctl devices -j 2>/dev/null | " +
-            "python3 -c \"import json,sys; d=json.load(sys.stdin); k=d.get('keyboards',[]); kb=next((x for x in k if x.get('main')), k[0] if k else {}); print(kb.get('active_keymap',''))\""]
+            "hyprctl getoption input:kb_layout 2>/dev/null | awk '/^str:/{print $2}'"]
         stdout: SplitParser {
             splitMarker: ""
             onRead: d => {
@@ -1849,10 +1850,10 @@ PanelWindow {
         }
     }
 
-    // Available layouts from localectl
+    // Available layouts from localectl (X11/XKB layouts — the ones Hyprland understands)
     Process {
         id: langLayoutProc
-        command: ["sh", "-c", "timeout 3s localectl list-keymaps 2>/dev/null"]
+        command: ["sh", "-c", "timeout 3s localectl list-x11-keymap-layouts 2>/dev/null"]
         stdout: SplitParser { splitMarker: "\n"; onRead: d => root._langBuf += d + "\n" }
         // qmllint disable signal-handler-parameters
         onExited: {
@@ -1869,10 +1870,10 @@ PanelWindow {
         // qmllint enable signal-handler-parameters
     }
 
-    // Apply layout via Hyprland
+    // Apply layout via Hyprland — command is set dynamically before running
     Process {
         id: langSetProc
-        command: ["sh", "-c", ""]
+        command: ["hyprctl", "keyword", "input:kb_layout", ""]
         // qmllint disable signal-handler-parameters
         onExited: Qt.callLater(() => langCurrentProc.running = true)
         // qmllint enable signal-handler-parameters
