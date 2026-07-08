@@ -49,17 +49,20 @@ Rectangle {
         acceptedButtons: Qt.LeftButton | Qt.RightButton
 
         onClicked: mouse => {
+            // Coordenadas globales del ícono relativas al PanelWindow
+            const pos = root.mapToItem(null, 0, 0)
+
             if (mouse.button === Qt.RightButton) {
                 // Context menu nativo vía protocolo SNI
                 if (root.trayItem.hasMenu) {
-                    root.trayItem.display(root.panelWindow, root.x, root.y)
+                    root.trayItem.display(root.panelWindow, pos.x, pos.y)
                 }
             } else {
                 // Left click: si el item solo tiene menú, mostrarlo; si no, activarlo
                 if (root.trayItem.onlyMenu && root.trayItem.hasMenu) {
-                    root.trayItem.display(root.panelWindow, root.x, root.y)
+                    root.trayItem.display(root.panelWindow, pos.x, pos.y)
                 } else {
-                    root.trayItem.activate(root.x, root.y)
+                    root.trayItem.activate()
                 }
             }
         }
