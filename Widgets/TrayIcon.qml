@@ -1,6 +1,8 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell
 import Quickshell.Widgets
+import Quickshell.Services.SystemTray
 
 Rectangle {
     id: root
@@ -12,14 +14,38 @@ Rectangle {
     width: size
     height: size
     radius: 4
-    color: ma.containsMouse ? "#22ffffff" : "transparent"
 
+    // ── Color de fondo según estado ──────────────────────────────────────
+    property bool _needsAttention: root.trayItem.status === SystemTrayStatus.NeedsAttention
+
+    color: ma.containsMouse ? "#22ffffff" : "transparent"
     Behavior on color { ColorAnimation { duration: 100 } }
 
     scale: ma.pressed ? 0.92 : 1.0
     Behavior on scale { NumberAnimation { duration: 50 } }
 
-    // ── Resolver icono con soporte para ?path= custom icons ─────────
+    // ── Glow pulsante cuando NeedsAttention ─────────────────────────────
+    Rectangle {
+        id: attentionGlow
+        anchors.centerIn: parent
+        width: parent.width + 6
+        height: parent.height + 6
+        radius: parent.radius + 3
+        color: "transparent"
+        border.color: "#ffcc00"
+        border.width: 1.5
+        opacity: 0
+        visible: root._needsAttention
+
+        SequentialAnimation on opacity {
+            running: root._needsAttention
+            loops: Animation.Infinite
+            NumberAnimation { to: 0.85; duration: 700; easing.type: Easing.InOutSine }
+            NumberAnimation { to: 0;    duration: 700; easing.type: Easing.InOutSine }
+        }
+    }
+
+    // ── Resolver icono con soporte para ?path= custom icons ─────────────
     // Algunas apps (ej. Spotify) envían iconos como "image://icon/spotify-linux-32?path=/usr/share/spotify/icons"
     // Quickshell no soporta custom icon paths, así que lo resolvemos manualmente.
     property string _resolvedIcon: {
@@ -41,15 +67,40 @@ Rectangle {
         asynchronous: true
     }
 
+    // ── Tooltip ──────────────────────────────────────────────────────────
+    ToolTip {
+        id: tooltip
+        visible: ma.containsMouse && (root.trayItem.tooltipTitle !== "" || root.trayItem.title !== "")
+        delay: 600
+        text: {
+            const title = root.trayItem.tooltipTitle || root.trayItem.title || ""
+            const desc  = root.trayItem.tooltipDescription ?? ""
+            return desc !== "" ? title + "\n" + desc : title
+        }
+        contentItem: Text {
+            text: tooltip.text
+            color: "#e0e0e0"
+            font.pixelSize: 11
+            wrapMode: Text.WordWrap
+        }
+        background: Rectangle {
+            color: "#1e1e2e"
+            border.color: "#44ffffff"
+            border.width: 1
+            radius: 4
+        }
+    }
+
+    // ── Interacción ──────────────────────────────────────────────────────
     MouseArea {
         id: ma
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
 
         onClicked: mouse => {
-            // Coordenadas globales del ícono relativas al PanelWindow
+            // Coordenadas relativas al PanelWindow (scene root)
             const pos = root.mapToItem(null, 0, 0)
 
             if (mouse.button === Qt.RightButton) {
@@ -57,6 +108,9 @@ Rectangle {
                 if (root.trayItem.hasMenu) {
                     root.trayItem.display(root.panelWindow, pos.x, pos.y)
                 }
+            } else if (mouse.button === Qt.MiddleButton) {
+                // Secondary activation (ej. Steam: pausa/resume descarga)
+                root.trayItem.secondaryActivate()
             } else {
                 // Left click: si el item solo tiene menú, mostrarlo; si no, activarlo
                 if (root.trayItem.onlyMenu && root.trayItem.hasMenu) {
@@ -65,6 +119,13 @@ Rectangle {
                     root.trayItem.activate()
                 }
             }
+        }
+
+        onWheel: wheel => {
+            // Scroll: ej. volumen en mixer, brillo, etc.
+            const horizontal = wheel.angleDelta.x !== 0
+            const delta = horizontal ? wheel.angleDelta.x : wheel.angleDelta.y
+            root.trayItem.scroll(delta, horizontal)
         }
     }
 }
