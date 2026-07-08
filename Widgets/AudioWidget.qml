@@ -5,12 +5,11 @@ import "../Components"
 
 Rectangle {
     id: root
-    signal clicked()
 
     implicitWidth: row.implicitWidth + 16
     implicitHeight: 26
     radius: 8
-    color: mouseArea.containsMouse ? Theme.surface3 : Theme.surface2
+    color: Theme.surface2
 
     Behavior on color { ColorAnimation { duration: 100 } }
 
@@ -92,11 +91,5 @@ Rectangle {
         }
     }
 
-    MouseArea {
-        id: mouseArea
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        onClicked: root.clicked()
-    }
+
 }

@@ -8,11 +8,6 @@ import "../Widgets"
 PanelWindow {
     id: root
 
-    signal languageClicked(var screen)
-    signal wifiClicked(var screen)
-    signal bluetoothClicked(var screen)
-    signal audioClicked(var screen)
-
     anchors {
         bottom: true
         left:   true
@@ -57,7 +52,6 @@ PanelWindow {
 
             AudioWidget {
                 anchors.verticalCenter: parent.verticalCenter
-                onClicked: root.audioClicked(root.screen)
             }
 
             NetworkWidget {
@@ -70,7 +64,6 @@ PanelWindow {
 
             LanguageWidget {
                 anchors.verticalCenter: parent.verticalCenter
-                onClicked: root.languageClicked(root.screen)
             }
         }
     }
