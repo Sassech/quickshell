@@ -307,11 +307,6 @@ ShellRoot {
     signal broadcastNotify(string title, string body, string icon, bool active, bool isMedia)
     signal broadcastCloseAll(var screen)
     signal broadcastWeather(var screen)
-
-
-
-
-
     signal broadcastClipboard(var screen)
     signal broadcastSpotlight(var screen)
     signal broadcastWallpaperPicker(var screen)
@@ -322,7 +317,6 @@ ShellRoot {
     signal broadcastWifi(var screen)
     signal broadcastBluetooth(var screen)
     signal broadcastAudio(var screen)
-
     signal broadcastBrightness(int pct)
     signal broadcastVolume()
     signal broadcastClock(var screen)
@@ -356,10 +350,6 @@ ShellRoot {
         BottomBar {
             property var modelData
             screen: modelData
-            onLanguageClicked:   screen => root.broadcastLanguage(screen)
-            onWifiClicked:       screen => root.broadcastWifi(screen)
-            onBluetoothClicked:  screen => root.broadcastBluetooth(screen)
-
         }
     }
 
