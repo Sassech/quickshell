@@ -196,32 +196,11 @@ PanelWindow {
     // ── Métricas expandibles — estado ─────────────────────────────────────
     property string _expandedMetric: ""   // "cpu" | "ram" | "gpu" | ""
 
-    // CPU detail
-    property bool   _cpuLoaded:    false
-    property string _cpuModel:     ""
-    property int    _cpuPkgTemp:   0
-    property int    _cpuAvgFreq:   0
-    property string _cpuGov:       ""
-    property string _cpuEpp:       ""
-    property var    _cpuCorePcts:  []
-    property var    _cpuCoreTemps: []
-    property int    _cpuNcores:    0
-    property string _cpuBuf:       ""
-
     // GPU detail — list of GPU objects parsed from gpu-detail.sh
     // Each: { vendor, name, util, temp, tempJun, freq, power, vramUsed, vramTotal, driver, status }
     property bool   _gpuLoaded: false
     property var    _gpus:      []        // populated by gpuDetailProc
     property string _gpuBuf:    ""
-
-    // Disk
-    property int    _diskPct:      SysData.diskPercent
-    property int    _diskUsed:     SysData.diskUsedGb
-    property int    _diskTotal:    SysData.diskUsedGb + SysData.diskAvailGb
-    property int    _homePct:      0
-    property int    _homeUsed:     0
-    property int    _homeTotal:    0
-    property string _diskBuf:      ""
 
     // ── Audio — Pipewire API nativa ───────────────────────────────────────
     property var defaultSink:   Pipewire.defaultAudioSink
@@ -1292,11 +1271,8 @@ PanelWindow {
     onVisibleChanged: {
         if (visible) {
             root._buf      = ""
-            root._diskBuf  = ""
-            root._cpuLoaded = false
             root._gpuLoaded = false
             getBrightnessProc.running = true
-            diskDetailProc.running    = true
             Qt.callLater(root._syncPlayerPos)
             root._pwRev++
             root._btRev++
@@ -1461,12 +1437,12 @@ PanelWindow {
                 CcSystemSection {
                     width: parent.width
                     activePanel: root._activePanel
-                    diskPct:    root._diskPct
-                    diskUsed:   root._diskUsed
-                    diskTotal:  root._diskTotal
-                    homePct:    root._homePct
-                    homeUsed:   root._homeUsed
-                    homeTotal:  root._homeTotal
+                    diskPct:    SysData.diskPercent
+                    diskUsed:   SysData.diskUsedGb
+                    diskTotal:  SysData.diskUsedGb + SysData.diskAvailGb
+                    homePct:    SysData.homePercent
+                    homeUsed:   SysData.homeUsedGb
+                    homeTotal:  SysData.homeUsedGb + SysData.homeAvailGb
                     onTogglePanel: function(key) {
                         root._activePanel = (root._activePanel === key) ? "" : key
                     }
@@ -1554,13 +1530,13 @@ PanelWindow {
         cpuAvailable:   SysData.cpuAvailable
         cpuPercent:     SysData.cpuPercent
         cpuTemp:        SysData.cpuTemp
-        cpuModel:       root._cpuModel
-        cpuAvgFreq:     root._cpuAvgFreq
-        cpuGov:         root._cpuGov
-        cpuNcores:      root._cpuNcores
-        cpuCorePcts:    root._cpuCorePcts
-        cpuCoreTemps:   root._cpuCoreTemps
-        cpuLoaded:      root._cpuLoaded
+        cpuModel:       SysData.cpuModel
+        cpuAvgFreq:     SysData.cpuAvgFreqMhz
+        cpuGov:         SysData.cpuGovernor
+        cpuNcores:      SysData.cpuNcores
+        cpuCorePcts:    SysData.cpuCorePcts
+        cpuCoreTemps:   SysData.cpuCoreTemps
+        cpuLoaded:      SysData.cpuAvailable
 
         // RAM
         ramAvailable: SysData.ramAvailable
@@ -1744,40 +1720,15 @@ PanelWindow {
         // qmllint enable signal-handler-parameters
     }
 
-    // ── CPU detail process ────────────────────────────────────────────────
-    Process {
-        id: cpuDetailProc
-        command: ["bash", Paths.scripts + "/cpu-detail.sh"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._cpuBuf += d + "\n" }
-        // qmllint disable signal-handler-parameters
-        onExited: {
-            var kv = {}
-            root._cpuBuf.trim().split("\n").forEach(function(line) {
-                var idx = line.indexOf(":")
-                if (idx > 0) kv[line.substring(0, idx)] = line.substring(idx + 1)
-            })
-            root._cpuBuf = ""
-            if (kv["MODEL"])      root._cpuModel    = kv["MODEL"]
-            if (kv["PKG_TEMP"])   root._cpuPkgTemp  = parseInt(kv["PKG_TEMP"])  || 0
-            if (kv["AVG_FREQ"])   root._cpuAvgFreq  = parseInt(kv["AVG_FREQ"])  || 0
-            if (kv["GOV"])        root._cpuGov      = kv["GOV"]
-            if (kv["EPP"])        root._cpuEpp      = kv["EPP"]
-            if (kv["CORE_PCTS"])   root._cpuCorePcts   = kv["CORE_PCTS"].split(",").map(function(s) { return parseInt(s) || 0 })
-            if (kv["CORE_TEMPS"])  root._cpuCoreTemps  = kv["CORE_TEMPS"].split(",").map(function(s) { return parseInt(s) || 0 })
-            if (kv["NCORES"])      root._cpuNcores     = parseInt(kv["NCORES"]) || 0
-            root._cpuLoaded = true
-        }
-        // qmllint enable signal-handler-parameters
-    }
-
+    // ── CPU detail refresh — native QML pollers (SysData), no subprocess ───
     // Refrescar CPU mientras el panel esté abierto
     Timer {
         interval: 1500; repeat: true
         running: root.visible && root._activePanel === "cpu"
-        onTriggered: { root._cpuBuf = ""; cpuDetailProc.running = true }
+        onTriggered: SysData.refreshCpuDetail()
         onRunningChanged: {
             // Primera ejecución inmediata al abrir el panel
-            if (running) { root._cpuBuf = ""; cpuDetailProc.running = true }
+            if (running) SysData.refreshCpuDetail()
         }
     }
 
@@ -1960,27 +1911,10 @@ PanelWindow {
         // qmllint enable signal-handler-parameters
     }
 
-    // ── Disk detail process (root + home) ─────────────────────────────────
-    Process {
-        id: diskDetailProc
-        command: ["bash", Paths.scripts + "/disk-detail.sh"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._diskBuf += d + "\n" }
-        // qmllint disable signal-handler-parameters
-        onExited: {
-            var kv = {}
-            root._diskBuf.trim().split("\n").forEach(function(line) {
-                var idx = line.indexOf(":")
-                if (idx > 0) kv[line.substring(0, idx)] = line.substring(idx + 1)
-            })
-            root._diskBuf = ""
-            if (kv["PCT"])        root._diskPct   = parseInt(kv["PCT"])        || 0
-            if (kv["USED"])       root._diskUsed  = parseInt(kv["USED"])       || 0
-            if (kv["TOTAL"])      root._diskTotal = parseInt(kv["TOTAL"])      || 0
-            if (kv["HOME_PCT"])   root._homePct   = parseInt(kv["HOME_PCT"])   || 0
-            if (kv["HOME_USED"])  root._homeUsed  = parseInt(kv["HOME_USED"])  || 0
-            if (kv["HOME_TOTAL"]) root._homeTotal = parseInt(kv["HOME_TOTAL"]) || 0
-        }
-        // qmllint enable signal-handler-parameters
-    }
-
+    // ── Disk detail — root/home usage bound directly to SysData.diskPercent
+    // /diskUsedGb/diskAvailGb/homePercent/homeUsedGb/homeAvailGb (native QML
+    // poller, 30s) in the CcSystemSection instantiation above. No detail
+    // panel (NVMe model/fw/temp, I/O rates) exists in this UI yet — those
+    // SysData properties (diskNvmeModel/Fw/Temp, diskReadMbs/WriteMbs) and
+    // SysData.triggerDiskIoSample() remain available for a future disk panel.
 }

@@ -525,6 +525,19 @@ QtObject {
         }
     }
 
+    // Public trigger — called from ControlCenter's CPU panel (Phase 3) to force
+    // an immediate refresh of every CPU detail property instead of waiting for
+    // the next 4s/5s timer tick. Replaces the old 1500ms cpuDetailProc poll.
+    function refreshCpuDetail() {
+        cpuStatFile.reload()
+        cpuTempFile.reload()
+        if (!cpuFreqProc.running) cpuFreqProc.running = true
+        if (data._coreTempPaths.length > 0 && !coreTempProc.running) coreTempProc.running = true
+        cpuGovFile.reload()
+        cpuEppFile.reload()
+        cpuMaxFreqFile.reload()
+    }
+
     // ── 2.3 Fan poller (FileView hwmon sysfs, 5s) ────────────────────────────
     property int _fanMax1: 3700
     property int _fanMax2: 4000

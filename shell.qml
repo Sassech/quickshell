@@ -15,46 +15,14 @@ ShellRoot {
     // ── Shared paths (resolved via Paths singleton) ──────────────────────
     property string _scriptsPath: Paths.scripts
     property string _configPath:  Paths.config
-    // ════════════════════════════════════════════════════════════════════════
-    // ── Python Backend — single process feeding all system data ──────────
-    // ════════════════════════════════════════════════════════════════════════
-    Process {
-        id: backendProcess
-        command: ["python3", root._scriptsPath + "/quickshell_backend.py"]
-        running: true
-
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => {
-                const line = data.trim()
-                if (!line) return
-                try {
-                    SysData.dispatch(JSON.parse(line))
-                } catch(e) {}
-            }
-        }
-
-        onRunningChanged: {
-            if (!running) {
-                console.log("[Backend] exited — restarting in 3s")
-                restartTimer.start()
-            }
-        }
-    }
-
-    Timer {
-        id: restartTimer
-        interval: 3000
-        onTriggered: backendProcess.running = true
-    }
 
     // ════════════════════════════════════════════════════════════════════════
     // ── System Data Discovery — one-time startup chain (Phase 1 foundation) ──
     // Resolves hwmon/device paths that vary across boots and caches them on
     // SysData. Runs once at startup; each stage fires the next via onExited.
-    // Gates SysData.pollersReady, which nothing reads yet — Phase 2 pollers
-    // and Phase 3 ControlCenter rewiring will consume it. The Python backend
-    // above is untouched by this chain.
+    // Gates SysData.pollersReady, consumed by the native QML pollers (Phase 2)
+    // and ControlCenter (Phase 3). The Python backend has been fully removed —
+    // these native pollers are now the sole source of system data.
     // ════════════════════════════════════════════════════════════════════════
 
     // Stage 1 — hwmon names → SysData._hwmonSmm/_hwmonAwcc/_hwmonCpu/_hwmonNvme
@@ -952,11 +920,10 @@ ShellRoot {
     Component.onCompleted: {
         loadNotificationConfig()
         console.log("Quickshell loaded")
-        console.log("✅ Backend | Workspaces | Power Menu | Weather | Notifications | UPower")
+        console.log("✅ SysData | Workspaces | Power Menu | Weather | Notifications | UPower")
     }
 
     Component.onDestruction: {
-        backendProcess.running = false
         clipboardFifo.running = false
         wallpaperFifo.running = false
         overviewFifo.running = false
