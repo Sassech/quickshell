@@ -227,42 +227,63 @@ PanelWindow {
     property var defaultSink:   Pipewire.defaultAudioSink
     property var defaultSource: Pipewire.defaultAudioSource
 
-    PwObjectTracker { objects: [root.defaultSink, root.defaultSource] }
+    PwObjectTracker { objects: [root.defaultSink, root.defaultSource, root._activeSink, root._activeSource] }
 
-    // masterVolume / masterMuted / micVolume / micMuted se enlazan reactivamente
-    // desde el audio del sink/source default — sin procesos externos
-    property real masterVolume: defaultSink?.audio?.volume  ?? 0.75
-    property bool masterMuted:  defaultSink?.audio?.muted   ?? false
-    property real micVolume:    defaultSource?.audio?.volume ?? 0.75
-    property bool micMuted:     defaultSource?.audio?.muted  ?? false
+    // Pipewire.defaultAudioSink/defaultSource no cambian de forma confiable al
+    // usar preferredDefaultAudioSink/Source, así que trackeamos nosotrxs el
+    // nodo y nombre activos para highlight, volumen, mute y bindings.
+    property var    _activeSink:        defaultSink
+    property var    _activeSource:      defaultSource
+    property string _activeSinkName:    defaultSink?.name   ?? ""
+    property string _activeSourceName:  defaultSource?.name ?? ""
 
-    // Mantener sincronizados cuando cambia el sink/source default
+    // Volumen/mute bindeados al nodo activo (no al default de Pipewire)
+    property real masterVolume: root._activeSink?.audio?.volume   ?? 0.75
+    property bool masterMuted:  root._activeSink?.audio?.muted    ?? false
+    property real micVolume:    root._activeSource?.audio?.volume ?? 0.75
+    property bool micMuted:     root._activeSource?.audio?.muted  ?? false
+
+    // Sincronizar tracking cuando Pipewire avisa de un cambio real
     Connections {
         target: Pipewire
-        function onDefaultAudioSinkChanged()   { root._pwRev++ }
-        function onDefaultAudioSourceChanged() { root._pwRev++ }
+        function onDefaultAudioSinkChanged() {
+            root._pwRev++
+            if (root.defaultSink?.name) {
+                root._activeSink     = root.defaultSink
+                root._activeSinkName = root.defaultSink.name
+            }
+        }
+        function onDefaultAudioSourceChanged() {
+            root._pwRev++
+            if (root.defaultSource?.name) {
+                root._activeSource     = root.defaultSource
+                root._activeSourceName = root.defaultSource.name
+            }
+        }
     }
 
+    // Volumen/mute del sink activo
     Connections {
-        target: root.defaultSink?.audio ?? null
+        target: root._activeSink?.audio ?? null
         function onVolumesChanged() {
-            const v = root.defaultSink?.audio?.volume
+            const v = root._activeSink?.audio?.volume
             if (v !== undefined && !isNaN(v)) root.masterVolume = v
         }
         function onMutedChanged() {
-            const m = root.defaultSink?.audio?.muted
+            const m = root._activeSink?.audio?.muted
             if (m !== undefined) root.masterMuted = m
         }
     }
 
+    // Volumen/mute del source activo
     Connections {
-        target: root.defaultSource?.audio ?? null
+        target: root._activeSource?.audio ?? null
         function onVolumesChanged() {
-            const v = root.defaultSource?.audio?.volume
+            const v = root._activeSource?.audio?.volume
             if (v !== undefined && !isNaN(v)) root.micVolume = v
         }
         function onMutedChanged() {
-            const m = root.defaultSource?.audio?.muted
+            const m = root._activeSource?.audio?.muted
             if (m !== undefined) root.micMuted = m
         }
     }
@@ -284,9 +305,9 @@ PanelWindow {
     // Computed — se recalcula cuando cambia _pwRev o los mapas de disponibilidad
     // Gate: solo escanea nodos cuando el panel de audio está activo y visible
     property var audioSinks: {
-        _pwRev; _audioSinkAvail
+        _pwRev; _audioSinkAvail; root._activeSinkName
         if (!root.visible || root._activePanel !== "audio") return []
-        var activeName = root.defaultSink?.name ?? ""
+        var activeName = root._activeSinkName || root.defaultSink?.name || ""
         var out = []
         var all = Pipewire.nodes.values
         for (var i = 0; i < all.length; i++) {
@@ -307,9 +328,9 @@ PanelWindow {
     }
 
     property var audioSources: {
-        _pwRev; _audioSourceAvail
+        _pwRev; _audioSourceAvail; root._activeSourceName
         if (!root.visible || root._activePanel !== "audio") return []
-        var activeName = root.defaultSource?.name ?? ""
+        var activeName = root._activeSourceName || root.defaultSource?.name || ""
         var out = []
         var all = Pipewire.nodes.values
         for (var i = 0; i < all.length; i++) {
@@ -360,8 +381,13 @@ PanelWindow {
 
     function setDefaultSink(entry) {
         if (!entry.node) return
+        // Pipewire.defaultAudioSink no se actualiza de forma confiable; usar
+        // nuestro propio tracking para highlight, volumen y mute.
+        root._activeSink     = entry.node
+        root._activeSinkName = entry.id
         // API nativa para cambiar el sink default
         Pipewire.preferredDefaultAudioSink = entry.node
+        root._pwRev++
         // Mover streams activos al nuevo sink (no expuesto por API)
         var safe = entry.id.replace(/'/g, "'\\''")
         _audioMoveSinkProc.command = ["bash", "-c",
@@ -372,7 +398,11 @@ PanelWindow {
 
     function setDefaultSource(entry) {
         if (!entry.node) return
+        // Pipewire.defaultAudioSource no se actualiza de forma confiable.
+        root._activeSource     = entry.node
+        root._activeSourceName = entry.id
         Pipewire.preferredDefaultAudioSource = entry.node
+        root._pwRev++
         var safe = entry.id.replace(/'/g, "'\\''")
         _audioMoveSourceProc.command = ["bash", "-c",
             "pactl list short source-outputs | awk '{print $1}' | " +
@@ -398,15 +428,27 @@ PanelWindow {
             try {
                 var data = JSON.parse(root._audioSinkBuf)
                 var map = ({})
+                var activeName = root.defaultSink?.name ?? ""
                 for (var i = 0; i < data.length; i++) {
                     var s = data[i]; var name = s.name || ""; if (!name) continue
                     var ports = s.ports || []
-                    if (ports.length === 0) { map[name] = true; continue }
-                    var ok = false
-                    for (var p = 0; p < ports.length; p++) {
-                        var av = (ports[p].availability || "").toString().toLowerCase()
-                        if (av !== "not available") { ok = true; break }
+                    var ok = true
+                    if (ports.length > 0) {
+                        ok = false
+                        for (var p = 0; p < ports.length; p++) {
+                            var port = ports[p]
+                            var av = (port.availability || "").toString().toLowerCase()
+                            var ptype = (port.type || "").toString().toLowerCase()
+                            // Solo HDMI/DisplayPort dependen de un cable físico real —
+                            // el resto (Headphones/Speaker combo-jack) puede marcar
+                            // "not available" por jack-sense y aun así seguir sonando
+                            // por el parlante interno (auto-switch hecho por firmware).
+                            var requiresCable = (ptype === "hdmi" || ptype === "displayport")
+                            if (!requiresCable || av !== "not available") { ok = true; break }
+                        }
                     }
+                    // Nunca ocultar el sink activo ahora mismo, sea cual sea su jack-sense.
+                    if (name === activeName) ok = true
                     map[name] = ok
                 }
                 root._audioSinkAvail = map
@@ -426,16 +468,26 @@ PanelWindow {
             try {
                 var data = JSON.parse(root._audioSourceBuf)
                 var map = ({})
+                var activeName = root.defaultSource?.name ?? ""
                 for (var i = 0; i < data.length; i++) {
                     var s = data[i]; var name = s.name || ""
                     if (!name || name.endsWith(".monitor")) continue
                     var ports = s.ports || []
-                    if (ports.length === 0) { map[name] = true; continue }
-                    var ok = false
-                    for (var p = 0; p < ports.length; p++) {
-                        var av = (ports[p].availability || "").toString().toLowerCase()
-                        if (av !== "not available") { ok = true; break }
+                    var ok = true
+                    if (ports.length > 0) {
+                        ok = false
+                        for (var p = 0; p < ports.length; p++) {
+                            var port = ports[p]
+                            var av = (port.availability || "").toString().toLowerCase()
+                            var ptype = (port.type || "").toString().toLowerCase()
+                            // Mismo criterio que en sinks: solo HDMI/DisplayPort
+                            // dependen de un cable físico real.
+                            var requiresCable = (ptype === "hdmi" || ptype === "displayport")
+                            if (!requiresCable || av !== "not available") { ok = true; break }
+                        }
                     }
+                    // Nunca ocultar la fuente activa ahora mismo.
+                    if (name === activeName) ok = true
                     map[name] = ok
                 }
                 root._audioSourceAvail = map
@@ -537,23 +589,23 @@ PanelWindow {
     // ── Funciones de audio — Pipewire API nativa ──────────────────────────
     function setMasterVolume(v) {
         root.masterVolume = v
-        if (root.defaultSink?.audio) root.defaultSink.audio.volume = v
+        if (root._activeSink?.audio) root._activeSink.audio.volume = v
     }
 
     function setMicVol(v) {
         root.micVolume = v
-        if (root.defaultSource?.audio) root.defaultSource.audio.volume = v
+        if (root._activeSource?.audio) root._activeSource.audio.volume = v
     }
 
     function toggleMasterMute() {
-        if (root.defaultSink?.audio) {
-            root.defaultSink.audio.muted = !root.defaultSink.audio.muted
+        if (root._activeSink?.audio) {
+            root._activeSink.audio.muted = !root._activeSink.audio.muted
         }
     }
 
     function toggleMicMute() {
-        if (root.defaultSource?.audio) {
-            root.defaultSource.audio.muted = !root.defaultSource.audio.muted
+        if (root._activeSource?.audio) {
+            root._activeSource.audio.muted = !root._activeSource.audio.muted
         }
     }
 
