@@ -66,26 +66,7 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2. quickshell-backend — systemd user service
-# ─────────────────────────────────────────────────────────────────────────────
-echo ""
-echo "▶ Installing systemd user service..."
-
-BACKEND_SERVICE_SRC="$SCRIPT_DIR/config/systemd/user/quickshell-backend.service"
-BACKEND_SERVICE_DST="$USER_HOME/.config/systemd/user/quickshell-backend.service"
-
-mkdir -p "$USER_HOME/.config/systemd/user"
-sed "s|__SCRIPT_DIR__|$SCRIPT_DIR|g" "$BACKEND_SERVICE_SRC" > "$BACKEND_SERVICE_DST"
-
-user_systemctl daemon-reload || true
-user_systemctl enable quickshell-backend.service || true
-# --no-block: fire-and-forget start; don't wait for service to reach active state.
-# This prevents hanging when DBus/display is not available during install.
-user_systemctl start --no-block quickshell-backend.service || true
-ok "QuickShell backend service installed and started."
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 3. mpDris2 — bridge MPD → MPRIS2
+# 2. mpDris2 — bridge MPD → MPRIS2
 # ─────────────────────────────────────────────────────────────────────────────
 
 MPDRIS2_CONF_DIR="$USER_HOME/.config/mpDris2"
@@ -137,7 +118,7 @@ user_systemctl start --no-block mpDris2.service || true
 ok "Servicio mpDris2 habilitado e iniciado (Restart=always)."
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4. Geoclue2 — location provider for weather info
+# 3. Geoclue2 — location provider for weather info
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "▶ Configuring geoclue2..."

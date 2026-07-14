@@ -196,73 +196,73 @@ PanelWindow {
     // ── Métricas expandibles — estado ─────────────────────────────────────
     property string _expandedMetric: ""   // "cpu" | "ram" | "gpu" | ""
 
-    // CPU detail
-    property bool   _cpuLoaded:    false
-    property string _cpuModel:     ""
-    property int    _cpuPkgTemp:   0
-    property int    _cpuAvgFreq:   0
-    property string _cpuGov:       ""
-    property string _cpuEpp:       ""
-    property var    _cpuCorePcts:  []
-    property var    _cpuCoreTemps: []
-    property int    _cpuNcores:    0
-    property string _cpuBuf:       ""
-
     // GPU detail — list of GPU objects parsed from gpu-detail.sh
     // Each: { vendor, name, util, temp, tempJun, freq, power, vramUsed, vramTotal, driver, status }
     property bool   _gpuLoaded: false
     property var    _gpus:      []        // populated by gpuDetailProc
     property string _gpuBuf:    ""
 
-    // Disk
-    property int    _diskPct:      SysData.diskPercent
-    property int    _diskUsed:     SysData.diskUsedGb
-    property int    _diskTotal:    SysData.diskUsedGb + SysData.diskAvailGb
-    property int    _homePct:      0
-    property int    _homeUsed:     0
-    property int    _homeTotal:    0
-    property string _diskBuf:      ""
-
     // ── Audio — Pipewire API nativa ───────────────────────────────────────
     property var defaultSink:   Pipewire.defaultAudioSink
     property var defaultSource: Pipewire.defaultAudioSource
 
-    PwObjectTracker { objects: [root.defaultSink, root.defaultSource] }
+    PwObjectTracker { objects: [root.defaultSink, root.defaultSource, root._activeSink, root._activeSource] }
 
-    // masterVolume / masterMuted / micVolume / micMuted se enlazan reactivamente
-    // desde el audio del sink/source default — sin procesos externos
-    property real masterVolume: defaultSink?.audio?.volume  ?? 0.75
-    property bool masterMuted:  defaultSink?.audio?.muted   ?? false
-    property real micVolume:    defaultSource?.audio?.volume ?? 0.75
-    property bool micMuted:     defaultSource?.audio?.muted  ?? false
+    // Pipewire.defaultAudioSink/defaultSource no cambian de forma confiable al
+    // usar preferredDefaultAudioSink/Source, así que trackeamos nosotrxs el
+    // nodo y nombre activos para highlight, volumen, mute y bindings.
+    property var    _activeSink:        defaultSink
+    property var    _activeSource:      defaultSource
+    property string _activeSinkName:    defaultSink?.name   ?? ""
+    property string _activeSourceName:  defaultSource?.name ?? ""
 
-    // Mantener sincronizados cuando cambia el sink/source default
+    // Volumen/mute bindeados al nodo activo (no al default de Pipewire)
+    property real masterVolume: root._activeSink?.audio?.volume   ?? 0.75
+    property bool masterMuted:  root._activeSink?.audio?.muted    ?? false
+    property real micVolume:    root._activeSource?.audio?.volume ?? 0.75
+    property bool micMuted:     root._activeSource?.audio?.muted  ?? false
+
+    // Sincronizar tracking cuando Pipewire avisa de un cambio real
     Connections {
         target: Pipewire
-        function onDefaultAudioSinkChanged()   { root._pwRev++ }
-        function onDefaultAudioSourceChanged() { root._pwRev++ }
+        function onDefaultAudioSinkChanged() {
+            root._pwRev++
+            if (root.defaultSink?.name) {
+                root._activeSink     = root.defaultSink
+                root._activeSinkName = root.defaultSink.name
+            }
+        }
+        function onDefaultAudioSourceChanged() {
+            root._pwRev++
+            if (root.defaultSource?.name) {
+                root._activeSource     = root.defaultSource
+                root._activeSourceName = root.defaultSource.name
+            }
+        }
     }
 
+    // Volumen/mute del sink activo
     Connections {
-        target: root.defaultSink?.audio ?? null
+        target: root._activeSink?.audio ?? null
         function onVolumesChanged() {
-            const v = root.defaultSink?.audio?.volume
+            const v = root._activeSink?.audio?.volume
             if (v !== undefined && !isNaN(v)) root.masterVolume = v
         }
         function onMutedChanged() {
-            const m = root.defaultSink?.audio?.muted
+            const m = root._activeSink?.audio?.muted
             if (m !== undefined) root.masterMuted = m
         }
     }
 
+    // Volumen/mute del source activo
     Connections {
-        target: root.defaultSource?.audio ?? null
+        target: root._activeSource?.audio ?? null
         function onVolumesChanged() {
-            const v = root.defaultSource?.audio?.volume
+            const v = root._activeSource?.audio?.volume
             if (v !== undefined && !isNaN(v)) root.micVolume = v
         }
         function onMutedChanged() {
-            const m = root.defaultSource?.audio?.muted
+            const m = root._activeSource?.audio?.muted
             if (m !== undefined) root.micMuted = m
         }
     }
@@ -284,9 +284,9 @@ PanelWindow {
     // Computed — se recalcula cuando cambia _pwRev o los mapas de disponibilidad
     // Gate: solo escanea nodos cuando el panel de audio está activo y visible
     property var audioSinks: {
-        _pwRev; _audioSinkAvail
+        _pwRev; _audioSinkAvail; root._activeSinkName
         if (!root.visible || root._activePanel !== "audio") return []
-        var activeName = root.defaultSink?.name ?? ""
+        var activeName = root._activeSinkName || root.defaultSink?.name || ""
         var out = []
         var all = Pipewire.nodes.values
         for (var i = 0; i < all.length; i++) {
@@ -307,9 +307,9 @@ PanelWindow {
     }
 
     property var audioSources: {
-        _pwRev; _audioSourceAvail
+        _pwRev; _audioSourceAvail; root._activeSourceName
         if (!root.visible || root._activePanel !== "audio") return []
-        var activeName = root.defaultSource?.name ?? ""
+        var activeName = root._activeSourceName || root.defaultSource?.name || ""
         var out = []
         var all = Pipewire.nodes.values
         for (var i = 0; i < all.length; i++) {
@@ -360,8 +360,13 @@ PanelWindow {
 
     function setDefaultSink(entry) {
         if (!entry.node) return
+        // Pipewire.defaultAudioSink no se actualiza de forma confiable; usar
+        // nuestro propio tracking para highlight, volumen y mute.
+        root._activeSink     = entry.node
+        root._activeSinkName = entry.id
         // API nativa para cambiar el sink default
         Pipewire.preferredDefaultAudioSink = entry.node
+        root._pwRev++
         // Mover streams activos al nuevo sink (no expuesto por API)
         var safe = entry.id.replace(/'/g, "'\\''")
         _audioMoveSinkProc.command = ["bash", "-c",
@@ -372,7 +377,11 @@ PanelWindow {
 
     function setDefaultSource(entry) {
         if (!entry.node) return
+        // Pipewire.defaultAudioSource no se actualiza de forma confiable.
+        root._activeSource     = entry.node
+        root._activeSourceName = entry.id
         Pipewire.preferredDefaultAudioSource = entry.node
+        root._pwRev++
         var safe = entry.id.replace(/'/g, "'\\''")
         _audioMoveSourceProc.command = ["bash", "-c",
             "pactl list short source-outputs | awk '{print $1}' | " +
@@ -398,15 +407,27 @@ PanelWindow {
             try {
                 var data = JSON.parse(root._audioSinkBuf)
                 var map = ({})
+                var activeName = root.defaultSink?.name ?? ""
                 for (var i = 0; i < data.length; i++) {
                     var s = data[i]; var name = s.name || ""; if (!name) continue
                     var ports = s.ports || []
-                    if (ports.length === 0) { map[name] = true; continue }
-                    var ok = false
-                    for (var p = 0; p < ports.length; p++) {
-                        var av = (ports[p].availability || "").toString().toLowerCase()
-                        if (av !== "not available") { ok = true; break }
+                    var ok = true
+                    if (ports.length > 0) {
+                        ok = false
+                        for (var p = 0; p < ports.length; p++) {
+                            var port = ports[p]
+                            var av = (port.availability || "").toString().toLowerCase()
+                            var ptype = (port.type || "").toString().toLowerCase()
+                            // Solo HDMI/DisplayPort dependen de un cable físico real —
+                            // el resto (Headphones/Speaker combo-jack) puede marcar
+                            // "not available" por jack-sense y aun así seguir sonando
+                            // por el parlante interno (auto-switch hecho por firmware).
+                            var requiresCable = (ptype === "hdmi" || ptype === "displayport")
+                            if (!requiresCable || av !== "not available") { ok = true; break }
+                        }
                     }
+                    // Nunca ocultar el sink activo ahora mismo, sea cual sea su jack-sense.
+                    if (name === activeName) ok = true
                     map[name] = ok
                 }
                 root._audioSinkAvail = map
@@ -426,16 +447,26 @@ PanelWindow {
             try {
                 var data = JSON.parse(root._audioSourceBuf)
                 var map = ({})
+                var activeName = root.defaultSource?.name ?? ""
                 for (var i = 0; i < data.length; i++) {
                     var s = data[i]; var name = s.name || ""
                     if (!name || name.endsWith(".monitor")) continue
                     var ports = s.ports || []
-                    if (ports.length === 0) { map[name] = true; continue }
-                    var ok = false
-                    for (var p = 0; p < ports.length; p++) {
-                        var av = (ports[p].availability || "").toString().toLowerCase()
-                        if (av !== "not available") { ok = true; break }
+                    var ok = true
+                    if (ports.length > 0) {
+                        ok = false
+                        for (var p = 0; p < ports.length; p++) {
+                            var port = ports[p]
+                            var av = (port.availability || "").toString().toLowerCase()
+                            var ptype = (port.type || "").toString().toLowerCase()
+                            // Mismo criterio que en sinks: solo HDMI/DisplayPort
+                            // dependen de un cable físico real.
+                            var requiresCable = (ptype === "hdmi" || ptype === "displayport")
+                            if (!requiresCable || av !== "not available") { ok = true; break }
+                        }
                     }
+                    // Nunca ocultar la fuente activa ahora mismo.
+                    if (name === activeName) ok = true
                     map[name] = ok
                 }
                 root._audioSourceAvail = map
@@ -537,23 +568,23 @@ PanelWindow {
     // ── Funciones de audio — Pipewire API nativa ──────────────────────────
     function setMasterVolume(v) {
         root.masterVolume = v
-        if (root.defaultSink?.audio) root.defaultSink.audio.volume = v
+        if (root._activeSink?.audio) root._activeSink.audio.volume = v
     }
 
     function setMicVol(v) {
         root.micVolume = v
-        if (root.defaultSource?.audio) root.defaultSource.audio.volume = v
+        if (root._activeSource?.audio) root._activeSource.audio.volume = v
     }
 
     function toggleMasterMute() {
-        if (root.defaultSink?.audio) {
-            root.defaultSink.audio.muted = !root.defaultSink.audio.muted
+        if (root._activeSink?.audio) {
+            root._activeSink.audio.muted = !root._activeSink.audio.muted
         }
     }
 
     function toggleMicMute() {
-        if (root.defaultSource?.audio) {
-            root.defaultSource.audio.muted = !root.defaultSource.audio.muted
+        if (root._activeSource?.audio) {
+            root._activeSource.audio.muted = !root._activeSource.audio.muted
         }
     }
 
@@ -1240,11 +1271,8 @@ PanelWindow {
     onVisibleChanged: {
         if (visible) {
             root._buf      = ""
-            root._diskBuf  = ""
-            root._cpuLoaded = false
             root._gpuLoaded = false
             getBrightnessProc.running = true
-            diskDetailProc.running    = true
             Qt.callLater(root._syncPlayerPos)
             root._pwRev++
             root._btRev++
@@ -1409,12 +1437,12 @@ PanelWindow {
                 CcSystemSection {
                     width: parent.width
                     activePanel: root._activePanel
-                    diskPct:    root._diskPct
-                    diskUsed:   root._diskUsed
-                    diskTotal:  root._diskTotal
-                    homePct:    root._homePct
-                    homeUsed:   root._homeUsed
-                    homeTotal:  root._homeTotal
+                    diskPct:    SysData.diskPercent
+                    diskUsed:   SysData.diskUsedGb
+                    diskTotal:  SysData.diskUsedGb + SysData.diskAvailGb
+                    homePct:    SysData.homePercent
+                    homeUsed:   SysData.homeUsedGb
+                    homeTotal:  SysData.homeUsedGb + SysData.homeAvailGb
                     onTogglePanel: function(key) {
                         root._activePanel = (root._activePanel === key) ? "" : key
                     }
@@ -1502,13 +1530,13 @@ PanelWindow {
         cpuAvailable:   SysData.cpuAvailable
         cpuPercent:     SysData.cpuPercent
         cpuTemp:        SysData.cpuTemp
-        cpuModel:       root._cpuModel
-        cpuAvgFreq:     root._cpuAvgFreq
-        cpuGov:         root._cpuGov
-        cpuNcores:      root._cpuNcores
-        cpuCorePcts:    root._cpuCorePcts
-        cpuCoreTemps:   root._cpuCoreTemps
-        cpuLoaded:      root._cpuLoaded
+        cpuModel:       SysData.cpuModel
+        cpuAvgFreq:     SysData.cpuAvgFreqMhz
+        cpuGov:         SysData.cpuGovernor
+        cpuNcores:      SysData.cpuNcores
+        cpuCorePcts:    SysData.cpuCorePcts
+        cpuCoreTemps:   SysData.cpuCoreTemps
+        cpuLoaded:      SysData.cpuAvailable
 
         // RAM
         ramAvailable: SysData.ramAvailable
@@ -1525,6 +1553,20 @@ PanelWindow {
         // GPU — array completo del detail process + flag de carga
         gpus:       root._gpus
         gpuLoaded:  root._gpuLoaded
+
+        // Disk
+        diskAvailable:  SysData.diskAvailable
+        diskPercent:    SysData.diskPercent
+        diskUsed:       SysData.diskUsedGb
+        diskAvail:      SysData.diskAvailGb
+        homePercent:    SysData.homePercent
+        homeUsed:       SysData.homeUsedGb
+        homeAvail:      SysData.homeAvailGb
+        nvmeModel:      SysData.diskNvmeModel
+        nvmeFw:         SysData.diskNvmeFw
+        nvmeTemp:       SysData.diskNvmeTemp
+        diskReadMbs:    SysData.diskReadMbs
+        diskWriteMbs:   SysData.diskWriteMbs
 
         // Language
         filteredLayouts: root._filteredLayouts
@@ -1550,6 +1592,7 @@ PanelWindow {
             }
             root._activePanel = ""
         }
+        onDiskPanelOpened: SysData.triggerDiskIoSample()
 
         // WiFi
         onWifiToggleRadio:    root.wifiToggleRadio()
@@ -1692,40 +1735,15 @@ PanelWindow {
         // qmllint enable signal-handler-parameters
     }
 
-    // ── CPU detail process ────────────────────────────────────────────────
-    Process {
-        id: cpuDetailProc
-        command: ["bash", Paths.scripts + "/cpu-detail.sh"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._cpuBuf += d + "\n" }
-        // qmllint disable signal-handler-parameters
-        onExited: {
-            var kv = {}
-            root._cpuBuf.trim().split("\n").forEach(function(line) {
-                var idx = line.indexOf(":")
-                if (idx > 0) kv[line.substring(0, idx)] = line.substring(idx + 1)
-            })
-            root._cpuBuf = ""
-            if (kv["MODEL"])      root._cpuModel    = kv["MODEL"]
-            if (kv["PKG_TEMP"])   root._cpuPkgTemp  = parseInt(kv["PKG_TEMP"])  || 0
-            if (kv["AVG_FREQ"])   root._cpuAvgFreq  = parseInt(kv["AVG_FREQ"])  || 0
-            if (kv["GOV"])        root._cpuGov      = kv["GOV"]
-            if (kv["EPP"])        root._cpuEpp      = kv["EPP"]
-            if (kv["CORE_PCTS"])   root._cpuCorePcts   = kv["CORE_PCTS"].split(",").map(function(s) { return parseInt(s) || 0 })
-            if (kv["CORE_TEMPS"])  root._cpuCoreTemps  = kv["CORE_TEMPS"].split(",").map(function(s) { return parseInt(s) || 0 })
-            if (kv["NCORES"])      root._cpuNcores     = parseInt(kv["NCORES"]) || 0
-            root._cpuLoaded = true
-        }
-        // qmllint enable signal-handler-parameters
-    }
-
+    // ── CPU detail refresh — native QML pollers (SysData), no subprocess ───
     // Refrescar CPU mientras el panel esté abierto
     Timer {
         interval: 1500; repeat: true
         running: root.visible && root._activePanel === "cpu"
-        onTriggered: { root._cpuBuf = ""; cpuDetailProc.running = true }
+        onTriggered: SysData.refreshCpuDetail()
         onRunningChanged: {
             // Primera ejecución inmediata al abrir el panel
-            if (running) { root._cpuBuf = ""; cpuDetailProc.running = true }
+            if (running) SysData.refreshCpuDetail()
         }
     }
 
@@ -1908,27 +1926,10 @@ PanelWindow {
         // qmllint enable signal-handler-parameters
     }
 
-    // ── Disk detail process (root + home) ─────────────────────────────────
-    Process {
-        id: diskDetailProc
-        command: ["bash", Paths.scripts + "/disk-detail.sh"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._diskBuf += d + "\n" }
-        // qmllint disable signal-handler-parameters
-        onExited: {
-            var kv = {}
-            root._diskBuf.trim().split("\n").forEach(function(line) {
-                var idx = line.indexOf(":")
-                if (idx > 0) kv[line.substring(0, idx)] = line.substring(idx + 1)
-            })
-            root._diskBuf = ""
-            if (kv["PCT"])        root._diskPct   = parseInt(kv["PCT"])        || 0
-            if (kv["USED"])       root._diskUsed  = parseInt(kv["USED"])       || 0
-            if (kv["TOTAL"])      root._diskTotal = parseInt(kv["TOTAL"])      || 0
-            if (kv["HOME_PCT"])   root._homePct   = parseInt(kv["HOME_PCT"])   || 0
-            if (kv["HOME_USED"])  root._homeUsed  = parseInt(kv["HOME_USED"])  || 0
-            if (kv["HOME_TOTAL"]) root._homeTotal = parseInt(kv["HOME_TOTAL"]) || 0
-        }
-        // qmllint enable signal-handler-parameters
-    }
-
+    // ── Disk detail — root/home usage bound directly to SysData.diskPercent
+    // /diskUsedGb/diskAvailGb/homePercent/homeUsedGb/homeAvailGb (native QML
+    // poller, 30s) in the CcSystemSection instantiation above. No detail
+    // panel (NVMe model/fw/temp, I/O rates) exists in this UI yet — those
+    // SysData properties (diskNvmeModel/Fw/Temp, diskReadMbs/WriteMbs) and
+    // SysData.triggerDiskIoSample() remain available for a future disk panel.
 }

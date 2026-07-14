@@ -141,13 +141,13 @@ Column {
             color: hov ? Theme.surface3
                  : (root.activePanel === "bluetooth"
                         ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                        : (root.btConnectedCount > 0
+                        : (root.btConnectedCount > 0 && root.btPowered
                                ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
                                : Theme.surface2))
             Behavior on color { ColorAnimation { duration: 100 } }
 
             Rectangle {
-                visible: root.btConnectedCount > 0 || root.activePanel === "bluetooth"
+                visible: (root.btConnectedCount > 0 && root.btPowered) || root.activePanel === "bluetooth"
                 width: 3; height: 24; radius: 2
                 anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
                 color: Theme.accent
@@ -156,7 +156,7 @@ Column {
             RowLayout {
                 anchors {
                     fill: parent
-                    leftMargin: (root.btConnectedCount > 0 || root.activePanel === "bluetooth") ? 14 : 10
+                    leftMargin: ((root.btConnectedCount > 0 && root.btPowered) || root.activePanel === "bluetooth") ? 14 : 10
                     rightMargin: 10
                 }
                 spacing: 8

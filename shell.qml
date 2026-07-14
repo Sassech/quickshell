@@ -15,37 +15,98 @@ ShellRoot {
     // ── Shared paths (resolved via Paths singleton) ──────────────────────
     property string _scriptsPath: Paths.scripts
     property string _configPath:  Paths.config
+
     // ════════════════════════════════════════════════════════════════════════
-    // ── Python Backend — single process feeding all system data ──────────
+    // ── System Data Discovery — one-time startup chain (Phase 1 foundation) ──
+    // Resolves hwmon/device paths that vary across boots and caches them on
+    // SysData. Runs once at startup; each stage fires the next via onExited.
+    // Gates SysData.pollersReady, consumed by the native QML pollers (Phase 2)
+    // and ControlCenter (Phase 3). The Python backend has been fully removed —
+    // these native pollers are now the sole source of system data.
     // ════════════════════════════════════════════════════════════════════════
+
+    // Stage 1 — hwmon names → SysData._hwmonSmm/_hwmonAwcc/_hwmonCpu/_hwmonNvme
     Process {
-        id: backendProcess
-        command: ["python3", root._scriptsPath + "/quickshell_backend.py"]
+        id: hwmonDiscovery
         running: true
-
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => {
-                const line = data.trim()
-                if (!line) return
-                try {
-                    SysData.dispatch(JSON.parse(line))
-                } catch(e) {}
-            }
+        command: ["sh", "-c", "for d in /sys/class/hwmon/hwmon*/; do [ -r \"${d}name\" ] && printf '%s:%s\\n' \"$(cat ${d}name)\" \"$d\"; done"]
+        stdout: StdioCollector {
+            onStreamFinished: SysData.parseHwmonDiscovery(text)
         }
-
-        onRunningChanged: {
-            if (!running) {
-                console.log("[Backend] exited — restarting in 3s")
-                restartTimer.start()
+        onExited: {
+            if (SysData._hwmonCpu.length > 0) {
+                coreTempDiscovery.running = true
+            } else {
+                rootDeviceDiscovery.running = true
             }
         }
     }
 
-    Timer {
-        id: restartTimer
-        interval: 3000
-        onTriggered: backendProcess.running = true
+    // Stage 2 — per-core temp label→path map → SysData._coreTempPaths (skipped if no CPU hwmon)
+    Process {
+        id: coreTempDiscovery
+        running: false
+        command: ["sh", "-c", "for f in " + SysData._hwmonCpu + "temp*_label; do printf '%s:%s\\n' \"$(cat $f)\" \"${f%_label}_input\"; done"]
+        stdout: StdioCollector {
+            onStreamFinished: SysData.parseCoreTempDiscovery(text)
+        }
+        onExited: rootDeviceDiscovery.running = true
+    }
+
+    // Stage 3 — root block device → SysData._rootDevice
+    // NOTE: deviates from the originally suggested one-pass sed pipeline —
+    // that version double-stripped trailing digits, turning "nvme0n1p6" into
+    // "nvme0n" instead of "nvme0n1" (verified against this machine's real
+    // /dev/nvme0n1p6 root partition). Two sequential sed invocations keep the
+    // "strip pN suffix" and "strip bare trailing digit" cases mutually
+    // exclusive so NVMe (nvme0n1pX), SATA/virtio (sdaX/vdaX) and MMC
+    // (mmcblkXpY) devices all resolve correctly.
+    Process {
+        id: rootDeviceDiscovery
+        running: false
+        command: ["sh", "-c", "df --output=source / | tail -1 | sed -E 's|^/dev/||' | sed -E 's/p[0-9]+$//; t; s/[0-9]+$//'"]
+        stdout: StdioCollector {
+            onStreamFinished: SysData._rootDevice = text.trim()
+        }
+        onExited: cpuInfoDiscovery.running = true
+    }
+
+    // Stage 4 — CPU model + core count → SysData.cpuModel/cpuNcores
+    Process {
+        id: cpuInfoDiscovery
+        running: false
+        command: ["sh", "-c", "awk -F': ' '/^model name/{gsub(/\\(R\\)|\\(TM\\)|11th Gen /,\"\"); gsub(/ @ [0-9.]+GHz/,\"\"); gsub(/  +/,\" \"); print; exit}' /proc/cpuinfo; grep -c '^processor' /proc/cpuinfo"]
+        stdout: StdioCollector {
+            onStreamFinished: SysData.parseCpuInfo(text)
+        }
+        onExited: gpuCardDiscovery.running = true
+    }
+
+    // Stage 5 — GPU card path → SysData._gpuCardPath; flips pollersReady when done
+    Process {
+        id: gpuCardDiscovery
+        running: false
+        command: ["sh", "-c", "for d in /sys/class/drm/card*/; do case \"$d\" in *-*) continue;; esac; [ -r \"${d}device/vendor\" ] && echo \"$d\" && break; done"]
+        stdout: StdioCollector {
+            onStreamFinished: SysData._gpuCardPath = text.trim()
+        }
+        onExited: SysData.pollersReady = true
+    }
+
+    // Default network interface — pure FileView read, no subprocess needed.
+    FileView {
+        id: netRouteFile
+        path: "/proc/net/route"
+        onLoaded: {
+            const lines = text().trim().split('\n')
+            for (let i = 1; i < lines.length; i++) {
+                const fields = lines[i].trim().split(/\s+/)
+                if (fields.length > 1 && fields[1] === "00000000") {
+                    SysData._netIface = fields[0]
+                    break
+                }
+            }
+        }
     }
 
     // ── Notification policy config ─────────────────────────────────────────
@@ -859,11 +920,10 @@ ShellRoot {
     Component.onCompleted: {
         loadNotificationConfig()
         console.log("Quickshell loaded")
-        console.log("✅ Backend | Workspaces | Power Menu | Weather | Notifications | UPower")
+        console.log("✅ SysData | Workspaces | Power Menu | Weather | Notifications | UPower")
     }
 
     Component.onDestruction: {
-        backendProcess.running = false
         clipboardFifo.running = false
         wallpaperFifo.running = false
         overviewFifo.running = false

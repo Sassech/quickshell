@@ -64,4 +64,17 @@ Ver `install.sh` para instrucciones completas.
 
 ## Dependencias
 
-Quickshell, Hyprland, dgop (metrics), cliphist+wl-clipboard, mpDris2 (MPRIS), pactl/wpctl (audio), NetworkManager, bluetoothctl/bluez, curl, Open-Meteo API.
+Quickshell, Hyprland, cliphist+wl-clipboard, mpDris2 (MPRIS), pactl/wpctl (audio), NetworkManager, bluetoothctl/bluez, curl, Open-Meteo API.
+
+Las métricas de sistema (CPU, RAM, disco, red, ventilador) se leen de forma
+nativa vía QML `FileView` sobre `/proc` y `/sys` — ya no dependen de `dgop`
+ni de un backend Python.
+
+## Migración
+
+Si venís de una instalación anterior con el backend Python, limpiá el
+servicio systemd huérfano:
+
+```
+systemctl --user disable --now quickshell-backend 2>/dev/null; true
+```

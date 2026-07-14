@@ -163,8 +163,13 @@ Column {
             Rectangle {
                 id: diskCard
                 required property var modelData
+                property bool hov: false
+                property bool expanded: root.activePanel === "disk"
                 width: (parent.width - 6) / 2; height: 52; radius: 10
-                color: Theme.surface2
+                color: expanded
+                    ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                    : (hov ? Theme.surface3 : Theme.surface2)
+                Behavior on color { ColorAnimation { duration: 100 } }
 
                 RowLayout {
                     anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
@@ -216,6 +221,13 @@ Column {
                             font.pixelSize: 9; color: Theme.muted2
                         }
                     }
+                }
+
+                MouseArea {
+                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                    onEntered: diskCard.hov = true
+                    onExited:  diskCard.hov = false
+                    onClicked: root.togglePanel("disk")
                 }
             }
         }

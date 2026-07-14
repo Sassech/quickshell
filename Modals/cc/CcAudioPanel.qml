@@ -76,6 +76,8 @@ Rectangle {
                     color: modelData.active
                         ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
                         : (hov ? Theme.surface3 : Theme.surface3)
+                    border.color: sinkRow.modelData.active ? Theme.accent : "transparent"
+                    border.width: 1
                     Behavior on color { ColorAnimation { duration: 100 } }
 
                     Rectangle {
@@ -99,7 +101,7 @@ Rectangle {
                         }
                         Text {
                             visible: sinkRow.modelData.active
-                            text: "Activa"; font.pixelSize: 9; color: Theme.accent
+                            text: "󰄬"; font.pixelSize: 12; color: Theme.accent
                         }
                     }
 
@@ -139,6 +141,8 @@ Rectangle {
                     color: modelData.active
                         ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
                         : (hov ? Theme.surface3 : Theme.surface3)
+                    border.color: sourceRow.modelData.active ? Theme.accent : "transparent"
+                    border.width: 1
                     Behavior on color { ColorAnimation { duration: 100 } }
 
                     Rectangle {
@@ -162,7 +166,7 @@ Rectangle {
                         }
                         Text {
                             visible: sourceRow.modelData.active
-                            text: "Activa"; font.pixelSize: 9; color: Theme.accent
+                            text: "󰄬"; font.pixelSize: 12; color: Theme.accent
                         }
                     }
 

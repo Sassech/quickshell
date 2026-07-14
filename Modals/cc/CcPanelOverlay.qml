@@ -8,7 +8,7 @@ Item {
     id: root
 
     // ── Inputs desde ControlCenter ────────────────────────────────────────
-    required property string activePanel          // "wifi"|"bluetooth"|"audio"|"power"|"battery"|"language"|"cpu"|"ram"|"gpu"|""
+    required property string activePanel          // "wifi"|"bluetooth"|"audio"|"power"|"battery"|"language"|"cpu"|"ram"|"gpu"|"disk"|""
 
     // WiFi
     required property var    nmWifiDev
@@ -86,6 +86,20 @@ Item {
     required property var  gpus
     required property bool gpuLoaded
 
+    // Disk
+    required property bool   diskAvailable
+    required property int    diskPercent
+    required property int    diskUsed
+    required property int    diskAvail
+    required property int    homePercent
+    required property int    homeUsed
+    required property int    homeAvail
+    required property string nvmeModel
+    required property string nvmeFw
+    required property int    nvmeTemp
+    required property real   diskReadMbs
+    required property real   diskWriteMbs
+
     // Language
     required property var    filteredLayouts
     required property var    filteredLocales
@@ -96,6 +110,7 @@ Item {
 
     // ── Outputs ───────────────────────────────────────────────────────────
     signal closePanel()
+    signal diskPanelOpened()
 
     // WiFi signals
     signal wifiToggleRadio()
@@ -138,6 +153,10 @@ Item {
 
     // ── Visibilidad ───────────────────────────────────────────────────────
     visible: root.activePanel !== ""
+
+    onActivePanelChanged: {
+        if (root.activePanel === "disk") root.diskPanelOpened()
+    }
 
     // ── Backdrop ──────────────────────────────────────────────────────────
     Rectangle {
@@ -309,6 +328,26 @@ Item {
 
             gpus:      root.gpus
             gpuLoaded: root.gpuLoaded
+
+            onCloseRequested: root.closePanel()
+        }
+
+        // ── Disk Panel ────────────────────────────────────────────────────
+        CcDiskPanel {
+            visible: root.activePanel === "disk"
+
+            diskAvailable: root.diskAvailable
+            diskPercent:   root.diskPercent
+            diskUsed:      root.diskUsed
+            diskAvail:     root.diskAvail
+            homePercent:   root.homePercent
+            homeUsed:      root.homeUsed
+            homeAvail:     root.homeAvail
+            nvmeModel:     root.nvmeModel
+            nvmeFw:        root.nvmeFw
+            nvmeTemp:      root.nvmeTemp
+            diskReadMbs:   root.diskReadMbs
+            diskWriteMbs:  root.diskWriteMbs
 
             onCloseRequested: root.closePanel()
         }
