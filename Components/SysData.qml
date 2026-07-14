@@ -488,6 +488,15 @@ QtObject {
         onLoaded: data.parseCpuStat(text())
     }
 
+    // CPU package temperature — hwmon coretemp/k10temp temp1_input ÷ 1000
+    // (REQ-02 "MUST update cpuTemp"). Flagged as a Phase 2 gap, closed here
+    // before Phase 3 removes the Python backend that was the sole source.
+    property FileView _cpuTempFile: FileView {
+        id: cpuTempFile
+        path: data._hwmonCpu ? (data._hwmonCpu + "temp1_input") : ""
+        onLoaded: data.cpuTemp = Math.round((parseInt(text().trim()) || 0) / 1000)
+    }
+
     // Average scaling_cur_freq across all cores (REQ-02 "MUST average") via a
     // single Process — same one-fork-not-per-core pattern as coreTempProc.
     property Process _cpuFreqProc: Process {
@@ -511,6 +520,7 @@ QtObject {
         triggeredOnStart: true
         onTriggered: {
             cpuStatFile.reload()
+            cpuTempFile.reload()
             if (!cpuFreqProc.running) cpuFreqProc.running = true
         }
     }
