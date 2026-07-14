@@ -53,9 +53,8 @@ declare -A SERVICE_PKGS=(
 
 # ── Packages not in standard Fedora repos — manual install required ────────────
 # These are skipped by dnf but flagged with instructions at the end.
-declare -A MANUAL_PKGS=(
-  ["dgop"]="https://github.com/niceDev0/dgop — dgop (disk/gpu info tool, build from source)"
-)
+# (dgop removed — system metrics are now read natively via QML FileView + /proc/sys)
+declare -A MANUAL_PKGS=()
 
 # ── dnf options — quiet + timeout prevents hanging on slow/dead mirrors ────────
 # Full output goes to LOG_FILE; only ✅/❌/⚠️ lines shown on terminal.
