@@ -1554,6 +1554,20 @@ PanelWindow {
         gpus:       root._gpus
         gpuLoaded:  root._gpuLoaded
 
+        // Disk
+        diskAvailable:  SysData.diskAvailable
+        diskPercent:    SysData.diskPercent
+        diskUsed:       SysData.diskUsedGb
+        diskAvail:      SysData.diskAvailGb
+        homePercent:    SysData.homePercent
+        homeUsed:       SysData.homeUsedGb
+        homeAvail:      SysData.homeAvailGb
+        nvmeModel:      SysData.diskNvmeModel
+        nvmeFw:         SysData.diskNvmeFw
+        nvmeTemp:       SysData.diskNvmeTemp
+        diskReadMbs:    SysData.diskReadMbs
+        diskWriteMbs:   SysData.diskWriteMbs
+
         // Language
         filteredLayouts: root._filteredLayouts
         filteredLocales: root._filteredLocales
@@ -1578,6 +1592,7 @@ PanelWindow {
             }
             root._activePanel = ""
         }
+        onDiskPanelOpened: SysData.triggerDiskIoSample()
 
         // WiFi
         onWifiToggleRadio:    root.wifiToggleRadio()
