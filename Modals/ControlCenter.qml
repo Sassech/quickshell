@@ -281,10 +281,19 @@ PanelWindow {
     property string _audioSinkBuf:     ""
     property string _audioSourceBuf:   ""
 
+    // Combo-jack: tarjetas donde Speaker y Headphones son perfiles ALSA
+    // mutuamente excluyentes (no puertos del mismo sink). Se detectan vía
+    // pactl list cards — necesario para poder ofrecer "Altavoces" aunque el
+    // perfil activo tenga los audífonos (o HDMI) puestos.
+    property var    _audioComboCards:  []     // [{ name, activeProfile, profiles: [{name, priority, available}] }]
+    property string _audioCardBuf:     ""
+    property string _pendingSinkToken: ""     // "speaker" | "headphones" — sink que estamos esperando tras un profile switch
+    property int    _pendingSinkRetries: 0
+
     // Computed — se recalcula cuando cambia _pwRev o los mapas de disponibilidad
     // Gate: solo escanea nodos cuando el panel de audio está activo y visible
     property var audioSinks: {
-        _pwRev; _audioSinkAvail; root._activeSinkName
+        _pwRev; _audioSinkAvail; root._activeSinkName; root._audioComboCards
         if (!root.visible || root._activePanel !== "audio") return []
         var activeName = root._activeSinkName || root.defaultSink?.name || ""
         var out = []
@@ -303,7 +312,76 @@ PanelWindow {
                 node:  node
             })
         }
+
+        // ── Combo-jack: Speaker y Headphones son perfiles ALSA excluyentes en
+        // este hardware, no puertos simultáneos del mismo sink. Si el perfil
+        // activo no expone uno de los dos como nodo real, lo agregamos como
+        // entrada "virtual": al hacer click dispara un cambio de perfil de
+        // tarjeta. Así "Altavoces" siempre aparece en la lista, tengas o no
+        // audífonos/HDMI puestos — y viceversa.
+        var wants = [
+            { token: "speaker",    icon: "󰕾", label: "Altavoces" },
+            { token: "headphones", icon: "󰋋", label: "Audífonos" }
+        ]
+        for (var ci = 0; ci < root._audioComboCards.length; ci++) {
+            var card = root._audioComboCards[ci]
+            for (var w = 0; w < wants.length; w++) {
+                var token = wants[w].token
+                var hasLiveNode = false
+                for (var oi = 0; oi < out.length; oi++) {
+                    if (out[oi].id.toLowerCase().indexOf(token) !== -1) { hasLiveNode = true; break }
+                }
+                if (hasLiveNode) continue
+                var targetProfile = root._pickBestProfile(card, token)
+                if (!targetProfile) continue
+                out.push({
+                    id: "virtual:" + card.name + ":" + token,
+                    label: wants[w].label,
+                    icon: wants[w].icon,
+                    active: false,
+                    node: null,
+                    virtual: true,
+                    cardName: card.name,
+                    targetProfile: targetProfile,
+                    targetToken: token
+                })
+            }
+        }
+
         return out
+    }
+
+    // Tokens entre paréntesis de un nombre de perfil ALSA, ej.
+    // "HiFi (HDMI1, HDMI2, HDMI3, Headset, Mic1, Speaker)" -> ["HDMI1", ...]
+    function _profileTokens(name) {
+        if (!name) return []
+        var m = name.match(/\(([^)]*)\)/)
+        if (!m) return []
+        return m[1].split(",").map(function(s) { return s.trim() })
+    }
+
+    // Entre los perfiles que incluyen `wantedToken` (ej. "Speaker"), elige el
+    // que más se parezca al perfil activo actual (mismos micrófonos/puertos),
+    // para no perder de paso la configuración de entrada de audio.
+    function _pickBestProfile(card, wantedToken) {
+        var activeTokens = root._profileTokens(card.activeProfile).map(function(t) { return t.toLowerCase() })
+        var best = null
+        var bestScore = -1
+        for (var i = 0; i < card.profiles.length; i++) {
+            var p = card.profiles[i]
+            if (!p.available) continue
+            var tokens = root._profileTokens(p.name).map(function(t) { return t.toLowerCase() })
+            if (tokens.indexOf(wantedToken) === -1) continue
+            var score = 0
+            for (var t = 0; t < tokens.length; t++) {
+                if (tokens[t] !== wantedToken && activeTokens.indexOf(tokens[t]) !== -1) score++
+            }
+            if (score > bestScore || (score === bestScore && (!best || p.priority > best.priority))) {
+                best = p
+                bestScore = score
+            }
+        }
+        return best ? best.name : null
     }
 
     property var audioSources: {
@@ -359,6 +437,16 @@ PanelWindow {
     }
 
     function setDefaultSink(entry) {
+        if (entry.virtual) {
+            root._pendingSinkToken   = entry.targetToken
+            root._pendingSinkRetries = 0
+            var safeCard    = entry.cardName.replace(/'/g, "'\\''")
+            var safeProfile = entry.targetProfile.replace(/'/g, "'\\''")
+            _audioProfileSwitchProc.command = ["bash", "-c",
+                "pactl set-card-profile '" + safeCard + "' '" + safeProfile + "' 2>/dev/null"]
+            _audioProfileSwitchProc.running = true
+            return
+        }
         if (!entry.node) return
         // Pipewire.defaultAudioSink no se actualiza de forma confiable; usar
         // nuestro propio tracking para highlight, volumen y mute.
@@ -392,8 +480,35 @@ PanelWindow {
     function loadAudioDevices() {
         _audioSinkBuf   = ""
         _audioSourceBuf = ""
+        _audioCardBuf   = ""
         _audioSinkAvailProc.running   = true
         _audioSourceAvailProc.running = true
+        _audioCardsProc.running       = true
+    }
+
+    // El nodo PipeWire del nuevo perfil tarda un instante en enumerarse tras
+    // el profile switch — reintentamos unas pocas veces antes de rendirnos.
+    function _applyPendingSinkSwitch() {
+        if (!root._pendingSinkToken) return
+        var all = Pipewire.nodes.values
+        for (var i = 0; i < all.length; i++) {
+            var node = all[i]
+            if (!node || !node.isSink || node.isStream) continue
+            var name = (node.name || "").toLowerCase()
+            if (name.indexOf(root._pendingSinkToken) !== -1) {
+                root._pendingSinkToken   = ""
+                root._pendingSinkRetries = 0
+                root.setDefaultSink({ id: node.name, node: node })
+                return
+            }
+        }
+        if (root._pendingSinkRetries < 5) {
+            root._pendingSinkRetries++
+            _pendingSinkApplyTimer.restart()
+        } else {
+            root._pendingSinkToken   = ""
+            root._pendingSinkRetries = 0
+        }
     }
 
     // Fetch port availability (pactl — no expuesto por Pipewire API)
@@ -480,6 +595,68 @@ PanelWindow {
     // Mover streams al nuevo sink/source (pactl — necesario, no expuesto por API)
     Process { id: _audioMoveSinkProc;   command: ["bash", "-c", ""] }
     Process { id: _audioMoveSourceProc; command: ["bash", "-c", ""] }
+
+    // Detectar tarjetas combo-jack (Speaker/Headphones como perfiles ALSA
+    // excluyentes) — no expuesto por Pipewire API, necesita pactl list cards.
+    Process {
+        id: _audioCardsProc
+        command: ["bash", "-c", "LANG=C pactl --format=json list cards 2>/dev/null"]
+        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._audioCardBuf += d + "\n" }
+        // qmllint disable signal-handler-parameters
+        onExited: {
+            try {
+                var data = JSON.parse(root._audioCardBuf)
+                var combos = []
+                for (var i = 0; i < data.length; i++) {
+                    var c = data[i]
+                    // "ports" es un objeto { "[Out] Speaker": {...}, ... }, no un array
+                    var ports = c.ports || {}
+                    var hasSpeaker = false, hasHeadphones = false
+                    for (var portKey in ports) {
+                        var t = (ports[portKey].type || "").toString().toLowerCase()
+                        if (t === "speaker") hasSpeaker = true
+                        if (t === "headphones") hasHeadphones = true
+                    }
+                    // Solo nos interesan tarjetas donde ambos existen como
+                    // puertos posibles pero no pueden convivir en un perfil.
+                    if (!hasSpeaker || !hasHeadphones) continue
+                    var profiles = []
+                    var pmap = c.profiles || {}
+                    for (var key in pmap) {
+                        profiles.push({
+                            name: key,
+                            priority: pmap[key].priority || 0,
+                            available: pmap[key].available !== false
+                        })
+                    }
+                    combos.push({ name: c.name, activeProfile: c.active_profile || "", profiles: profiles })
+                }
+                root._audioComboCards = combos
+                root._pwRev++
+            } catch(e) {}
+            root._audioCardBuf = ""
+        }
+        // qmllint enable signal-handler-parameters
+    }
+
+    // Cambiar de perfil ALSA (combo-jack Speaker/Headphones) — no expuesto
+    // por Pipewire API, necesita pactl set-card-profile.
+    Process {
+        id: _audioProfileSwitchProc
+        command: ["bash", "-c", ""]
+        onExited: {
+            root.loadAudioDevices()
+            _pendingSinkApplyTimer.restart()
+        }
+    }
+
+    // Da tiempo a PipeWire para enumerar el nodo del nuevo perfil.
+    Timer {
+        id: _pendingSinkApplyTimer
+        interval: 400
+        repeat: false
+        onTriggered: root._applyPendingSinkSwitch()
+    }
 
     // Refresh cada 5 s mientras el panel esté abierto
     Timer {
@@ -609,6 +786,7 @@ PanelWindow {
 
     function setPower(profile) {
         PowerProfiles.profile = profile
+        SysData.refreshCpuDetail()
     }
 
     // ── Battery time formatting ────────────────────────────────────────────

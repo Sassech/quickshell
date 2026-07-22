@@ -9,6 +9,3 @@ assets/*
 .vscode
 scripts/__pycache__/*
 .atl/
-.claude/
-.opencode/
-.codegraph/
