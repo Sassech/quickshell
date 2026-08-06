@@ -46,7 +46,7 @@ PanelWindow {
         command: ["bash", "-c",
             "cat \"" + Paths.config + "/wallpaper-config.json\" 2>/dev/null; " +
             "echo '---'; " +
-            "cat /tmp/qs-current-wallpaper 2>/dev/null || true"
+            "cat \"" + Paths.config + "/wallpaper-monitors.json\" 2>/dev/null || true"
         ]
         property string buf: ""
         stdout: SplitParser {
@@ -60,7 +60,11 @@ PanelWindow {
                 var cfg = JSON.parse(parts[0].trim())
                 if (cfg.folder) root.currentFolder = cfg.folder
             } catch(e) {}
-            if (parts[1]) root.currentWallpaper = parts[1].trim()
+            try {
+                var perMonitor = JSON.parse(parts[1].trim())
+                var outName = root.screen ? root.screen.name : ""
+                if (outName && perMonitor[outName]) root.currentWallpaper = perMonitor[outName]
+            } catch(e) {}
             buf = ""
         }
         // qmllint enable signal-handler-parameters
@@ -481,7 +485,10 @@ PanelWindow {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 setProc.pending = wpCell.model.path
-                                setProc.command = ["bash", Paths.scripts + "/wallpaper-set.sh", wpCell.model.path]
+                                var outName = root.screen ? root.screen.name : ""
+                                var cmd = ["bash", Paths.scripts + "/wallpaper-set.sh", wpCell.model.path]
+                                if (outName) cmd.push(outName)
+                                setProc.command = cmd
                                 setProc.running = true
                             }
                         }
