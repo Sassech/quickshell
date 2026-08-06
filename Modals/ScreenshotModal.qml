@@ -201,7 +201,7 @@ PanelWindow {
                 Layout.fillWidth: true
                 icon:  "󱂬"
                 label: "Active window"
-                hint:  "Focused window only"
+                hint:  "Click a window to capture it"
                 onActivated: root._capture("active")
             }
 
