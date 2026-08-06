@@ -8,7 +8,8 @@ FIFO="/tmp/qs-screenshot"
 
 trap 'rm -f "$FIFO"' EXIT INT TERM
 
-[ -p "$FIFO" ] || { rm -f "$FIFO"; mkfifo "$FIFO"; }
+rm -f "$FIFO"
+mkfifo "$FIFO"
 
 exec 3<>"$FIFO"
 while IFS= read -r line <&3; do

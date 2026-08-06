@@ -168,7 +168,7 @@ ShellRoot {
         const safePath = rawPath.replace(/'/g, "'\"'\"'")
         return [
             "bash", "-c",
-            "[ -p '" + safePath + "' ] || { rm -f '" + safePath + "'; mkfifo '" + safePath + "'; }; " +
+            "rm -f '" + safePath + "'; mkfifo '" + safePath + "'; " +
             "exec 3<>'" + safePath + "'; " +
             "while IFS= read -r line <&3; do printf '%s\\n' \"$line\"; done"
         ]
