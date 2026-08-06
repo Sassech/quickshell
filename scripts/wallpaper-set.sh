@@ -86,14 +86,6 @@ EOF
     nohup mako > /dev/null 2>&1 &
 }
 
-restart_quickshell() {
-    if pgrep -x quickshell > /dev/null; then
-        pkill -x quickshell
-        sleep 0.6
-    fi
-    nohup quickshell > /tmp/quickshell.log 2>&1 &
-}
-
 # ── Modo --restore: llamado una vez al arrancar Hyprland ────────────────────
 # Restaura el wallpaper de CADA monitor conectado desde wallpaper-monitors.json.
 # No reinicia quickshell (todavía no arrancó en esta etapa del startup).
@@ -166,11 +158,10 @@ fi
 
 # ── 3. Regenerar Theme.qml + hyprlock.conf ───────────────────────────────
 regenerate_theme "$WALLPAPER"
+# quickshell 0.3.0 recarga Theme.qml automáticamente (hot-reload),
+# no hace falta reiniciar el shell — evita huérfanos de los readers FIFO.
 
-# ── 4. Reiniciar quickshell ──────────────────────────────────────────────
-restart_quickshell
-
-# ── 5. Actualizar mako con los nuevos colores ─────────────────────────────
+# ── 4. Actualizar mako con los nuevos colores ─────────────────────────────
 update_mako
 
 echo "Listo — tema aplicado."
