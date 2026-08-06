@@ -22,7 +22,7 @@
 	},
 	"keybinds": {
 		"launcher": "SUPER, S",
-		"screenshot": "CTRL SHIFT, S",
+		"screenshot": "SUPER SHIFT, S",
 		"clipboard": "SUPER, V"
 	},
 	"notifications": {
