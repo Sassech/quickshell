@@ -37,9 +37,10 @@ fade + slide desde el borde.
 | `restingOpacity` | `0.9` | Opacidad final tras el fade-in |
 | `animInMs` / `animOutMs` | `300` / `300` | Duración de entrada / salida |
 | `autoHideMs` | `0` | 0 = queda visible hasta `hide()`; >0 = auto-oculta |
-| `onTop` | `true` | true = capa Overlay (sobre ventanas); false = capa Bottom |
+| `onTop` | `true` | true = capa Overlay (sobre todas las ventanas); false = capa Bottom (queda debajo de las ventanas maximizadas) |
 | `topOffset` / `bottomOffset` / `leftOffset` / `rightOffset` | `0` | Px extra sobre el margen base de 16px del corner elegido (empujan hacia adentro) |
 | `mouseThrough` | `false` | true = los clicks pasan a la ventana de abajo (overlays decorativos); false = solo la tarjeta es clickeable |
+| `entryId` | `""` | id de la entrada en `OverlaysManager`; si se setea, el template auto-gobierna la visibilidad (visible al arrancar si está habilitado + reacción en vivo al toggle). Vacío = el overlay maneja `show()`/`hide()` manualmente |
 
 ### API
 
@@ -84,9 +85,14 @@ Convención:
 import QtQuick
 
 MyOverlay {
+    entryId:        "myOverlay"   // el template auto-gobierna la visibilidad
+                                  // (arranque + reacción al toggle, sin boilerplate)
     corner:         "top-right"
     overlayWidth:   280
-    autoHideMs:     4000
+    autoHideMs:     0
+    onTop:          OverlaysManager.get("myOverlay").onTop
+    // mouseThrough: true  // si es decorativo (sin interacción), para que los
+                          // clicks pasen a la ventana de abajo
 
     // Contenido → contentArea automáticamente.
     // Colores propios del overlay, NO Theme.*
@@ -99,14 +105,18 @@ MyOverlay {
             opacity: 0.8
         }
     }
-
-    function showOverlay() { root.show() }
-    function hideOverlay() { root.hide() }
 }
 ```
 
-Guardarlo en `Modals/overlays/`, instanciarlo por monitor en `shell.qml`
-con `Variants { model: Quickshell.screens }` (mismo patrón que el resto).
+Guardarlo en `Modals/overlays/`, declarar el `OverlayEntry` correspondiente en
+`OverlaysManager.overlays` y definir su id en `entryId`. Al usar `entryId`,
+el template centraliza la visibilidad (visible al arrancar si está habilitado
++ sincronización en vivo del toggle); no hace falta escribir `visible`,
+`Component.onCompleted` ni `Connections` a mano. Si el overlay necesita
+control manual de `show()`/`hide()` (p. ej. threshold, como NotificationPopup),
+dejar `entryId` vacío y exponer funciones que llamen a `root.show()` / `root.hide()`.
+Instanciarlo por monitor en `shell.qml` con
+`Variants { model: Quickshell.screens }` (mismo patrón que el resto).
 
 ## Conectar un trigger
 
@@ -201,12 +211,12 @@ un overlay nuevo NO toca ni el modal ni `shell.qml`.
 Agregar un overlay nuevo:
 
 1. Crear su `.qml` en `Modals/overlays/` (basado en `OverlayWindow`).
-2. Declarar `corner`, `overlayWidth`, offsets y `onTop` leyendo
-   `OverlaysManager.get("id")` — y el patrón de visibilidad del Watermark:
-   `visible: false`, `Component.onCompleted` con `root.show()` si está
-   habilitado, y un `Connections` al entry para los cambios en vivo.
-   Si es decorativo (sin interacción), activar `mouseThrough: true` para que
-   los clicks pasen a la ventana de abajo.
+2. Declarar `entryId`, `corner`, `overlayWidth`, offsets y `onTop` (vía
+   `OverlaysManager.get("id")`). `entryId` hace que el template auto-gobierne
+   la visibilidad (arranque + reacción en vivo), así que no hay que escribir
+   `visible` / `Component.onCompleted` / `Connections` a mano. Si es decorativo
+   (sin interacción), activar `mouseThrough: true` para que los clicks pasen a
+   la ventana de abajo.
 3. Agregar su `OverlayEntry` a `OverlaysManager.overlays`.
 4. Instanciarlo por monitor en `shell.qml` con
    `Variants { model: Quickshell.screens }` (mismo patrón que el resto).
