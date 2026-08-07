@@ -9,3 +9,4 @@ assets/*
 .vscode
 scripts/__pycache__/*
 .atl/
+.codegraph/
