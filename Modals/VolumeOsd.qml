@@ -20,10 +20,7 @@ OsdBase {
 
     // ── Contenido parametrizado (reactivo al estado del sink) ─────────────
     value:      _volumePct
-    icon:       root._muted || root._volumePct === 0 ? "󰝟"
-              : root._volumePct < 33                ? "󰕿"
-              : root._volumePct < 67                ? "󰖀"
-              : "󰕾"
+    icon:       IconHelpers.volIcon(root._volumePct / 100, root._muted)
     label:      root._muted ? "Mudo" : root._volumePct + "%"
     barColor:   root._muted ? Theme.muted2 : Theme.accent
     iconColor:  root._muted ? Theme.muted2 : Theme.accent

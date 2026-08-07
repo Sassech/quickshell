@@ -1,5 +1,6 @@
 // qmllint disable uncreatable-type
 import QtQuick
+import "../Components"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BrightnessOsd — OSD de brillo. Hereda OsdBase (ciclo de vida + layout) y
@@ -14,10 +15,7 @@ OsdBase {
 
     // ── Contenido parametrizado ───────────────────────────────────────────
     value: _pct
-    icon:  _pct < 15 ? "󰃞"
-         : _pct < 50 ? "󰃝"
-         : _pct < 85 ? "󰃟"
-         : "󰃠"
+    icon:  IconHelpers.brightIcon(root._pct)
     label: _pct + "%"
 
     property int _pct: 0   // 0–100
