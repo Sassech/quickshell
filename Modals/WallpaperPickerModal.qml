@@ -27,6 +27,7 @@ PanelWindow {
     property string currentWallpaper: ""
     property bool   _loading: false
     property string _listBuf: ""
+    property string _errorMsg: ""
 
     signal requestFolderBrowser(string currentPath)
 
@@ -90,6 +91,13 @@ PanelWindow {
         onTriggered: root._loading = false
     }
 
+    // Limpia el mensaje de error transcurridos 4s
+    Timer {
+        id: errorClearTimer
+        interval: 4000
+        onTriggered: root._errorMsg = ""
+    }
+
     // ── Carga imágenes ─────────────────────────────────────────
     function loadImages() {
         // Si ya hay una carga en curso, la cancela y reintenta
@@ -131,8 +139,13 @@ PanelWindow {
         property string pending: ""
         running: false
         // qmllint disable signal-handler-parameters
-        onExited: {
-            root.currentWallpaper = pending
+        onExited: function(exitCode) {
+            if (exitCode === 0) {
+                root.currentWallpaper = pending
+            } else {
+                root._errorMsg = "No se pudo aplicar el fondo de pantalla"
+                errorClearTimer.restart()
+            }
         }
         // qmllint enable signal-handler-parameters
     }
@@ -225,6 +238,12 @@ PanelWindow {
                     font.pixelSize: 12
                     color: Theme.muted3
                     visible: root._loading
+                }
+                Text {
+                    text: root._errorMsg
+                    font.pixelSize: 12
+                    color: Theme.error
+                    visible: root._errorMsg !== ""
                 }
 
                 Item { Layout.fillWidth: true }
@@ -333,7 +352,7 @@ PanelWindow {
                     }
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        text: "Formatos: jpg, png, webp, bmp, gif"
+                        text: "Formatos: jpg, png, webp, bmp, gif, mp4, webm, mkv, mov"
                         font.pixelSize: 11
                         color: Theme.surface2
                     }
@@ -465,6 +484,24 @@ PanelWindow {
                                     text: "󰄬"
                                     font.pixelSize: 12
                                     color: Theme.cardBg3
+                                }
+                            }
+
+                            // Badge "video"
+                            Rectangle {
+                                visible: wpCell.model.type === "video"
+                                anchors.bottom: parent.bottom
+                                anchors.right: parent.right
+                                anchors.margins: 6
+                                width: 22; height: 22; radius: 11
+                                color: Theme.cardBg3
+                                border.color: Theme.accent2
+                                border.width: 1
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰐊"
+                                    font.pixelSize: 11
+                                    color: Theme.accent2
                                 }
                             }
 
