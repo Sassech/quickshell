@@ -21,6 +21,7 @@ OverlayWindow {
     autoHideMs:     0                       // 0 = siempre visible (estilo Windows)
     onTop:          OverlaysManager.get("watermark").onTop
     bottomOffset:   0
+    mouseThrough:   true    // decorativo: los clicks pasan a la ventana de abajo
 
     // La visibilidad la gobierna OverlaysManager (flag enabled de su entry):
     // oculto por defecto; se muestra solo si el overlay está habilitado.

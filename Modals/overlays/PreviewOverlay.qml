@@ -21,6 +21,7 @@ OverlayWindow {
     autoHideMs:     0                       // 0 = siempre visible (loop)
     onTop:          OverlaysManager.get("preview").onTop
     bottomOffset:   70
+    mouseThrough:   true    // decorativo: los clicks pasan a la ventana de abajo
 
     visible: false
     Component.onCompleted: {
