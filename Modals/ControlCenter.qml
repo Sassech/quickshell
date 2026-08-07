@@ -2,16 +2,11 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Layouts
 import QtQuick.Controls
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
-import Quickshell.Services.Pipewire
 import Quickshell.Services.Mpris
-import Quickshell.Bluetooth
-import Quickshell.Networking
-import Quickshell.Services.UPower
 import "../Components"
 import "./cc"
 
@@ -27,628 +22,213 @@ PanelWindow {
     anchors.top: true; anchors.bottom: true
     anchors.left: true; anchors.right: true
 
-    // ── Señales hacia el orquestador (shell.qml) ──────────────────────────
-
-    // ── Power confirm state ───────────────────────────────────────────────
+    // ── Coordinación UI ───────────────────────────────────────────────────
     property bool   _showConfirm:  false
     property string _confirmLabel: ""
     property var    _confirmCmd:   []
 
-    // ── Bluetooth rev ─────────────────────────────────────────────────────
-    property int  _btRev: 0
-
-    // ── Paneles expandibles en toggles ───────────────────────────────────
+    property int    _btRev: 0
     property string _activePanel: ""   // "wifi" | "bluetooth" | "audio" | "power" | "battery" | "language" | "cpu" | "ram" | "gpu" | ""
     property bool   _audioShowSources: true
 
-    // ── WiFi inline state — Quickshell.Networking API ────────────────────
-    // Networking singleton + first WiFi device
-    property var    _nmWifiDev: {
-        var devs = Networking.devices.values
-        for (var i = 0; i < devs.length; i++) {
-            if (devs[i].type === DeviceType.Wifi) return devs[i]
-        }
-        return null
+    // ── Controladores de dominio ──────────────────────────────────────────
+
+    CcBatteryController {
+        id: batCtrl
     }
 
-    property bool   _wifiRadioOn:    Networking.wifiEnabled
-    property bool   _wifiScanning:   _nmWifiDev ? _nmWifiDev.scannerEnabled : false
-    property bool   _wifiWorking:    false
-    property string _wifiStatusMsg:  ""
-    property int    _wifiSelectedIdx: -1
-    property var    _wifiPasswordByIndex: ({})
-    property var    _wifiTargetNet:  null   // red a la que se está intentando conectar
-
-    // Derived: connected network (reactive)
-    property var    _wifiConnectedNet: {
-        var dev = root._nmWifiDev
-        if (!dev) return null
-        var nets = dev.networks.values
-        for (var i = 0; i < nets.length; i++) {
-            if (nets[i].connected) return nets[i]
-        }
-        return null
-    }
-    property string _wifiConnectedSsid: _wifiConnectedNet ? _wifiConnectedNet.name : ""
-
-    // IP/Gateway/DNS — still fetched via nmcli (not exposed by API)
-    property string _wifiIp:      ""
-    property string _wifiGateway: ""
-    property string _wifiDns:     ""
-
-    // Ethernet state — still fetched via nmcli (not exposed by Networking API)
-    property bool   _ethConnected: false
-    property string _ethIp:        ""
-    property string _ethSpeed:     ""
-
-    // Password fetch shared state (for revealing saved PSK via nmcli -s)
-    property string _wifiPwFetchResult:    ""
-    property int    wifiPwFetchResultIdx: -2
-    property int    _wifiPwFetchIdx:       -1
-
-    // ── Bluetooth inline state ────────────────────────────────────────────
-    property var    _btAdapter:   Bluetooth.defaultAdapter
-    property bool   _btAvailable: _btAdapter !== null
-    property bool   _btPwrd:      _btAdapter ? _btAdapter.enabled : false
-    property bool   _btScanning:  false
-    property bool   _btWorking:   false
-    property string _btStatusMsg: ""
-
-    property var    _btPairedList:   []
-    property var    _btNearbyList:   []
-    property int    _btPairedCount:  0
-    property int    _btNearbyCount:  0
-
-    property var    _btActionDevice:    null
-    property string _btActionType:      ""
-    property bool   _btSawConnecting:   false
-    property int    _btConnectRetries:  0
-    property bool   _btAutoConnRunning: false
-    property var    _btAutoConnQueue:   []
-    property var    _btAutoConnDevice:  null
-
-    // Codec info map: { "AA:BB:CC:DD:EE:FF" → {codec, active, rate, profiles:[{id,label}]} }
-    property var    _btCodecData:        ({})
-    property var    _btCodecQueue:       []
-    property string _btCurrentCodecMac:  ""
-
-    // ── Mensajes de estado Bluetooth ──────────────────────────────────────
-    readonly property string _btMsgConnected:    "✓ Conectado"
-    readonly property string _btMsgDisconnected: "✓ Desconectado"
-    readonly property string _btMsgPaired:       "✓ Emparejado"
-    readonly property string _btMsgForgotten:    "✓ Dispositivo olvidado"
-    readonly property string _btMsgCodecOk:      "✓ Codec cambiado"
-    readonly property string _btMsgNoAdapter:    "✗ Sin adaptador"
-    readonly property string _btMsgNoPower:      "✗ Enciende el Bluetooth primero"
-    readonly property string _btMsgTimeout:      "✗ Tiempo de espera"
-    readonly property string _btMsgConnFailed:   "✗ No se pudo conectar"
-    readonly property string _btMsgPairFailed:   "✗ No se pudo emparejar"
-    readonly property string _btMsgCodecErr:     "✗ Error al cambiar codec"
-
-    // Fan profiles (read from fan-control.sh)
-    property var    _fanProfiles:  []     // [{id, label}] from fan-control.sh list
-
-    // ── Battery — UPower API ──────────────────────────────────────────────
-    property var    _upowerDev:    UPower.displayDevice
-    // Derived properties — reactive, no polling needed
-    property bool   _batAvailableUP: _upowerDev ? _upowerDev.isPresent && _upowerDev.isLaptopBattery : false
-    property real   _batPctUP:       _upowerDev ? _upowerDev.percentage * 100 : 0
-    property bool   _batChargingUP:  _upowerDev ? (_upowerDev.state === UPowerDeviceState.Charging ||
-                                                    _upowerDev.state === UPowerDeviceState.PendingCharge) : false
-    property bool   _batFullUP:      _upowerDev ? _upowerDev.state === UPowerDeviceState.FullyCharged : false
-    property real   _batHealthUP:    _upowerDev ? (_upowerDev.healthSupported ? _upowerDev.healthPercentage : 0) : 0
-    property real   _batCapWhUP:     _upowerDev ? _upowerDev.energyCapacity    : 0
-    property real   _batEnergyUP:    _upowerDev ? _upowerDev.energy            : 0
-    property real   _batChangeRate:  _upowerDev ? _upowerDev.changeRate        : 0
-    property real   _batTimeEmpty:   _upowerDev ? _upowerDev.timeToEmpty       : 0
-    property real   _batTimeFull:    _upowerDev ? _upowerDev.timeToFull        : 0
-
-    // Language detail
-    property string _langLayout:   "—"
-    property string _langLocale:   "—"
-    property var    _langLayouts:  []   // [{label, code}]
-    property var    _langLocales:  []
-    property string _langSearch:        ""   // valor debounced (el que leen los filtros)
-    property string _langSearchPending: ""   // valor inmediato del campo de texto
-    property string _langTab:           "keyboard"
-
-    // Debounce: aplica la búsqueda 150 ms después de la última tecla
-    Timer {
-        id: _langSearchDebounce
-        interval: 150
-        onTriggered: root._langSearch = root._langSearchPending
+    CcBrightnessController {
+        id: brightnessCtrl
     }
 
-    property var _filteredLayouts: {
-        root._langLayouts; root._langSearch
-        var q = (root._langSearch || "").toLowerCase()
-        if (!q) return root._langLayouts
-        var result = []
-        for (var i = 0; i < root._langLayouts.length; i++) {
-            var item = root._langLayouts[i]
-            if ((item.code || "").toLowerCase().indexOf(q) >= 0)
-                result.push(item)
-        }
-        return result
+    CcGpuController {
+        id: gpuCtrl
+        active: root.visible && root._activePanel === "gpu"
     }
 
-    property var _filteredLocales: {
-        root._langLocales; root._langSearch
-        var q = (root._langSearch || "").toLowerCase()
-        if (!q) return root._langLocales
-        var result = []
-        for (var i = 0; i < root._langLocales.length; i++) {
-            var item = root._langLocales[i]
-            if ((item.value || "").toLowerCase().indexOf(q) >= 0)
-                result.push(item)
-        }
-        return result
+    CcPowerController {
+        id: powerCtrl
     }
 
-    // ── Métricas expandibles — estado ─────────────────────────────────────
-    property string _expandedMetric: ""   // "cpu" | "ram" | "gpu" | ""
+    CcLanguageController {
+        id: langCtrl
+    }
 
-    // GPU detail — list of GPU objects parsed from gpu-detail.sh
-    // Each: { vendor, name, util, temp, tempJun, freq, power, vramUsed, vramTotal, driver, status }
-    property bool   _gpuLoaded: false
-    property var    _gpus:      []        // populated by gpuDetailProc
+    CcAudioController {
+        id: audioCtrl
+        panelVisible: root.visible
+        panelActive:  root._activePanel === "audio"
+    }
 
-    // ── Audio — Pipewire API nativa ───────────────────────────────────────
-    property var defaultSink:   Pipewire.defaultAudioSink
-    property var defaultSource: Pipewire.defaultAudioSource
+    CcBluetoothController {
+        id: btCtrl
+    }
 
-    PwObjectTracker { objects: [root.defaultSink, root.defaultSource, root._activeSink, root._activeSource] }
+    CcWifiController {
+        id: wifiCtrl
+    }
 
-    // Pipewire.defaultAudioSink/defaultSource no cambian de forma confiable al
-    // usar preferredDefaultAudioSink/Source, así que trackeamos nosotrxs el
-    // nodo y nombre activos para highlight, volumen, mute y bindings.
-    property var    _activeSink:        defaultSink
-    property var    _activeSource:      defaultSource
-    property string _activeSinkName:    defaultSink?.name   ?? ""
-    property string _activeSourceName:  defaultSource?.name ?? ""
-
-    // Volumen/mute bindeados al nodo activo (no al default de Pipewire)
-    property real masterVolume: root._activeSink?.audio?.volume   ?? 0.75
-    property bool masterMuted:  root._activeSink?.audio?.muted    ?? false
-    property real micVolume:    root._activeSource?.audio?.volume ?? 0.75
-    property bool micMuted:     root._activeSource?.audio?.muted  ?? false
-
-    // Sincronizar tracking cuando Pipewire avisa de un cambio real
+    // ── Conexión: signal del wifi controller → ccPanelOverlay ────────────
     Connections {
-        target: Pipewire
-        function onDefaultAudioSinkChanged() {
-            root._pwRev++
-            if (root.defaultSink?.name) {
-                root._activeSink     = root.defaultSink
-                root._activeSinkName = root.defaultSink.name
-            }
-        }
-        function onDefaultAudioSourceChanged() {
-            root._pwRev++
-            if (root.defaultSource?.name) {
-                root._activeSource     = root.defaultSource
-                root._activeSourceName = root.defaultSource.name
-            }
+        target: wifiCtrl
+        function onWifiPasswordFetched(idx, pw) {
+            ccPanelOverlay.wifiPasswordFetched(idx, pw)
         }
     }
 
-    // Volumen/mute del sink activo
+    // ── Timer: btCodecRefreshTimer necesita condición del root ────────────
     Connections {
-        target: root._activeSink?.audio ?? null
-        function onVolumesChanged() {
-            const v = root._activeSink?.audio?.volume
-            if (v !== undefined && !isNaN(v)) root.masterVolume = v
-        }
-        function onMutedChanged() {
-            const m = root._activeSink?.audio?.muted
-            if (m !== undefined) root.masterMuted = m
-        }
+        target: btCtrl._btCodecRefreshTimer
+        function onRunningChanged() {}
+    }
+    // Bindear running del codec timer al estado del root
+    Binding {
+        target: btCtrl._btCodecRefreshTimer
+        property: "running"
+        value: root.visible && root._activePanel === "bluetooth"
     }
 
-    // Volumen/mute del source activo
-    Connections {
-        target: root._activeSource?.audio ?? null
-        function onVolumesChanged() {
-            const v = root._activeSource?.audio?.volume
-            if (v !== undefined && !isNaN(v)) root.micVolume = v
-        }
-        function onMutedChanged() {
-            const m = root._activeSource?.audio?.muted
-            if (m !== undefined) root.micMuted = m
-        }
-    }
+    // ── Aliases Battery ───────────────────────────────────────────────────
+    property alias _upowerDev:      batCtrl._upowerDev
+    property alias _batAvailableUP: batCtrl._batAvailableUP
+    property alias _batPctUP:       batCtrl._batPctUP
+    property alias _batChargingUP:  batCtrl._batChargingUP
+    property alias _batFullUP:      batCtrl._batFullUP
+    property alias _batHealthUP:    batCtrl._batHealthUP
+    property alias _batCapWhUP:     batCtrl._batCapWhUP
+    property alias _batEnergyUP:    batCtrl._batEnergyUP
+    property alias _batChangeRate:  batCtrl._batChangeRate
+    property alias _batTimeEmpty:   batCtrl._batTimeEmpty
+    property alias _batTimeFull:    batCtrl._batTimeFull
 
-    // ── Brillo ────────────────────────────────────────────────────────────
-    property int brightness: 50
-    property bool _brightnessReady: false
+    // ── Aliases Brightness ────────────────────────────────────────────────
+    property alias brightness:       brightnessCtrl.brightness
+    property alias _brightnessReady: brightnessCtrl._brightnessReady
 
-    // ── Audio state ───────────────────────────────────────────────────────
-    property int  _pwRev: 0   // cambios en sinks/sources/visibilidad
+    // ── Aliases GPU ───────────────────────────────────────────────────────
+    property alias _gpuLoaded:      gpuCtrl._gpuLoaded
+    property alias _gpus:           gpuCtrl._gpus
 
-    // ── Audio device lists (sinks / sources) ──────────────────────────────
-    // Puerto de disponibilidad — sigue necesitando pactl (no expuesto por API)
-    property var    _audioSinkAvail:   ({})   // { nodeName: bool }
-    property var    _audioSourceAvail: ({})
+    // ── Aliases Power ─────────────────────────────────────────────────────
+    property alias _fanProfiles: powerCtrl._fanProfiles
 
+    // ── Aliases Language ──────────────────────────────────────────────────
+    property alias _langLayout:        langCtrl._langLayout
+    property alias _langLocale:        langCtrl._langLocale
+    property alias _langLayouts:       langCtrl._langLayouts
+    property alias _langLocales:       langCtrl._langLocales
+    property alias _langSearch:        langCtrl._langSearch
+    property alias _langSearchPending: langCtrl._langSearchPending
+    property alias _langTab:           langCtrl._langTab
+    property alias _filteredLayouts:   langCtrl._filteredLayouts
+    property alias _filteredLocales:   langCtrl._filteredLocales
 
-    // Combo-jack: tarjetas donde Speaker y Headphones son perfiles ALSA
-    // mutuamente excluyentes (no puertos del mismo sink). Se detectan vía
-    // pactl list cards — necesario para poder ofrecer "Altavoces" aunque el
-    // perfil activo tenga los audífonos (o HDMI) puestos.
-    property var    _audioComboCards:  []     // [{ name, activeProfile, profiles: [{name, priority, available}] }]
+    // ── Aliases Audio ─────────────────────────────────────────────────────
+    property alias defaultSink:       audioCtrl.defaultSink
+    property alias defaultSource:     audioCtrl.defaultSource
+    property alias _activeSink:       audioCtrl._activeSink
+    property alias _activeSource:     audioCtrl._activeSource
+    property alias _activeSinkName:   audioCtrl._activeSinkName
+    property alias _activeSourceName: audioCtrl._activeSourceName
+    property alias masterVolume:      audioCtrl.masterVolume
+    property alias masterMuted:       audioCtrl.masterMuted
+    property alias micVolume:         audioCtrl.micVolume
+    property alias micMuted:          audioCtrl.micMuted
+    property alias _pwRev:            audioCtrl._pwRev
+    property alias _audioSinkAvail:   audioCtrl._audioSinkAvail
+    property alias _audioSourceAvail: audioCtrl._audioSourceAvail
+    property alias _audioComboCards:  audioCtrl._audioComboCards
+    property alias audioSinks:        audioCtrl.audioSinks
+    property alias audioSources:      audioCtrl.audioSources
 
-    property string _pendingSinkToken: ""     // "speaker" | "headphones" — sink que estamos esperando tras un profile switch
-    property int    _pendingSinkRetries: 0
+    // ── Aliases Bluetooth ─────────────────────────────────────────────────
+    property alias _btAdapter:         btCtrl._btAdapter
+    property alias _btAvailable:       btCtrl._btAvailable
+    property alias _btPwrd:            btCtrl._btPwrd
+    property alias _btScanning:        btCtrl._btScanning
+    property alias _btWorking:         btCtrl._btWorking
+    property alias _btStatusMsg:       btCtrl._btStatusMsg
+    property alias _btPairedList:      btCtrl._btPairedList
+    property alias _btNearbyList:      btCtrl._btNearbyList
+    property alias _btPairedCount:     btCtrl._btPairedCount
+    property alias _btNearbyCount:     btCtrl._btNearbyCount
+    property alias _btCodecData:       btCtrl._btCodecData
+    property alias btAdapter:          btCtrl.btAdapter
+    property alias btPowered:          btCtrl.btPowered
+    property alias btConnectedCount:   btCtrl.btConnectedCount
+    property alias btFirstConnectedName: btCtrl.btFirstConnectedName
 
-    // Computed — se recalcula cuando cambia _pwRev o los mapas de disponibilidad
-    // Gate: solo escanea nodos cuando el panel de audio está activo y visible
-    property var audioSinks: {
-        _pwRev; _audioSinkAvail; root._activeSinkName; root._audioComboCards
-        if (!root.visible || root._activePanel !== "audio") return []
-        var activeName = root._activeSinkName || root.defaultSink?.name || ""
-        var out = []
-        var all = Pipewire.nodes.values
-        for (var i = 0; i < all.length; i++) {
-            var node = all[i]
-            if (!node || !node.isSink || node.isStream) continue
-            var name = node.name ?? ""
-            if (!name || name.endsWith(".monitor")) continue
-            if (root._audioSinkAvail[name] !== true) continue
-            out.push({
-                id: name,
-                label: _audioFormatDesc(node.description, name),
-                icon:  _audioSinkIcon(name),
-                active: name === activeName,
-                node:  node
-            })
-        }
+    // ── Aliases WiFi ──────────────────────────────────────────────────────
+    property alias _nmWifiDev:          wifiCtrl._nmWifiDev
+    property alias _wifiRadioOn:        wifiCtrl._wifiRadioOn
+    property alias _wifiScanning:       wifiCtrl._wifiScanning
+    property alias _wifiWorking:        wifiCtrl._wifiWorking
+    property alias _wifiStatusMsg:      wifiCtrl._wifiStatusMsg
+    property alias _wifiSelectedIdx:    wifiCtrl._wifiSelectedIdx
+    property alias _wifiPasswordByIndex: wifiCtrl._wifiPasswordByIndex
+    property alias _wifiTargetNet:      wifiCtrl._wifiTargetNet
+    property alias _wifiConnectedNet:   wifiCtrl._wifiConnectedNet
+    property alias _wifiConnectedSsid:  wifiCtrl._wifiConnectedSsid
+    property alias _wifiIp:             wifiCtrl._wifiIp
+    property alias _wifiGateway:        wifiCtrl._wifiGateway
+    property alias _wifiDns:            wifiCtrl._wifiDns
+    property alias _ethConnected:       wifiCtrl._ethConnected
+    property alias _ethIp:              wifiCtrl._ethIp
+    property alias _ethSpeed:           wifiCtrl._ethSpeed
 
-        // ── Combo-jack: Speaker y Headphones son perfiles ALSA excluyentes en
-        // este hardware, no puertos simultáneos del mismo sink. Si el perfil
-        // activo no expone uno de los dos como nodo real, lo agregamos como
-        // entrada "virtual": al hacer click dispara un cambio de perfil de
-        // tarjeta. Así "Altavoces" siempre aparece en la lista, tengas o no
-        // audífonos/HDMI puestos — y viceversa.
-        var wants = [
-            { token: "speaker",    icon: "󰕾", label: "Altavoces" },
-            { token: "headphones", icon: "󰋋", label: "Audífonos" }
-        ]
-        for (var ci = 0; ci < root._audioComboCards.length; ci++) {
-            var card = root._audioComboCards[ci]
-            for (var w = 0; w < wants.length; w++) {
-                var token = wants[w].token
-                var hasLiveNode = false
-                for (var oi = 0; oi < out.length; oi++) {
-                    if (out[oi].id.toLowerCase().indexOf(token) !== -1) { hasLiveNode = true; break }
-                }
-                if (hasLiveNode) continue
-                var targetProfile = root._pickBestProfile(card, token)
-                if (!targetProfile) continue
-                out.push({
-                    id: "virtual:" + card.name + ":" + token,
-                    label: wants[w].label,
-                    icon: wants[w].icon,
-                    active: false,
-                    node: null,
-                    virtual: true,
-                    cardName: card.name,
-                    targetProfile: targetProfile,
-                    targetToken: token
-                })
-            }
-        }
+    // ── Wrappers de funciones de controladores (para mantener contrato) ───
 
-        return out
-    }
+    // Battery/Power
+    function _powerLabel(profile) { return powerCtrl._powerLabel(profile) }
+    function _powerIcon(profile)  { return powerCtrl._powerIcon(profile) }
+    function setPower(profile)    { powerCtrl.setPower(profile) }
+    function _fmtTime(seconds)    { return powerCtrl._fmtTime(seconds) }
+    function _fmtSpeed(bps)       { return powerCtrl._fmtSpeed(bps) }
+    function formatDuration(ms)   { return powerCtrl.formatDuration(ms) }
 
-    // Tokens entre paréntesis de un nombre de perfil ALSA, ej.
-    // "HiFi (HDMI1, HDMI2, HDMI3, Headset, Mic1, Speaker)" -> ["HDMI1", ...]
-    function _profileTokens(name) {
-        if (!name) return []
-        var m = name.match(/\(([^)]*)\)/)
-        if (!m) return []
-        return m[1].split(",").map(function(s) { return s.trim() })
-    }
+    // Brightness
+    function setBrightness(pct) { brightnessCtrl.setBrightness(pct) }
 
-    // Entre los perfiles que incluyen `wantedToken` (ej. "Speaker"), elige el
-    // que más se parezca al perfil activo actual (mismos micrófonos/puertos),
-    // para no perder de paso la configuración de entrada de audio.
-    function _pickBestProfile(card, wantedToken) {
-        var activeTokens = root._profileTokens(card.activeProfile).map(function(t) { return t.toLowerCase() })
-        var best = null
-        var bestScore = -1
-        for (var i = 0; i < card.profiles.length; i++) {
-            var p = card.profiles[i]
-            if (!p.available) continue
-            var tokens = root._profileTokens(p.name).map(function(t) { return t.toLowerCase() })
-            if (tokens.indexOf(wantedToken) === -1) continue
-            var score = 0
-            for (var t = 0; t < tokens.length; t++) {
-                if (tokens[t] !== wantedToken && activeTokens.indexOf(tokens[t]) !== -1) score++
-            }
-            if (score > bestScore || (score === bestScore && (!best || p.priority > best.priority))) {
-                best = p
-                bestScore = score
-            }
-        }
-        return best ? best.name : null
-    }
+    // Language
+    function langRefresh() { langCtrl.langRefresh() }
 
-    property var audioSources: {
-        _pwRev; _audioSourceAvail; root._activeSourceName
-        if (!root.visible || root._activePanel !== "audio") return []
-        var activeName = root._activeSourceName || root.defaultSource?.name || ""
-        var out = []
-        var all = Pipewire.nodes.values
-        for (var i = 0; i < all.length; i++) {
-            var node = all[i]
-            if (!node || node.isSink || node.isStream) continue
-            var name = node.name ?? ""
-            if (!name || name.endsWith(".monitor")) continue
-            if (root._audioSourceAvail[name] !== true) continue
-            out.push({
-                id: name,
-                label: _audioFormatDesc(node.description, name),
-                icon:  _audioSourceIcon(name),
-                active: name === activeName,
-                node:  node
-            })
-        }
-        return out
-    }
+    // Audio
+    function setMasterVolume(v)    { audioCtrl.setMasterVolume(v) }
+    function setMicVol(v)          { audioCtrl.setMicVol(v) }
+    function toggleMasterMute()    { audioCtrl.toggleMasterMute() }
+    function toggleMicMute()       { audioCtrl.toggleMicMute() }
+    function setDefaultSink(entry) { audioCtrl.setDefaultSink(entry) }
+    function setDefaultSource(entry) { audioCtrl.setDefaultSource(entry) }
+    function loadAudioDevices()    { audioCtrl.loadAudioDevices() }
+    function _audioFormatDesc(desc, name) { return audioCtrl._audioFormatDesc(desc, name) }
 
-    function _audioSinkIcon(name) {
-        const n = name.toLowerCase()
-        if (n.includes("hdmi") || n.includes("displayport") || n.includes("iec958")) return "󰡁"
-        if (n.includes("bluez") || n.includes("bluetooth")) return "󰋋"
-        if (n.includes("usb")) return "󱊣"
-        if (n.includes("headphone") || n.includes("headset")) return "󰋋"
-        return "󰕾"
-    }
+    // Bluetooth
+    function btSanitizeMac(mac)          { return btCtrl.btSanitizeMac(mac) }
+    function btRunNextCodecQuery()        { btCtrl.btRunNextCodecQuery() }
+    function btSetCodec(mac, profile)    { btCtrl.btSetCodec(mac, profile) }
+    function btResetAction(msg)          { btCtrl.btResetAction(msg) }
+    function btRefreshDeviceLists()      { btCtrl.btRefreshDeviceLists() }
+    function btAutoConnectTrusted()      { btCtrl.btAutoConnectTrusted() }
+    function btAutoConnNext()            { btCtrl.btAutoConnNext() }
+    function btTogglePower()             { btCtrl.btTogglePower() }
+    function btToggleScan()              { btCtrl.btToggleScan() }
+    function btConnectDevice(device)     { btCtrl.btConnectDevice(device) }
+    function btDisconnectDevice(device)  { btCtrl.btDisconnectDevice(device) }
+    function btPairDevice(device)        { btCtrl.btPairDevice(device) }
+    function btForgetDevice(device)      { btCtrl.btForgetDevice(device) }
 
-    function _audioSourceIcon(name) {
-        const n = name.toLowerCase()
-        if (n.includes("bluez") || n.includes("bluetooth")) return "󰋋"
-        if (n.includes("usb")) return "󱊣"
-        if (n.includes("webcam") || n.includes("camera")) return "󰄀"
-        return "󰍹"
-    }
-
-    function _audioFormatDesc(desc, name) {
-        if (desc && desc !== "" && desc !== "(null)") return desc
-        var n = (name || "")
-            .replace(/^alsa_(output|input)\./, "")
-            .replace(/^bluez_(output|input)\.[0-9A-Fa-f:_]+$/, "Bluetooth")
-            .replace(/^bluez_(output|input)\./, "Bluetooth: ")
-            .replace(/pci-[0-9a-f]{4}_[0-9a-f]{2}_[0-9a-f]{2}\.\d+\./, "")
-            .replace(/usb-[^.]+\./, "USB: ")
-            .replace(/[-_.]+/g, " ").trim()
-        return n.replace(/\b\w/g, function(c) { return c.toUpperCase() })
-    }
-
-    function setDefaultSink(entry) {
-        if (entry.virtual) {
-            root._pendingSinkToken   = entry.targetToken
-            root._pendingSinkRetries = 0
-            var safeCard    = entry.cardName.replace(/'/g, "'\\''")
-            var safeProfile = entry.targetProfile.replace(/'/g, "'\\''")
-            _audioProfileSwitchProc.command = ["bash", "-c",
-                "pactl set-card-profile '" + safeCard + "' '" + safeProfile + "' 2>/dev/null"]
-            _audioProfileSwitchProc.running = true
-            return
-        }
-        if (!entry.node) return
-        // Pipewire.defaultAudioSink no se actualiza de forma confiable; usar
-        // nuestro propio tracking para highlight, volumen y mute.
-        root._activeSink     = entry.node
-        root._activeSinkName = entry.id
-        // API nativa para cambiar el sink default
-        Pipewire.preferredDefaultAudioSink = entry.node
-        root._pwRev++
-        // Mover streams activos al nuevo sink (no expuesto por API)
-        var safe = entry.id.replace(/'/g, "'\\''")
-        _audioMoveSinkProc.command = ["bash", "-c",
-            "pactl list short sink-inputs | awk '{print $1}' | " +
-            "xargs -r -I{} pactl move-sink-input {} '" + safe + "' 2>/dev/null"]
-        _audioMoveSinkProc.running = true
-    }
-
-    function setDefaultSource(entry) {
-        if (!entry.node) return
-        // Pipewire.defaultAudioSource no se actualiza de forma confiable.
-        root._activeSource     = entry.node
-        root._activeSourceName = entry.id
-        Pipewire.preferredDefaultAudioSource = entry.node
-        root._pwRev++
-        var safe = entry.id.replace(/'/g, "'\\''")
-        _audioMoveSourceProc.command = ["bash", "-c",
-            "pactl list short source-outputs | awk '{print $1}' | " +
-            "xargs -r -I{} pactl move-source-output {} '" + safe + "' 2>/dev/null"]
-        _audioMoveSourceProc.running = true
-    }
-
-    function loadAudioDevices() {
-        _audioSinkAvailProc.running   = true
-        _audioSourceAvailProc.running = true
-        _audioCardsProc.running       = true
-    }
-
-    // El nodo PipeWire del nuevo perfil tarda un instante en enumerarse tras
-    // el profile switch — reintentamos unas pocas veces antes de rendirnos.
-    function _applyPendingSinkSwitch() {
-        if (!root._pendingSinkToken) return
-        var all = Pipewire.nodes.values
-        for (var i = 0; i < all.length; i++) {
-            var node = all[i]
-            if (!node || !node.isSink || node.isStream) continue
-            var name = (node.name || "").toLowerCase()
-            if (name.indexOf(root._pendingSinkToken) !== -1) {
-                root._pendingSinkToken   = ""
-                root._pendingSinkRetries = 0
-                root.setDefaultSink({ id: node.name, node: node })
-                return
-            }
-        }
-        if (root._pendingSinkRetries < 5) {
-            root._pendingSinkRetries++
-            _pendingSinkApplyTimer.restart()
-        } else {
-            root._pendingSinkToken   = ""
-            root._pendingSinkRetries = 0
-        }
-    }
-
-    // Fetch port availability (pactl — no expuesto por Pipewire API)
-    // LANG=C fuerza output en inglés — pactl es locale-sensitive
-    JsonProcess {
-        id: _audioSinkAvailProc
-        command: ["bash", "-c", "LANG=C pactl --format=json list sinks 2>/dev/null"]
-        onParsed: data => {
-            var map = ({})
-            var activeName = root.defaultSink?.name ?? ""
-            for (var i = 0; i < data.length; i++) {
-                var s = data[i]; var name = s.name || ""; if (!name) continue
-                var ports = s.ports || []
-                var ok = true
-                if (ports.length > 0) {
-                    ok = false
-                    for (var p = 0; p < ports.length; p++) {
-                        var port = ports[p]
-                        var av = (port.availability || "").toString().toLowerCase()
-                        var ptype = (port.type || "").toString().toLowerCase()
-                        // Solo HDMI/DisplayPort dependen de un cable físico real —
-                        // el resto (Headphones/Speaker combo-jack) puede marcar
-                        // "not available" por jack-sense y aun así seguir sonando
-                        // por el parlante interno (auto-switch hecho por firmware).
-                        var requiresCable = (ptype === "hdmi" || ptype === "displayport")
-                        if (!requiresCable || av !== "not available") { ok = true; break }
-                    }
-                }
-                // Nunca ocultar el sink activo ahora mismo, sea cual sea su jack-sense.
-                if (name === activeName) ok = true
-                map[name] = ok
-            }
-            root._audioSinkAvail = map
-            root._pwRev++
-        }
-    }
-
-    JsonProcess {
-        id: _audioSourceAvailProc
-        command: ["bash", "-c", "LANG=C pactl --format=json list sources 2>/dev/null"]
-        onParsed: data => {
-            var map = ({})
-            var activeName = root.defaultSource?.name ?? ""
-            for (var i = 0; i < data.length; i++) {
-                var s = data[i]; var name = s.name || ""
-                if (!name || name.endsWith(".monitor")) continue
-                var ports = s.ports || []
-                var ok = true
-                if (ports.length > 0) {
-                    ok = false
-                    for (var p = 0; p < ports.length; p++) {
-                        var port = ports[p]
-                        var av = (port.availability || "").toString().toLowerCase()
-                        var ptype = (port.type || "").toString().toLowerCase()
-                        // Mismo criterio que en sinks: solo HDMI/DisplayPort
-                        // dependen de un cable físico real.
-                        var requiresCable = (ptype === "hdmi" || ptype === "displayport")
-                        if (!requiresCable || av !== "not available") { ok = true; break }
-                    }
-                }
-                // Nunca ocultar la fuente activa ahora mismo.
-                if (name === activeName) ok = true
-                map[name] = ok
-            }
-            root._audioSourceAvail = map
-            root._pwRev++
-        }
-    }
-
-    // Mover streams al nuevo sink/source (pactl — necesario, no expuesto por API)
-    Process { id: _audioMoveSinkProc;   command: ["bash", "-c", ""] }
-    Process { id: _audioMoveSourceProc; command: ["bash", "-c", ""] }
-
-    // Detectar tarjetas combo-jack (Speaker/Headphones como perfiles ALSA
-    // excluyentes) — no expuesto por Pipewire API, necesita pactl list cards.
-    JsonProcess {
-        id: _audioCardsProc
-        command: ["bash", "-c", "LANG=C pactl --format=json list cards 2>/dev/null"]
-        onParsed: data => {
-            var combos = []
-            for (var i = 0; i < data.length; i++) {
-                var c = data[i]
-                // "ports" es un objeto { "[Out] Speaker": {...}, ... }, no un array
-                var ports = c.ports || {}
-                var hasSpeaker = false, hasHeadphones = false
-                for (var portKey in ports) {
-                    var t = (ports[portKey].type || "").toString().toLowerCase()
-                    if (t === "speaker") hasSpeaker = true
-                    if (t === "headphones") hasHeadphones = true
-                }
-                // Solo nos interesan tarjetas donde ambos existen como
-                // puertos posibles pero no pueden convivir en un perfil.
-                if (!hasSpeaker || !hasHeadphones) continue
-                var profiles = []
-                var pmap = c.profiles || {}
-                for (var key in pmap) {
-                    profiles.push({
-                        name: key,
-                        priority: pmap[key].priority || 0,
-                        available: pmap[key].available !== false
-                    })
-                }
-                combos.push({ name: c.name, activeProfile: c.active_profile || "", profiles: profiles })
-            }
-            root._audioComboCards = combos
-            root._pwRev++
-        }
-    }
-
-    // Cambiar de perfil ALSA (combo-jack Speaker/Headphones) — no expuesto
-    // por Pipewire API, necesita pactl set-card-profile.
-    Process {
-        id: _audioProfileSwitchProc
-        command: ["bash", "-c", ""]
-        onExited: {
-            root.loadAudioDevices()
-            _pendingSinkApplyTimer.restart()
-        }
-    }
-
-    // Da tiempo a PipeWire para enumerar el nodo del nuevo perfil.
-    Timer {
-        id: _pendingSinkApplyTimer
-        interval: 400
-        repeat: false
-        onTriggered: root._applyPendingSinkSwitch()
-    }
-
-    // Refresh cada 5 s mientras el panel esté abierto
-    Timer {
-        interval: 5000; repeat: true
-        running: root.visible && root._activePanel === "audio"
-        onTriggered: root.loadAudioDevices()
-    }
-
-    // ── Perfil de energía — UPower PowerProfiles API ─────────────────────
-    // PowerProfiles.profile es read/write (PowerProfile enum)
-    // PowerProfiles.hasPerformanceProfile indica si el perfil performance está disponible
-
-    // ── Bluetooth resumen ─────────────────────────────────────────────────
-    property var  btAdapter: Bluetooth.defaultAdapter
-    property bool btPowered: btAdapter ? btAdapter.enabled : false
-
-    // Bluetooth.devices expone SOLO los dispositivos actualmente conectados (doc oficial)
-    // Más preciso y reactivo que iterar _btPairedList manualmente
-    property int btConnectedCount: Bluetooth.devices.values.length
-
-    readonly property string btFirstConnectedName: {
-        const devs = Bluetooth.devices.values
-        if (devs.length === 0) return ""
-        const d = devs[0]
-        return d.name || d.deviceName || d.address || ""
-    }
+    // WiFi
+    function wifiToggleRadio()             { wifiCtrl.wifiToggleRadio() }
+    function wifiRescan()                  { wifiCtrl.wifiRescan() }
+    function wifiConnectKnown(net)         { wifiCtrl.wifiConnectKnown(net) }
+    function wifiConnectNew(ssid, pw)      { wifiCtrl.wifiConnectNew(ssid, pw) }
+    function wifiDisconnect(net)           { wifiCtrl.wifiDisconnect(net) }
+    function wifiForget(net)               { wifiCtrl.wifiForget(net) }
+    function wifiFetchPasswordFor(ssid, idx) { wifiCtrl.wifiFetchPasswordFor(ssid, idx) }
+    function wifiCopyPassword(ssid)        { wifiCtrl.wifiCopyPassword(ssid) }
+    function wifiSignalIcon(strength)      { return wifiCtrl.wifiSignalIcon(strength) }
+    function wifiSecurityLabel(sec)        { return wifiCtrl.wifiSecurityLabel(sec) }
+    function wifiIsOpen(sec)               { return wifiCtrl.wifiIsOpen(sec) }
 
     // ── MPRIS — reproductor ───────────────────────────────────────────────
     property var mprisPlayer: {
@@ -660,7 +240,7 @@ PanelWindow {
         return players.length > 0 ? players[0] : null
     }
 
-    property real playerPos: 0   // en segundos (igual que el API)
+    property real playerPos: 0
     property int  _posSync: 0
 
     function _syncPlayerPos() {
@@ -673,7 +253,7 @@ PanelWindow {
         repeat: true
         running: root.visible && (root.mprisPlayer?.isPlaying ?? false)
         onTriggered: {
-            root.playerPos += 1   // 1 segundo
+            root.playerPos += 1
             root._posSync++
             if (root._posSync >= 10) { root._posSync = 0; root._syncPlayerPos() }
         }
@@ -684,727 +264,18 @@ PanelWindow {
         function onTrackChanged() { root._syncPlayerPos(); root._posSync = 0 }
     }
 
-    // ── Procesos auxiliares ───────────────────────────────────────────────
-    property string _buf: ""
-
-    // Leer brillo actual
-    Process {
-        id: getBrightnessProc
-        command: ["bash", "-c", "brightnessctl -m | awk -F, '{print $4}' | tr -d '%'"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._buf += d }
-        // qmllint disable signal-handler-parameters
-        onExited: {
-            var v = parseInt(root._buf.trim())
-            root._buf = ""
-            if (!isNaN(v)) { root.brightness = v; root._brightnessReady = true }
-        }
-        // qmllint enable signal-handler-parameters
-    }
-
-    // Aplicar brillo
-    Process {
-        id: setBrightnessProc
-        property int targetPct: 50
-        command: ["bash", "-c", "brightnessctl set " + targetPct + "% 2>/dev/null"]
-    }
-
-    // ── Funciones de audio — Pipewire API nativa ──────────────────────────
-    function setMasterVolume(v) {
-        root.masterVolume = v
-        if (root._activeSink?.audio) root._activeSink.audio.volume = v
-    }
-
-    function setMicVol(v) {
-        root.micVolume = v
-        if (root._activeSource?.audio) root._activeSource.audio.volume = v
-    }
-
-    function toggleMasterMute() {
-        if (root._activeSink?.audio) {
-            root._activeSink.audio.muted = !root._activeSink.audio.muted
-        }
-    }
-
-    function toggleMicMute() {
-        if (root._activeSource?.audio) {
-            root._activeSource.audio.muted = !root._activeSource.audio.muted
-        }
-    }
-
-    function setBrightness(pct) {
-        root.brightness = pct
-        setBrightnessProc.targetPct = pct
-        if (!setBrightnessProc.running) setBrightnessProc.running = true
-    }
-
-    // ── Power profile helpers — UPower enum ──────────────────────────────
-    function _powerLabel(profile) {
-        if (profile === PowerProfile.Performance) return "Performance"
-        if (profile === PowerProfile.PowerSaver)  return "Power saver"
-        return "Balanced"
-    }
-
-    function _powerIcon(profile) {
-        if (profile === PowerProfile.Performance) return "󰓅"
-        if (profile === PowerProfile.PowerSaver)  return "󰁹"
-        return "󱐌"
-    }
-
-    function setPower(profile) {
-        PowerProfiles.profile = profile
-        SysData.refreshCpuDetail()
-    }
-
-    // ── Battery time formatting ────────────────────────────────────────────
-    function _fmtTime(seconds) {
-        if (!seconds || seconds <= 0) return ""
-        var h = Math.floor(seconds / 3600)
-        var m = Math.floor((seconds % 3600) / 60)
-        if (h > 0) return h + "h " + m + "m"
-        return m + "m"
-    }
-
-    function _fmtSpeed(bps) {
-        if (!bps || bps < 1024)         return Math.round(bps || 0) + " B/s"
-        if (bps < 1024 * 1024)          return (bps / 1024).toFixed(1) + " KB/s"
-        if (bps < 1024 * 1024 * 1024)   return (bps / (1024 * 1024)).toFixed(1) + " MB/s"
-        return (bps / (1024 * 1024 * 1024)).toFixed(2) + " GB/s"
-    }
-
-    function formatDuration(ms) {
-        if (!ms || isNaN(ms)) return "0:00"
-        var s = Math.floor(ms / 1000)
-        var m = Math.floor(s / 60)
-        var sec = s % 60
-        return m + ":" + (sec < 10 ? "0" : "") + sec
-    }
-
-    function langRefresh() {
-        root._langSearchPending = ""
-        root._langSearch        = ""
-        _langSearchDebounce.stop()
-        root._langTab           = "keyboard"
-        langLayoutProc.running     = true
-        langCurrentProc.running    = true
-        langLocaleProc.running     = true
-        langLocaleListProc.running = true
-    }
-
-    // ── Bluetooth functions ───────────────────────────────────────────────
-    function btSanitizeMac(mac) {
-        return mac.replace(/[^0-9A-Fa-f:]/g, "")
-    }
-
-    function btRunNextCodecQuery() {
-        if (root._btCodecQueue.length === 0 || btCodecProc.running) return
-        root._btCurrentCodecMac = root._btCodecQueue[0]
-        root._btCodecQueue      = root._btCodecQueue.slice(1)
-        var safeMac = root.btSanitizeMac(root._btCurrentCodecMac)
-        btCodecProc.command = [Paths.scripts + "/bt-codec.sh", "info", safeMac]
-        btCodecProc.running = true
-    }
-
-    function btSetCodec(mac, profile) {
-        root._btStatusMsg = ""
-        root._btCurrentCodecMac = mac
-        var safeMac     = root.btSanitizeMac(mac)
-        var safeProfile = profile.replace(/[^a-zA-Z0-9_-]/g, "")
-        btSetCodecProc.command = [Paths.scripts + "/bt-codec.sh", "set", safeMac, safeProfile]
-        btSetCodecProc.running = true
-    }
-
-    function btResetAction(msg) {
-        root._btWorking         = false
-        root._btActionDevice    = null
-        root._btActionType      = ""
-        root._btSawConnecting   = false
-        root._btConnectRetries  = 0
-        if (msg !== undefined) root._btStatusMsg = msg
-        btActionTimeout.stop()
-        btConnectRetryTimer.stop()
-    }
-
-    function btRefreshDeviceLists() {
-        // btAdapter.devices es el ObjectModel completo — sin necesidad de _btDevices
-        var source  = root._btAdapter ? root._btAdapter.devices.values : []
-        var paired  = []
-        var nearby  = []
-        for (var i = 0; i < source.length; i++) {
-            var d = source[i]
-            var isPaired = d.bonded || d.paired || d.trusted
-            if (isPaired) paired.push(d)
-            else nearby.push(d)
-        }
-        root._btPairedList  = paired
-        root._btNearbyList  = nearby
-        root._btPairedCount = paired.length
-        root._btNearbyCount = nearby.length
-    }
-
-    function btAutoConnectTrusted() {
-        if (!root._btAvailable || !root._btPwrd) return
-        if (root._btAutoConnRunning) return
-        btRefreshDeviceLists()
-        // Usar _btAdapter.devices.values directamente — source of truth sin cache intermedio
-        var source = root._btAdapter ? root._btAdapter.devices.values : []
-        var q = []
-        for (var i = 0; i < source.length; i++) {
-            var d = source[i]
-            if (d.paired && d.trusted && d.state !== BluetoothDeviceState.Connecting && !d.connected)
-                q.push(d)
-        }
-        if (q.length === 0) return
-        root._btAutoConnQueue   = q
-        root._btAutoConnRunning = true
-        root._btAutoConnDevice  = null
-        btAutoConnNext()
-    }
-
-    function btAutoConnNext() {
-        if (!root._btAutoConnRunning) return
-        btAutoConnTimer.stop()
-        root._btAutoConnDevice = null
-        if (root._btAutoConnQueue.length === 0) {
-            root._btAutoConnRunning = false
-            return
-        }
-        root._btAutoConnDevice = root._btAutoConnQueue.shift()
-        if (root._btAutoConnDevice) {
-            root._btAutoConnDevice.connect()
-            btAutoConnTimer.restart()
-        } else {
-            btAutoConnNext()
-        }
-    }
-
-    function btTogglePower() {
-        if (!root._btAdapter) return
-        root._btAdapter.enabled = !root._btAdapter.enabled
-    }
-
-    function btToggleScan() {
-        if (!root._btPwrd) return
-        if (root._btScanning) {
-            root._btScanning = false
-            if (root._btAdapter) root._btAdapter.discovering = false
-            btScanTimer.stop()
-        } else {
-            root._btScanning = true
-            if (root._btAdapter) root._btAdapter.discovering = true
-            btScanTimer.restart()
-        }
-    }
-
-    function btConnectDevice(device) {
-        if (!device) return
-        if (!root._btPwrd) { root._btStatusMsg = root._btMsgNoPower; return }
-        if (device.state === BluetoothDeviceState.Connecting || device.connected) return
-        root._btActionDevice   = device
-        root._btActionType     = "connect"
-        root._btWorking        = true
-        root._btStatusMsg      = ""
-        device.connect()
-        btActionTimeout.restart()
-    }
-
-    function btDisconnectDevice(device) {
-        if (!device || !device.connected) return
-        root._btActionDevice = device
-        root._btActionType   = "disconnect"
-        root._btWorking      = true
-        root._btStatusMsg    = ""
-        device.disconnect()
-        btActionTimeout.restart()
-    }
-
-    function btPairDevice(device) {
-        if (!device) return
-        if (!root._btPwrd) { root._btStatusMsg = root._btMsgNoPower; return }
-        if (device.pairing || device.paired) return
-        root._btActionDevice = device
-        root._btActionType   = "pair"
-        root._btWorking      = true
-        root._btStatusMsg    = ""
-        device.pair()
-        btActionTimeout.restart()
-    }
-
-    function btForgetDevice(device) {
-        if (!device) return
-        root._btActionDevice = device
-        root._btActionType   = "forget"
-        root._btWorking      = true
-        root._btStatusMsg    = ""
-        device.forget()
-    }
-
-    // ── Bluetooth timers & reactivity ─────────────────────────────────────
-    Timer {
-        id: btScanTimer
-        interval: 13000
-        onTriggered: {
-            if (root._btAdapter) root._btAdapter.discovering = false
-            root._btScanning = false
-        }
-    }
-
-    Timer {
-        id: btActionTimeout
-        interval: 10000
-        onTriggered: { if (root._btWorking) root.btResetAction(root._btMsgTimeout) }
-    }
-
-    Timer {
-        id: btAutoConnTimer
-        interval: 1500
-        onTriggered: root.btAutoConnNext()
-    }
-
-    Timer {
-        id: btConnectRetryTimer
-        interval: 1500
-        onTriggered: {
-            if (!root._btActionDevice || root._btActionType !== "connect") return
-            root._btConnectRetries++
-            root._btSawConnecting = false
-            root._btWorking = true   // garantizar spinner activo durante el reintento
-            root._btActionDevice.connect()
-            btActionTimeout.restart()
-        }
-    }
-
-    Timer {
-        id: btRefreshDebounce
-        interval: 60
-        onTriggered: root.btRefreshDeviceLists()
-    }
-
-    Timer {
-        id: btCodecRefreshTimer
-        interval: 30000; repeat: true
-        running: root.visible && root._activePanel === "bluetooth"
-        onTriggered: {
-            if (btCodecProc.running || btSetCodecProc.running) return
-            var q = []
-            var list = root._btAdapter ? root._btAdapter.devices.values : []
-            for (var i = 0; i < list.length; i++) {
-                if (list[i].connected) q.push(list[i].address)
-            }
-            if (q.length > 0) {
-                root._btCodecQueue = q
-                root.btRunNextCodecQuery()
-            }
-        }
-    }
-
-    // Observe adapter device changes
-    Connections {
-        target: root._btAdapter ? root._btAdapter.devices : null
-        function onObjectInsertedPost(object, index) {
-            btRefreshDebounce.restart()
-        }
-        function onObjectRemovedPost(object, index) {
-            btRefreshDebounce.restart()
-            // La detección de forget debe ser inmediata — antes de que el objeto desaparezca
-            if (root._btActionType === "forget" && root._btActionDevice === object)
-                root.btResetAction(root._btMsgForgotten)
-        }
-    }
-
-    Instantiator {
-        model: root._btAdapter ? root._btAdapter.devices : null
-        delegate: Connections {
-            required property var modelData
-            target: modelData
-            function onPairedChanged()     { root.btRefreshDeviceLists() }
-            function onConnectedChanged()  { root.btRefreshDeviceLists() }
-            function onTrustedChanged()    { root.btRefreshDeviceLists() }
-            function onNameChanged()       { root.btRefreshDeviceLists() }
-            function onDeviceNameChanged() { root.btRefreshDeviceLists() }
-            function onStateChanged()      { root.btRefreshDeviceLists() }
-        }
-    }
-
-    Connections {
-        target: root._btActionDevice
-        function onConnectedChanged() {
-            if (!root._btActionDevice) return
-            if (root._btActionType === "connect" && root._btActionDevice.connected) {
-                root._btConnectRetries = 0
-                root.btResetAction(root._btMsgConnected)
-            } else if (root._btActionType === "disconnect" && !root._btActionDevice.connected) {
-                root.btResetAction(root._btMsgDisconnected)
-            }
-        }
-        function onStateChanged() {
-            if (!root._btActionDevice || root._btActionType !== "connect") return
-            var s = root._btActionDevice.state
-            if (s === BluetoothDeviceState.Connecting) {
-                root._btSawConnecting = true
-            } else if (s === BluetoothDeviceState.Disconnected && root._btSawConnecting) {
-                root._btSawConnecting = false
-                if (root._btConnectRetries < 2) {
-                    btConnectRetryTimer.start()
-                } else {
-                    root._btConnectRetries = 0
-                    root.btResetAction(root._btMsgConnFailed)
-                }
-            }
-        }
-        function onPairedChanged() {
-            if (!root._btActionDevice) return
-            if (root._btActionType === "pair" && root._btActionDevice.paired) {
-                root._btActionDevice.trusted = true
-                root.btResetAction(root._btMsgPaired)
-            }
-        }
-        function onPairingChanged() {
-            if (!root._btActionDevice) return
-            if (root._btActionType === "pair" && !root._btActionDevice.pairing && !root._btActionDevice.paired)
-                root.btResetAction(root._btMsgPairFailed)
-        }
-    }
-
-    Connections {
-        target: root._btAutoConnDevice
-        function onConnectedChanged() {
-            if (root._btAutoConnDevice && root._btAutoConnDevice.connected) {
-                btAutoConnTimer.stop()
-                root.btAutoConnNext()
-            }
-        }
-        function onStateChanged() {
-            if (root._btAutoConnDevice
-                    && root._btAutoConnDevice.state === BluetoothDeviceState.Disconnected) {
-                btAutoConnTimer.stop()
-                root.btAutoConnNext()
-            }
-        }
-    }
-
-    on_BtPwrdChanged: {
-        if (!root._btPwrd) {
-            root._btCodecData       = ({})
-            root._btCodecQueue      = []
-            root._btAutoConnQueue   = []
-            root._btAutoConnRunning = false
-            root._btAutoConnDevice  = null
-            root.btResetAction("")
-        } else {
-            root.btAutoConnectTrusted()
-        }
-        root.btRefreshDeviceLists()
-    }
-
-    on_BtAdapterChanged: { root.btRefreshDeviceLists() }
-
-    // ── Bluetooth codec processes ─────────────────────────────────────────
-    JsonProcess {
-        id: btCodecProc
-        command: ["bash", "-c", ""]
-        onParsed: data => {
-            var mac  = root._btCurrentCodecMac.toUpperCase()
-            root._btCodecData[mac] = data
-            root._btCodecDataChanged()
-        }
-        onFinished: root.btRunNextCodecQuery()
-    }
-
-    Process {
-        id: btSetCodecProc
-        command: ["bash", "-c", ""]
-        // qmllint disable signal-handler-parameters
-        onExited: function(ec) {
-            root._btStatusMsg = ec === 0 ? root._btMsgCodecOk : root._btMsgCodecErr
-            Qt.callLater(() => root.btRunNextCodecQuery())
-        }
-        // qmllint enable signal-handler-parameters
-    }
-
-    // ── WiFi functions ────────────────────────────────────────────────────
-    function _wifiIsNormalDisconnectReason(reason) {
-        // qmllint disable unqualified
-        return reason === NMConnectionStateReason.None
-            || reason === NMConnectionStateReason.UserDisconnected
-            || reason === NMConnectionStateReason.DeviceDisconnected
-        // qmllint enable unqualified
-    }
-
-    function wifiSignalIcon(strength) {
-        // strength es 0.0–1.0 de WifiNetwork.signalStrength
-        if (strength >= 0.80) return "󰤨"
-        if (strength >= 0.60) return "󰤥"
-        if (strength >= 0.40) return "󰤢"
-        return "󰤟"
-    }
-
-    function wifiSecurityLabel(sec) {
-        // WifiSecurityType enum → string legible
-        if (sec === WifiSecurityType.Open || sec === WifiSecurityType.Owe) return "Open"
-        if (sec === WifiSecurityType.Wpa3SuiteB192 || sec === WifiSecurityType.Sae) return "WPA3"
-        if (sec === WifiSecurityType.Wpa2Psk || sec === WifiSecurityType.Wpa2Eap) return "WPA2"
-        if (sec === WifiSecurityType.WpaPsk || sec === WifiSecurityType.WpaEap) return "WPA"
-        if (sec === WifiSecurityType.StaticWep || sec === WifiSecurityType.DynamicWep) return "WEP"
-        return ""
-    }
-
-    function wifiIsOpen(sec) {
-        return sec === WifiSecurityType.Open || sec === WifiSecurityType.Owe
-    }
-
-    function wifiToggleRadio() {
-        Networking.wifiEnabled = !Networking.wifiEnabled
-    }
-
-    function wifiRescan() {
-        var dev = root._nmWifiDev
-        if (!dev) return
-        dev.scannerEnabled = true
-        // Auto-disable after 15 s if still running
-        wScanStopTimer.restart()
-    }
-
-    // Conectar red conocida (native API)
-    function wifiConnectKnown(net) {
-        root._wifiWorking   = true
-        root._wifiTargetNet = net
-        root._wifiStatusMsg = ""   // el spinner (wifiWorking) muestra el progreso; el msg queda para el resultado
-        net.connect()
-    }
-
-    // Conectar red nueva con password (nmcli)
-    function wifiConnectNew(ssid, password) {
-        root._wifiWorking   = true
-        root._wifiStatusMsg = ""
-        wConnectProc.command = [
-            "bash", "-c",
-            "SSID=$1; PASS=$2; IFACE=$(nmcli dev | grep wifi | grep -v p2p | awk '{print $1}' | head -1); " +
-            "nmcli con delete \"$SSID\" 2>/dev/null || true; " +
-            "nmcli con add type wifi con-name \"$SSID\" ssid \"$SSID\" " +
-            "wifi-sec.key-mgmt wpa-psk wifi-sec.psk \"$PASS\" 2>&1 && " +
-            "nmcli con up \"$SSID\" ifname \"$IFACE\" 2>&1",
-            "--", ssid, password
-        ]
-        wConnectProc.running = true
-    }
-
-    function wifiDisconnect(net) {
-        if (!net) return
-        root._wifiWorking   = true
-        root._wifiStatusMsg = ""   // el spinner muestra el progreso
-        net.disconnect()
-    }
-
-    function wifiForget(net) {
-        if (!net) return
-        net.forget()
-        root._wifiStatusMsg = "✓ Red olvidada"
-    }
-
-    function wifiFetchPasswordFor(ssid, idx) {
-        root._wifiPwFetchIdx       = idx
-        root._wifiPwFetchResult    = ""
-        root.wifiPwFetchResultIdx = -2
-        wSharedPwFetchProc._buf    = ""
-        wSharedPwFetchProc.command = [
-            "bash", "-c",
-            "nmcli -s -t -f 802-11-wireless-security.psk con show "
-            + JSON.stringify(ssid) + " 2>/dev/null | cut -d: -f2-"
-        ]
-        wSharedPwFetchProc.running = true
-    }
-
-    function wifiCopyPassword(ssid) {
-        wMenuCopyFetchProc.command = ["bash", "-c",
-            "SSID=" + JSON.stringify(ssid) + "; " +
-            "PASS=$(nmcli -s -g 802-11-wireless-security.psk connection show \"$SSID\" 2>/dev/null); " +
-            "if [ -z \"$PASS\" ]; then " +
-            "  CONN_FILE=$(find /etc/NetworkManager/system-connections -name '*' -type f 2>/dev/null | xargs grep -l \"ssid=$SSID\" 2>/dev/null | head -1); " +
-            "  if [ -n \"$CONN_FILE\" ]; then " +
-            "    PASS=$(grep '^psk=' \"$CONN_FILE\" 2>/dev/null | head -1 | cut -d= -f2-); " +
-            "  fi; " +
-            "fi; " +
-            "if [ -n \"$PASS\" ]; then echo \"PASS:$PASS\"; else echo \"ERROR:No se encontró la contraseña\"; fi"
-        ]
-        wMenuCopyFetchProc.running = true
-    }
-
-    // ── WiFi reactivity — observe Networking state changes ────────────────
-    Connections {
-        target: Networking
-        function onWifiEnabledChanged() {
-            root._wifiWorking = false
-            // When radio turns on, start scanner automatically
-            if (Networking.wifiEnabled && root._nmWifiDev)
-                root._nmWifiDev.scannerEnabled = true
-        }
-    }
-
-    // Observe connected state on each network to detect connect/disconnect completion
-    Instantiator {
-        model: root._nmWifiDev ? root._nmWifiDev.networks : null
-        delegate: Connections {
-            required property var modelData
-            target: modelData
-            function onConnectedChanged() {
-                if (modelData.connected) {
-                    root._wifiWorking         = false
-                    root._wifiTargetNet       = null
-                    root._wifiStatusMsg       = "✓ Conectado"
-                    root._wifiSelectedIdx     = -1
-                    root._wifiPasswordByIndex = ({})
-                    wWifiInfoProc.running     = true
-                } else if (root._wifiWorking && root._wifiTargetNet === null) {
-                    root._wifiWorking   = false
-                    root._wifiStatusMsg = "✓ Desconectado"
-                }
-            }
-            function onStateChanged() {
-                if (!modelData.connected
-                        && !modelData.stateChanging
-                        && modelData === root._wifiTargetNet
-                        && !root._wifiIsNormalDisconnectReason(modelData.nmReason)
-                        && root._wifiWorking) {
-                    root._wifiWorking   = false
-                    root._wifiTargetNet = null
-                    root._wifiStatusMsg = "✗ Error al conectar"
-                }
-            }
-        }
-    }
-
-    // Auto-stop scanner after 15 s
-    Timer {
-        id: wScanStopTimer
-        interval: 15000
-        onTriggered: {
-            if (root._nmWifiDev) root._nmWifiDev.scannerEnabled = false
-        }
-    }
-
-    // Fetch ethernet info on panel open (still needs nmcli)
-    LineProcess {
-        id: wEthProc
-        command: ["bash", "-c",
-            "ETH_IFACE=$(LANG=C nmcli -t -f DEVICE,TYPE,STATE dev 2>/dev/null | grep ':ethernet:connected' | cut -d: -f1); "
-            + "if [ -n \"$ETH_IFACE\" ]; then "
-            + "echo \"connected\"; "
-            + "LANG=C nmcli -t -f IP4.ADDRESS dev show \"$ETH_IFACE\" 2>/dev/null | cut -d: -f2 | cut -d/ -f1; "
-            + "ethtool \"$ETH_IFACE\" 2>/dev/null | grep \"Speed:\" | awk '{print $2}'; "
-            + "else echo \"disconnected\"; fi"]
-        onLines: lines => {
-            root._ethConnected = (lines[0] || "").trim() === "connected"
-            root._ethIp    = (lines[1] || "").trim()
-            root._ethSpeed = (lines[2] || "").trim()
-        }
-    }
-
-    // Connect new network with password
-    Process {
-        id: wConnectProc
-        property string _buf: ""
-        command: ["bash", "-c", ""]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => wConnectProc._buf += d + "\n" }
-        // qmllint disable signal-handler-parameters
-        onExited: function(exitCode) {
-            var output = wConnectProc._buf.trim()
-            wConnectProc._buf = ""
-            root._wifiWorking = false
-            if (exitCode === 0) {
-                root._wifiStatusMsg       = "✓ Conectado"
-                root._wifiSelectedIdx     = -1
-                root._wifiPasswordByIndex = ({})
-                wWifiInfoProc.running     = true
-            } else {
-                var errLines = output.split("\n")
-                var errMsg   = errLines.filter(l => l && !l.startsWith("DEBUG:"))[0] || "Error de conexión"
-                root._wifiStatusMsg = "✗ " + errMsg.substring(0, 40)
-            }
-        }
-        // qmllint enable signal-handler-parameters
-    }
-
-    // Fetch IP/Gateway/DNS for connected WiFi (nmcli)
-    LineProcess {
-        id: wWifiInfoProc
-        command: ["bash", "-c",
-            "IFACE=$(nmcli dev | grep wifi | grep -v p2p | awk '{print $1}' | head -1); "
-            + "if [ -n \"$IFACE\" ]; then "
-            + "nmcli -g IP4.ADDRESS dev show \"$IFACE\" 2>/dev/null; "
-            + "nmcli -g IP4.GATEWAY dev show \"$IFACE\" 2>/dev/null; "
-            + "nmcli -g IP4.DNS dev show \"$IFACE\" 2>/dev/null; "
-            + "fi"]
-        onLines: lines => {
-            root._wifiIp      = (lines[0] || "").split("/")[0].trim()
-            root._wifiGateway = (lines[1] || "").trim()
-            root._wifiDns     = (lines[2] || "").trim()
-        }
-    }
-
-    // Reveal saved PSK (nmcli -s)
-    Process {
-        id: wSharedPwFetchProc
-        property string _buf: ""
-        command: ["bash", "-c", ""]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => wSharedPwFetchProc._buf += d }
-        // qmllint disable signal-handler-parameters
-        onExited: {
-            var pw = wSharedPwFetchProc._buf.trim()
-            wSharedPwFetchProc._buf = ""
-            ccPanelOverlay.wifiPasswordFetched(root._wifiPwFetchIdx, pw)
-        }
-        // qmllint enable signal-handler-parameters
-    }
-
-    // Copy password to clipboard (nmcli -s → wl-copy)
-    Process {
-        id: wMenuCopyFetchProc
-        property string _buf: ""
-        command: ["bash", "-c", ""]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => wMenuCopyFetchProc._buf += d }
-        // qmllint disable signal-handler-parameters
-        onExited: {
-            var output = wMenuCopyFetchProc._buf.trim()
-            wMenuCopyFetchProc._buf = ""
-            var pw = "", errorMsg = ""
-            output.split("\n").forEach(function(line) {
-                if (line.startsWith("PASS:"))        pw       = line.substring(5)
-                else if (line.startsWith("ERROR:"))  errorMsg = line.substring(6)
-            })
-            if (pw !== "") {
-                wMenuCopyExecProc.command = ["bash", "-c", 'printf "%s" "$1" | wl-copy', "--", pw]
-                wMenuCopyExecProc.running = true
-            } else {
-                root._wifiStatusMsg = "✗ " + (errorMsg || "No se encontró la contraseña")
-            }
-        }
-        // qmllint enable signal-handler-parameters
-    }
-
-    Process {
-        id: wMenuCopyExecProc
-        command: ["bash", "-c", ""]
-        // qmllint disable signal-handler-parameters
-        onExited: (ec) => {
-            root._wifiStatusMsg = ec === 0 ? "✓ Contraseña copiada" : "✗ wl-copy error " + ec
-        }
-        // qmllint enable signal-handler-parameters
-    }
-
-    // ── Startup ────────────────────────────────────────────────────────────
+    // ── Startup / teardown ────────────────────────────────────────────────
     onVisibleChanged: {
         if (visible) {
-            root._buf      = ""
             root._gpuLoaded = false
-            getBrightnessProc.running = true
+            brightnessCtrl.refresh()
             Qt.callLater(root._syncPlayerPos)
             root._pwRev++
             root._btRev++
             Qt.callLater(function() { ccCard.forceActiveFocus() })
         } else {
-            root._expandedMetric = ""
-            root._showConfirm    = false
-            root._activePanel    = ""
+            root._activePanel  = ""
+            root._showConfirm  = false
         }
     }
 
@@ -1479,7 +350,6 @@ PanelWindow {
                 // SECCIÓN 1 — Sliders de audio y brillo
                 // ══════════════════════════════════════════════════════════
 
-                // ── Sliders audio + brillo ────────────────────────────────
                 CcSliders {
                     width: parent.width
                     masterVolume: root.masterVolume
@@ -1494,11 +364,8 @@ PanelWindow {
                     onSetBrightness: v => root.setBrightness(v)
                 }
 
-                // ── Apps de audio — header colapsable ──────────────────────
                 Item { width: parent.width; height: 8 }
                 Rectangle { width: parent.width; height: 1; color: Theme.surface2 }
-
-
 
                 // ── Controles rápidos ─────────────────────────────────────
                 CcQuickToggles {
@@ -1523,14 +390,8 @@ PanelWindow {
                     audioFormatDescFn:    root._audioFormatDesc
 
                     onOpenWifi: {
-                        root._activePanel         = "wifi"
-                        root._wifiStatusMsg       = ""
-                        root._wifiSelectedIdx     = -1
-                        root._wifiPasswordByIndex = ({})
-                        wEthProc.running          = true
-                        wWifiInfoProc.running     = root._wifiConnectedNet !== null
-                        if (root._nmWifiDev && root._wifiRadioOn)
-                            root._nmWifiDev.scannerEnabled = true
+                        root._activePanel = "wifi"
+                        wifiCtrl.openPanel()
                     }
                     onOpenBluetooth: {
                         root._activePanel = "bluetooth"
@@ -1544,7 +405,7 @@ PanelWindow {
                     onOpenPower: {
                         root._activePanel = "power"
                         if (root._fanProfiles.length === 0)
-                            fanProfilesProc.running = true
+                            powerCtrl._fanProfilesProc.running = true
                     }
                     onOpenAudio: {
                         root._activePanel = "audio"
@@ -1674,7 +535,7 @@ PanelWindow {
         swapTotalGb:  SysData.swapTotalGb
         swapFreeGb:   SysData.swapFreeGb
 
-        // GPU — array completo del detail process + flag de carga
+        // GPU
         gpus:       root._gpus
         gpuLoaded:  root._gpuLoaded
 
@@ -1709,10 +570,10 @@ PanelWindow {
                     root._btAdapter.pairable     = false
                 }
                 root._btScanning = false
-                btScanTimer.stop()
-                btActionTimeout.stop()
-                btAutoConnTimer.stop()
-                btConnectRetryTimer.stop()
+                btCtrl._btScanTimer.stop()
+                btCtrl._btActionTimeout.stop()
+                btCtrl._btAutoConnTimer.stop()
+                btCtrl._btConnectRetryTimer.stop()
             }
             root._activePanel = ""
         }
@@ -1754,31 +615,20 @@ PanelWindow {
         // Language
         onLangSelectTab: (tab) => {
             root._langTab           = tab
-            root._langSearchPending = ""
-            root._langSearch        = ""
-            _langSearchDebounce.stop()
+            langCtrl.stopSearch()
         }
         onLangSearchQuery: (q) => {
-            root._langSearchPending = q
-            _langSearchDebounce.restart()
+            langCtrl.startSearch(q)
         }
         onLangSetLayout: (code) => {
-            // Use array form to avoid shell injection and pass the layout name safely.
-            // hyprctl keyword input:kb_layout expects an XKB layout identifier (e.g. "es", "us", "latam").
-            // After setting, reload the config so Hyprland picks it up cleanly.
-            langSetProc.command = ["hyprctl", "keyword", "input:kb_layout", code]
-            if (!langSetProc.running) langSetProc.running = true
-            root._langLayout = code
+            langCtrl.setLayout(code)
         }
         onLangSetLocale: (value) => {
-            langSetLocaleProc.command = ["sh", "-c",
-                "localectl set-locale LANG=" + value + " 2>/dev/null"]
-            if (!langSetLocaleProc.running) langSetLocaleProc.running = true
-            root._langLocale = value
+            langCtrl.setLocale(value)
         }
     }
 
-    // ── Confirm overlay (critical power actions) ──────────────────────────
+    // ── Confirm overlay (acciones críticas de power) ──────────────────────
     Rectangle {
         visible: root._showConfirm
         anchors.fill: parent
@@ -1859,173 +709,13 @@ PanelWindow {
         // qmllint enable signal-handler-parameters
     }
 
-    // ── CPU detail refresh — native QML pollers (SysData), no subprocess ───
-    // Refrescar CPU mientras el panel esté abierto
+    // ── CPU detail refresh — native QML pollers (SysData) ─────────────────
     Timer {
         interval: 1500; repeat: true
         running: root.visible && root._activePanel === "cpu"
         onTriggered: SysData.refreshCpuDetail()
         onRunningChanged: {
-            // Primera ejecución inmediata al abrir el panel
             if (running) SysData.refreshCpuDetail()
         }
     }
-
-    // ── GPU detail process — multi-vendor parser ──────────────────────────
-    LineProcess {
-        id: gpuDetailProc
-        command: ["bash", Paths.scripts + "/gpu-detail.sh"]
-        onLines: lines => {
-            var kv = {}
-            lines.forEach(function(line) {
-                var idx = line.indexOf(":")
-                if (idx > 0) kv[line.substring(0, idx)] = line.substring(idx + 1)
-            })
-
-            var count = parseInt(kv["GPU_COUNT"]) || 0
-            var list = []
-            for (var i = 1; i <= count; i++) {
-                var p = "GPU" + i + "_"
-                var vendor = (kv[p + "VENDOR"] || "").toLowerCase()
-                // Para Intel: freq activa puede ser 0 (idle) → usar cur como fallback
-                var freqAct = parseInt(kv[p + "FREQ"]) || 0
-                var freqCur = parseInt(kv[p + "FREQ_CUR"]) || 0
-                var obj = {
-                    vendor:      vendor,
-                    name:        kv[p + "NAME"]   || "",
-                    status:      kv[p + "STATUS"] || "active",
-                    util:        parseInt(kv[p + "UTIL"])        || 0,
-                    temp:        parseInt(kv[p + "TEMP"])        || parseInt(kv[p + "TEMP_EDGE"]) || 0,
-                    tempJun:     parseInt(kv[p + "TEMP_JUN"])    || 0,
-                    freq:        freqAct > 0 ? freqAct : freqCur,
-                    freqMem:     parseInt(kv[p + "FREQ_MEM"])    || 0,
-                    freqMax:     parseInt(kv[p + "FREQ_MAX"])    || 0,
-                    freqMin:     parseInt(kv[p + "FREQ_MIN"])    || 0,
-                    power:       parseFloat(kv[p + "POWER"])     || 0,
-                    powerLimit:  parseFloat(kv[p + "POWER_LIMIT"]) || 0,
-                    vramUsed:    parseInt(kv[p + "VRAM_USED"])   || 0,
-                    vramTotal:   parseInt(kv[p + "VRAM_TOTAL"])  || 0,
-                    driver:      kv[p + "DRIVER"]       || "",
-                    rc6:         parseInt(kv[p + "RC6"]) || 0,
-                    throttle:    parseInt(kv[p + "THROTTLE"]) || 0,
-                    powerState:  kv[p + "POWER_STATE"]  || ""
-                }
-                list.push(obj)
-            }
-            root._gpus = list
-            root._gpuLoaded = true
-        }
-    }
-
-    Timer {
-        interval: 1500; repeat: true
-        running: root.visible && root._activePanel === "gpu"
-        onTriggered: { gpuDetailProc.running = true }
-        onRunningChanged: {
-            if (running) { gpuDetailProc.running = true }
-        }
-    }
-
-    // ── Fan profiles process — reads available profiles dynamically ────────
-    LineProcess {
-        id: fanProfilesProc
-        command: ["bash", Paths.scripts + "/fan-control.sh", "list_profiles"]
-        onLines: lines => {
-            var profiles = []
-            for (var i = 0; i < lines.length; i++) {
-                var id = lines[i].trim()
-                if (id.length === 0) continue
-                var icon = "󰈐"
-                var label = id.charAt(0).toUpperCase() + id.slice(1)
-                if (id === "cool" || id === "turbo_cool") { icon = "󰆏"; label = "Cool" }
-                else if (id === "quiet")       { icon = "󰒲"; label = "Quiet" }
-                else if (id === "balanced")    { icon = "󱐌"; label = "Balanced" }
-                else if (id === "performance") { icon = "󰓅"; label = "Performance" }
-                profiles.push({ id: id, label: label, icon: icon })
-            }
-            if (profiles.length > 0) root._fanProfiles = profiles
-        }
-    }
-
-    // ── Language processes ────────────────────────────────────────────────
-    // Current layout from Hyprland — reads the XKB layout code (e.g. "es", "us")
-    // via getoption so it matches the identifiers in list-x11-keymap-layouts.
-    Process {
-        id: langCurrentProc
-        command: ["sh", "-c",
-            "hyprctl getoption input:kb_layout 2>/dev/null | awk '/^str:/{print $2}'"]
-        stdout: SplitParser {
-            splitMarker: ""
-            onRead: d => {
-                var v = d.trim()
-                if (v) root._langLayout = v
-            }
-        }
-    }
-
-    // System locale
-    Process {
-        id: langLocaleProc
-        command: ["sh", "-c",
-            "localectl status 2>/dev/null | awk -F'LANG=' '/System Locale/{print $2}' | awk '{print $1}'"]
-        stdout: SplitParser {
-            splitMarker: ""
-            onRead: d => { var v = d.trim(); if (v) root._langLocale = v }
-        }
-    }
-
-    // Available layouts from localectl (X11/XKB layouts — the ones Hyprland understands)
-    LineProcess {
-        id: langLayoutProc
-        command: ["sh", "-c", "timeout 3s localectl list-x11-keymap-layouts 2>/dev/null"]
-        onLines: lines => {
-            var layouts = []
-            for (var i = 0; i < lines.length; i++) {
-                var code = lines[i].trim()
-                if (code.length === 0) continue
-                layouts.push({ code: code, label: code })
-            }
-            if (layouts.length > 0) root._langLayouts = layouts
-        }
-    }
-
-    // Apply layout via Hyprland — command is set dynamically before running
-    Process {
-        id: langSetProc
-        command: ["hyprctl", "keyword", "input:kb_layout", ""]
-        // qmllint disable signal-handler-parameters
-        onExited: Qt.callLater(() => langCurrentProc.running = true)
-        // qmllint enable signal-handler-parameters
-    }
-
-    // Available locales from localectl
-    LineProcess {
-        id: langLocaleListProc
-        command: ["sh", "-c", "timeout 3s localectl list-locales 2>/dev/null"]
-        onLines: lines => {
-            var locales = []
-            for (var i = 0; i < lines.length; i++) {
-                var value = lines[i].trim()
-                if (value.length === 0) continue
-                locales.push({ value: value, label: value })
-            }
-            if (locales.length > 0) root._langLocales = locales
-        }
-    }
-
-    // Apply locale via localectl
-    Process {
-        id: langSetLocaleProc
-        command: ["sh", "-c", ""]
-        // qmllint disable signal-handler-parameters
-        onExited: langLocaleProc.running = true
-        // qmllint enable signal-handler-parameters
-    }
-
-    // ── Disk detail — root/home usage bound directly to SysData.diskPercent
-    // /diskUsedGb/diskAvailGb/homePercent/homeUsedGb/homeAvailGb (native QML
-    // poller, 30s) in the CcSystemSection instantiation above. No detail
-    // panel (NVMe model/fw/temp, I/O rates) exists in this UI yet — those
-    // SysData properties (diskNvmeModel/Fw/Temp, diskReadMbs/WriteMbs) and
-    // SysData.triggerDiskIoSample() remain available for a future disk panel.
 }
