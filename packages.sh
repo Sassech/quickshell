@@ -19,6 +19,7 @@ LOG_FILE="${LOG_FILE:-/tmp/quickshell-install.log}"
 # curl=HTTP client, kitty=terminal
 SIMPLE_PKGS=(
   swww
+  mpvpaper
   matugen
   cava
   grimblast
