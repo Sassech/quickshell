@@ -73,8 +73,12 @@ PanelWindow {
     // qmllint enable unqualified unresolved-type
 
     // Mascara de input: por defecto solo la tarjeta es clickeable; con
-    // mouseThrough se anula para que los clicks pasen a la ventana de abajo.
-    mask: root.mouseThrough ? Region {} : Region { item: overlayCard }
+    // mouseThrough se anula para que los clics pasen a la ventana de abajo.
+    // (No usar Region {} inline en un ternario: QML no instancia objetos
+    // dentro de una expresión.) Usamos dos Region nombradas y elegimos una.
+    Region { id: _mouseThroughRegion }
+    Region { id: _cardRegion; item: overlayCard }
+    mask: root.mouseThrough ? _mouseThroughRegion : _cardRegion
 
     // ── API pública ───────────────────────────────────────────────────────
     function show() {
