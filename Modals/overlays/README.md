@@ -120,73 +120,24 @@ Instanciarlo por monitor en `shell.qml` con
 
 ## Conectar un trigger
 
-### A. Keybind de Hyprland (patrón FIFO existente)
+Los overlays **data-driven** (con `entryId`) no necesitan trigger: el template
+los muestra automáticamente cuando su `OverlayEntry` está habilitado y reacciona
+al toggle en vivo desde `OverlaysControl` (o escribiendo el estado). Solo los
+overlays **no manejados** (con `entryId` vacío) controalan su visibilidad a mano.
 
-El mecanismo ya usado por clipboard (SUPER+V), wallpaper (SUPER+Y), overview
-(SUPER+TAB) y screenshot (SUPER+SHIFT+S):
-
-1. **KeyBind.conf** — escribir al FIFO (con monitor activo o sin él):
-
-   ```
-   bind = $mod, H, exec, bash ~/.config/quickshell/scripts/qs-active-monitor.sh > /tmp/qs-watermark
-   # o sin monitor: bind = $mod, H, exec, echo 1 > /tmp/qs-watermark
-   ```
-
-2. **shell.qml** — `Process` que lee el FIFO y dispara la señal:
-
-   ```qml
-   Process {
-       id: watermarkFifo
-       running: true
-       command: root.mkFifoCmd("/tmp/qs-watermark")
-       stdout: SplitParser {
-           splitMarker: "\n"
-           onRead: monName => root.fifoScreenReader(monName, root.broadcastWatermark)
-       }
-   }
-   ```
-
-3. **shell.qml** — señal raíz (junto a las otras `broadcast*`, ~línea 369):
-
-   ```qml
-   signal broadcastWatermark(var screen)
-   ```
-
-4. **shell.qml** — `Connections` en la instancia del overlay (toggle):
-
-   ```qml
-   Watermark {
-       id: watermarkInst
-       property var modelData
-       screen: modelData
-       Connections {
-           target: root
-           function onBroadcastWatermark(screen) {
-               watermarkInst.visible ? watermarkInst.hideOverlay()
-                                     : watermarkInst.showOverlay()
-           }
-       }
-   }
-   ```
-
-### B. Evento interno (script periódico o monitor)
-
-Un script externo (p. ej. detección de VPN caída, updates disponibles) escribe
-al mismo FIFO:
-
-```bash
-echo 1 > /tmp/qs-watermark
-```
-
-La shell reacciona sin cambios: el `Process` del FIFO ya está escuchando.
-
-### C. Señal directa desde otro componente QML
-
-Para un disparo interno (p. ej. botón en Control Center):
+Para controlar un overlay no manejado desde otro componente (p. ej. un botón en
+el Control Center), exponer funciones públicas y llamarlas con contexto:
 
 ```qml
-// En shell.qml: root.broadcastWatermark(screen)
-// o directo si el contexto alcanza: watermarkInst.showOverlay()
+// En el overlay concreto: quedar visibles para shell.qml
+function showOverlay() { root.show() }
+function hideOverlay() { root.hide() }
+```
+
+```qml
+// En shell.qml, desde cualquier componente: overlayInst.showOverlay()
+// o el patrón FIFO + broadcast* existente si se quiere disparar desde un
+// script/keybind (ver el mecanismo usado por clipboard/overview con FifoChannel).
 ```
 
 ## Gestión de overlays (OverlaysManager + OverlaysControl)
@@ -211,15 +162,21 @@ un overlay nuevo NO toca ni el modal ni `shell.qml`.
 Agregar un overlay nuevo:
 
 1. Crear su `.qml` en `Modals/overlays/` (basado en `OverlayWindow`).
-2. Declarar `entryId`, `corner`, `overlayWidth`, offsets y `onTop` (vía
-   `OverlaysManager.get("id")`). `entryId` hace que el template auto-gobierne
-   la visibilidad (arranque + reacción en vivo), así que no hay que escribir
-   `visible` / `Component.onCompleted` / `Connections` a mano. Si es decorativo
-   (sin interacción), activar `mouseThrough: true` para que los clicks pasen a
-   la ventana de abajo.
+2. Declarar `entryId`, `corner`, `overlayWidth` y offsets. `entryId` hace que
+   el template auto-gobierne **visibilidad y capa** (deriva `onTop` del entry),
+   así que no hay que escribir `visible` / `Component.onCompleted` /
+   `Connections` / `onTop` a mano. Si es decorativo (sin interacción), activar
+   `mouseThrough: true` para que los clicks pasen a la ventana de abajo.
 3. Agregar su `OverlayEntry` a `OverlaysManager.overlays`.
 4. Instanciarlo por monitor en `shell.qml` con
    `Variants { model: Quickshell.screens }` (mismo patrón que el resto).
 
 > Nota de imports: los archivos dentro de `Modals/overlays/` importan
 > `"../../Components"` (dos niveles), NO `"../Components"` — esa ruta no existe.
+>
+> Nota de arranque: los `OverlayEntry` arrancan con defaults (`enabled: true`,
+> `onTop: true`) y `OverlaysManager.loadProc` aplica el JSON persistido de forma
+> asíncrona justo después de instanciarse. En el primer frame un overlay puede
+> verse en `Overlay` y luego moverse a `Bottom` (o viceversa) si el estado
+> guardado difiere — un fogonazo de capa cosmético e inofensivo (no compite con
+> la barra, que vive en `Layer.Top`). No requiere fix.
