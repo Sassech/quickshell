@@ -8,19 +8,15 @@ import Quickshell.Io
 import Quickshell.Wayland
 import "../Components"
 
-PanelWindow {
+QmModalBase {
     id: root
 
-    visible: false
-    color: "transparent"
-
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
-
-    anchors.top: true
-    anchors.bottom: true
-    anchors.left: true
-    anchors.right: true
+    cardWidth: 580
+    cardFixedHeight: 520
+    cardHeightFactor: 0.65
+    cardRadius: 14
+    cardBorderColor: Qt.rgba(1, 1, 1, 0.06)
+    cardClip: true
 
     // ── Data ────────────────────────────────────────────────────────────
     property var  allEntries:  []
@@ -118,7 +114,7 @@ PanelWindow {
             _isCopying = false
             if (exitCode !== 0) {
                 console.log("[ClipboardModal] copyProc failed with code:", exitCode)
-                root.visible = false
+                root.close()
                 return
             }
             // No recargar inmediatamente - los IDs cambian al copiar porque
@@ -133,7 +129,7 @@ PanelWindow {
     Timer {
         id: delayClose
         interval: 100
-        onTriggered: root.visible = false
+        onTriggered: root.close()
     }
 
     // ── Limpia todo ─────────────────────────────────────────────────────
@@ -153,272 +149,247 @@ PanelWindow {
     ListModel { id: displayModel }
 
     // ── UI ──────────────────────────────────────────────────────────────
-    // Overlay: click fuera cierra
-    Rectangle {
+    ColumnLayout {
         anchors.fill: parent
-        color: Theme.scrim
-        MouseArea {
-            anchors.fill: parent
-            onClicked: root.visible = false
-        }
-    }
+        anchors.margins: 16
+        anchors.topMargin: 20
+        spacing: 10
 
-    Rectangle {
-        id: card
-        anchors.centerIn: parent
-        width: 580
-        height: Math.min(520, root.height * 0.65)
-        radius: 14
-        color: Theme.cardBg3
-        border.color: Qt.rgba(1, 1, 1, 0.06)
-        border.width: 1
-        clip: true
+        // ── Header ───────────────────────────────────────────────
+        RowLayout {
+            spacing: 8
+            Layout.fillWidth: true
 
-        // Consume clicks (no cerrar al hacer click dentro del card)
-        MouseArea { anchors.fill: parent; onClicked: {} }
+            Text {
+                text: "󱉫"
+                font.pixelSize: 18
+                color: Theme.accent2
+            }
+            Text {
+                text: "Historial del portapapeles"
+                font.pixelSize: 14
+                font.weight: Font.DemiBold
+                color: Theme.text
+            }
+            Text {
+                text: "(" + displayModel.count + ")"
+                font.pixelSize: 13
+                color: Theme.muted3
+            }
 
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 16
-            anchors.topMargin: 20
-            spacing: 10
+            Item { Layout.fillWidth: true }
 
-            // ── Header ───────────────────────────────────────────────
-            RowLayout {
-                spacing: 8
-                Layout.fillWidth: true
-
+            // Limpiar todo
+            Rectangle {
+                Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 8
+                color: wipeMa.containsMouse ? Theme.error : Theme.warning
+                opacity: wipeMa.containsMouse ? 1.0 : 0.7
+                Behavior on color { ColorAnimation { duration: 120 } }
+                Behavior on opacity { NumberAnimation { duration: 120 } }
                 Text {
-                    text: "󱉫"
-                    font.pixelSize: 18
-                    color: Theme.accent2
-                }
-                Text {
-                    text: "Historial del portapapeles"
+                    anchors.centerIn: parent
+                    text: "󱃦"
                     font.pixelSize: 14
-                    font.weight: Font.DemiBold
-                    color: Theme.text
+                    color: wipeMa.containsMouse ? Theme.cardBg3 : Theme.text
                 }
+                MouseArea {
+                    id: wipeMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: wipeProc.running = true
+                }
+            }
+        }
+
+        // ── Buscador ──────────────────────────────────────────────
+        Item {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 40
+
+            // Foco visual (borde accent)
+            Rectangle {
+                anchors.fill: parent
+                radius: 10
+                color: "transparent"
+                border.color: searchField.activeFocus ? Theme.accent : "transparent"
+                border.width: 2
+                Behavior on border.color { ColorAnimation { duration: 150 } }
+            }
+
+            // Icono lupa
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                text: "󰍉"
+                font.pixelSize: 18
+                color: searchField.text !== "" ? Theme.accent2 : Theme.muted3
+                Behavior on color { ColorAnimation { duration: 150 } }
+            }
+
+            TextInput {
+                id: searchField
+                anchors.fill: parent
+                leftPadding: 40
+                rightPadding: 12
+                font.pixelSize: 16
+                color: Theme.text
+                selectionColor: Theme.accent
+                selectedTextColor: Theme.text
+                clip: true
+                verticalAlignment: TextInput.AlignVCenter
+
                 Text {
-                    text: "(" + displayModel.count + ")"
-                    font.pixelSize: 13
+                    anchors.fill: parent
+                    text: "Buscar en portapapeles..."
+                    font.pixelSize: 15
+                    color: Theme.muted3
+                    visible: !parent.text && !parent.activeFocus
+                    verticalAlignment: Text.AlignVCenter
+                }
+
+                onTextChanged: searchDebounce.restart()
+                Keys.onEscapePressed: root.close()
+                Keys.onReturnPressed: {
+                    if (displayModel.count > 0)
+                        copyProc.copyEntry(displayModel.get(0).id)
+                }
+                Keys.onDownPressed: {
+                    listView.focus = true
+                    listView.currentIndex = 0
+                }
+            }
+        }
+
+        // ── Lista ─────────────────────────────────────────────────
+        Item {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+
+            // Empty / Loading state
+            Column {
+                anchors.centerIn: parent
+                spacing: 8
+                visible: displayModel.count === 0
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: root.isLoading ? "Cargando..." : "󰆏"
+                    font.pixelSize: root.isLoading ? 13 : 32
                     color: Theme.muted3
                 }
-
-                Item { Layout.fillWidth: true }
-
-                // Limpiar todo
-                Rectangle {
-                    Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 8
-                    color: wipeMa.containsMouse ? Theme.error : Theme.warning
-                    opacity: wipeMa.containsMouse ? 1.0 : 0.7
-                    Behavior on color { ColorAnimation { duration: 120 } }
-                    Behavior on opacity { NumberAnimation { duration: 120 } }
-                    Text {
-                        anchors.centerIn: parent
-                        text: "󱃦"
-                        font.pixelSize: 14
-                        color: wipeMa.containsMouse ? Theme.cardBg3 : Theme.text
-                    }
-                    MouseArea {
-                        id: wipeMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: wipeProc.running = true
-                    }
-                }
-            }
-
-            // ── Buscador ──────────────────────────────────────────────
-            Item {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 40
-
-                // Foco visual (borde accent)
-                Rectangle {
-                    anchors.fill: parent
-                    radius: 10
-                    color: "transparent"
-                    border.color: searchField.activeFocus ? Theme.accent : "transparent"
-                    border.width: 2
-                    Behavior on border.color { ColorAnimation { duration: 150 } }
-                }
-
-                // Icono lupa
                 Text {
-                    anchors.left: parent.left
-                    anchors.leftMargin: 12
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "󰍉"
-                    font.pixelSize: 18
-                    color: searchField.text !== "" ? Theme.accent2 : Theme.muted3
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                }
-
-                TextInput {
-                    id: searchField
-                    anchors.fill: parent
-                    leftPadding: 40
-                    rightPadding: 12
-                    font.pixelSize: 16
-                    color: Theme.text
-                    selectionColor: Theme.accent
-                    selectedTextColor: Theme.text
-                    clip: true
-                    verticalAlignment: TextInput.AlignVCenter
-
-                    Text {
-                        anchors.fill: parent
-                        text: "Buscar en portapapeles..."
-                        font.pixelSize: 15
-                        color: Theme.muted3
-                        visible: !parent.text && !parent.activeFocus
-                        verticalAlignment: Text.AlignVCenter
-                    }
-
-                    onTextChanged: searchDebounce.restart()
-                    Keys.onEscapePressed: root.visible = false
-                    Keys.onReturnPressed: {
-                        if (displayModel.count > 0)
-                            copyProc.copyEntry(displayModel.get(0).id)
-                    }
-                    Keys.onDownPressed: {
-                        listView.focus = true
-                        listView.currentIndex = 0
-                    }
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: root.isLoading ? "" : (searchField.text ? "Sin resultados" : "No hay entradas en el portapapeles")
+                    font.pixelSize: 12
+                    color: Theme.surface3
                 }
             }
 
-            // ── Lista ─────────────────────────────────────────────────
-            Item {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-
-                // Empty / Loading state
-                Column {
-                    anchors.centerIn: parent
-                    spacing: 8
-                    visible: displayModel.count === 0
-
-                    Text {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: root.isLoading ? "Cargando..." : "󰆏"
-                        font.pixelSize: root.isLoading ? 13 : 32
-                        color: Theme.muted3
-                    }
-                    Text {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: root.isLoading ? "" : (searchField.text ? "Sin resultados" : "No hay entradas en el portapapeles")
-                        font.pixelSize: 12
+            ListView {
+                id: listView
+                anchors.fill: parent
+                model: displayModel
+                spacing: 2
+                clip: true
+                focus: false
+                keyNavigationEnabled: true
+                highlightFollowsCurrentItem: true
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AsNeeded
+                    contentItem: Rectangle {
+                        implicitWidth: 4
+                        radius: 2
                         color: Theme.surface3
                     }
                 }
 
-                ListView {
-                    id: listView
-                    anchors.fill: parent
-                    model: displayModel
-                    spacing: 2
+                // Resaltado de navegación por teclado
+                highlight: Rectangle {
+                    radius: 8
+                    color: Qt.rgba(1, 1, 1, 0.08)
+                    Behavior on y { NumberAnimation { duration: 100 } }
+                }
+
+                Keys.onReturnPressed: {
+                    if (currentIndex >= 0 && currentIndex < displayModel.count)
+                        copyProc.copyEntry(displayModel.get(currentIndex).id)
+                }
+                Keys.onEnterPressed: {
+                    if (currentIndex >= 0 && currentIndex < displayModel.count)
+                        copyProc.copyEntry(displayModel.get(currentIndex).id)
+                }
+                Keys.onEscapePressed: root.close()
+
+                delegate: Rectangle {
+                    id: row
+                    width: ListView.view.width - 8
+                    height: hasThumb ? 84 : 40
+                    radius: 8
+                    color: rowMa.containsMouse ? Theme.surface2 : "transparent"
+                    Behavior on color { ColorAnimation { duration: 100 } }
                     clip: true
-                    focus: false
-                    keyNavigationEnabled: true
-                    highlightFollowsCurrentItem: true
-                    ScrollBar.vertical: ScrollBar {
-                        policy: ScrollBar.AsNeeded
-                        contentItem: Rectangle {
-                            implicitWidth: 4
-                            radius: 2
-                            color: Theme.surface3
-                        }
-                    }
 
-                    // Resaltado de navegación por teclado
-                    highlight: Rectangle {
-                        radius: 8
-                        color: Qt.rgba(1, 1, 1, 0.08)
-                        Behavior on y { NumberAnimation { duration: 100 } }
-                    }
+                    required property var model
+                    required property int index
 
-                    Keys.onReturnPressed: {
-                        if (currentIndex >= 0 && currentIndex < displayModel.count)
-                            copyProc.copyEntry(displayModel.get(currentIndex).id)
-                    }
-                    Keys.onEnterPressed: {
-                        if (currentIndex >= 0 && currentIndex < displayModel.count)
-                            copyProc.copyEntry(displayModel.get(currentIndex).id)
-                    }
-                    Keys.onEscapePressed: root.visible = false
+                    property bool hasThumb: row.model.thumb !== undefined && row.model.thumb !== ""
 
-                    delegate: Rectangle {
-                        id: row
-                        width: ListView.view.width - 8
-                        height: hasThumb ? 84 : 40
-                        radius: 8
-                        color: rowMa.containsMouse ? Theme.surface2 : "transparent"
-                        Behavior on color { ColorAnimation { duration: 100 } }
-                        clip: true
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 10
+                        anchors.rightMargin: 6
+                        anchors.topMargin: row.hasThumb ? 6 : 0
+                        anchors.bottomMargin: row.hasThumb ? 6 : 0
+                        spacing: 8
 
-                        required property var model
-                        required property int index
-
-                        property bool hasThumb: row.model.thumb !== undefined && row.model.thumb !== ""
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 10
-                            anchors.rightMargin: 6
-                            anchors.topMargin: row.hasThumb ? 6 : 0
-                            anchors.bottomMargin: row.hasThumb ? 6 : 0
-                            spacing: 8
-
-                            // Thumbnail de imagen
-                            Image {
-                                visible: row.hasThumb
-                                source: row.hasThumb ? ("file://" + row.model.thumb) : ""
-                                sourceSize.width: 72; sourceSize.height: 72
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                                cache: true
-                                Layout.preferredWidth: 72
-                                Layout.preferredHeight: 72
-                                Rectangle {
-                                    anchors.fill: parent
-                                    color: "transparent"
-                                    border.color: Theme.surface3
-                                    border.width: 1
-                                    radius: 4
-                                }
-                            }
-
-                            // Icono de tipo (solo para texto)
-                            Text {
-                                visible: !row.hasThumb
-                                text: row.model.isBinary ? "󰋼" : "󰆏"
-                                font.pixelSize: 13
-                                color: row.model.isBinary ? Theme.sky : Theme.muted3
-                                Layout.preferredWidth: 16
-                            }
-
-                            // Preview / dimensiones
-                            Text {
-                                Layout.fillWidth: true
-                                text: row.model.preview
-                                font.pixelSize: row.hasThumb ? 10 : 12
-                                color: row.model.isBinary ? Theme.muted3 : Theme.text
-                                elide: Text.ElideRight
-                                font.italic: row.model.isBinary && !row.hasThumb
+                        // Thumbnail de imagen
+                        Image {
+                            visible: row.hasThumb
+                            source: row.hasThumb ? ("file://" + row.model.thumb) : ""
+                            sourceSize.width: 72; sourceSize.height: 72
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                            cache: true
+                            Layout.preferredWidth: 72
+                            Layout.preferredHeight: 72
+                            Rectangle {
+                                anchors.fill: parent
+                                color: "transparent"
+                                border.color: Theme.surface3
+                                border.width: 1
+                                radius: 4
                             }
                         }
 
-                        MouseArea {
-                            id: rowMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                copyProc.copyEntry(row.model.id)
-                            }
+                        // Icono de tipo (solo para texto)
+                        Text {
+                            visible: !row.hasThumb
+                            text: row.model.isBinary ? "󰋼" : "󰆏"
+                            font.pixelSize: 13
+                            color: row.model.isBinary ? Theme.sky : Theme.muted3
+                            Layout.preferredWidth: 16
+                        }
+
+                        // Preview / dimensiones
+                        Text {
+                            Layout.fillWidth: true
+                            text: row.model.preview
+                            font.pixelSize: row.hasThumb ? 10 : 12
+                            color: row.model.isBinary ? Theme.muted3 : Theme.text
+                            elide: Text.ElideRight
+                            font.italic: row.model.isBinary && !row.hasThumb
+                        }
+                    }
+
+                    MouseArea {
+                        id: rowMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            copyProc.copyEntry(row.model.id)
                         }
                     }
                 }

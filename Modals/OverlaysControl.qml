@@ -12,215 +12,173 @@ import "../Components"
 // (Repeater). Agregar un overlay nuevo NO requiere tocar este archivo — solo
 // agregar la OverlayEntry en el manager.
 // ─────────────────────────────────────────────────────────────────────────────
-PanelWindow {
+QmModalBase {
     id: root
 
-    visible: false
-    color:   "transparent"
-
-    WlrLayershell.layer:         WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+    cardWidth: 360
+    cardHeight: ocCol.implicitHeight + 32
+    cardRadius: 12
+    cardBorderColor: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)
+    focusCard: true
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
 
-    anchors {
-        top:    true
-        bottom: true
-        left:   true
-        right:  true
-    }
+    // ── Contenido ────────────────────────────────────────────────────────────
+    ColumnLayout {
+        id: ocCol
+        anchors {
+            top:    parent.top
+            left:   parent.left
+            right:  parent.right
+            margins: 16
+        }
+        spacing: 4
 
-    // ── API pública ───────────────────────────────────────────────────────
-    function open()  { root.visible = true }
-    function close() { root.visible = false }
-
-    // ── Backdrop — cierra al hacer clic fuera ─────────────────────────────
-    Rectangle {
-        anchors.fill: parent
-        color: Theme.scrim
-        MouseArea { anchors.fill: parent; onClicked: root.close() }
-    }
-
-    // ── Tarjeta centrada ──────────────────────────────────────────────────
-    Rectangle {
-        id: ocCard
-        focus: true
-        anchors.centerIn: parent
-        width:  360
-        height: ocCol.implicitHeight + 32
-        radius: 12
-        color:  Theme.cardBg3
-
-        Keys.onEscapePressed: root.close()
-
-        // Borde sutil
-        Rectangle {
-            anchors.fill: parent
-            radius: parent.radius
-            color: "transparent"
-            border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)
-            border.width: 1
+        // ── Título ──────────────────────────────────────────────────
+        Text {
+            text: "Overlays"
+            font.pixelSize: 16
+            font.weight: Font.DemiBold
+            color: Theme.text
+        }
+        Text {
+            text: "Activa o desactiva los widgets flotantes"
+            font.pixelSize: 12
+            color: Theme.muted2
         }
 
-        // Intercepta clicks para que no caigan al backdrop
-        MouseArea { anchors.fill: parent }
+        // ── Separador ───────────────────────────────────────────────
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.topMargin: 8
+            Layout.bottomMargin: 2
+            implicitHeight: 1
+            color: Theme.surface2
+        }
 
-        ColumnLayout {
-            id: ocCol
-            anchors {
-                top:    parent.top
-                left:   parent.left
-                right:  parent.right
-                margins: 16
-            }
-            spacing: 4
+        // ── Filas por overlay (data-driven) ─────────────────────────
+        Repeater {
+            model: OverlaysManager.overlays
 
-            // ── Título ──────────────────────────────────────────────────
-            Text {
-                text: "Overlays"
-                font.pixelSize: 16
-                font.weight: Font.DemiBold
-                color: Theme.text
-            }
-            Text {
-                text: "Activa o desactiva los widgets flotantes"
-                font.pixelSize: 12
-                color: Theme.muted2
-            }
-
-            // ── Separador ───────────────────────────────────────────────
-            Rectangle {
+            delegate: Rectangle {
+                required property var modelData
                 Layout.fillWidth: true
-                Layout.topMargin: 8
-                Layout.bottomMargin: 2
-                implicitHeight: 1
-                color: Theme.surface2
-            }
+                implicitHeight: 78
+                radius: 10
+                color: rowArea.containsMouse || rowTopArea.containsMouse ? Theme.hover : "transparent"
+                Behavior on color { ColorAnimation { duration: 120 } }
 
-            // ── Filas por overlay (data-driven) ─────────────────────────
-            Repeater {
-                model: OverlaysManager.overlays
+                ColumnLayout {
+                    anchors {
+                        fill: parent
+                        topMargin: 8
+                        bottomMargin: 8
+                        leftMargin: 12
+                        rightMargin: 12
+                    }
+                    spacing: 4
 
-                delegate: Rectangle {
-                    required property var modelData
-                    Layout.fillWidth: true
-                    implicitHeight: 78
-                    radius: 10
-                    color: rowArea.containsMouse || rowTopArea.containsMouse ? Theme.hover : "transparent"
-                    Behavior on color { ColorAnimation { duration: 120 } }
+                    // Renglón 1: nombre + toggle principal
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 32
+                        spacing: 10
 
-                    ColumnLayout {
-                        anchors {
-                            fill: parent
-                            topMargin: 8
-                            bottomMargin: 8
-                            leftMargin: 12
-                            rightMargin: 12
-                        }
-                        spacing: 4
-
-                        // Renglón 1: nombre + toggle principal
-                        RowLayout {
+                        MouseArea {
+                            id: rowArea
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 32
-                            spacing: 10
+                            Layout.fillHeight: true
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: modelData.enabled = !modelData.enabled
 
-                            MouseArea {
-                                id: rowArea
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: modelData.enabled = !modelData.enabled
+                            RowLayout {
+                                anchors.fill: parent
+                                spacing: 10
 
-                                RowLayout {
-                                    anchors.fill: parent
-                                    spacing: 10
-
-                                    Text {
-                                        text: modelData.icon
-                                        font.pixelSize: 18
-                                        color: Theme.accent
-                                    }
-
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 2
-
-                                        Text {
-                                            text: modelData.name
-                                            font.pixelSize: 12
-                                            font.weight: Font.DemiBold
-                                            color: Theme.text
-                                        }
-                                        Text {
-                                            text: modelData.description
-                                            font.pixelSize: 10
-                                            color: Theme.muted2
-                                            elide: Text.ElideRight
-                                        }
-                                    }
+                                Text {
+                                    text: modelData.icon
+                                    font.pixelSize: 18
+                                    color: Theme.accent
                                 }
-                            }
 
-                            ToggleSwitch {
-                                Layout.alignment: Qt.AlignVCenter
-                                checked: modelData.enabled
-                                onToggled: modelData.enabled = value
-                            }
-                        }
-
-                        // Renglón 2: capa
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 24
-                            spacing: 10
-
-                            MouseArea {
-                                id: rowTopArea
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: modelData.onTop = !modelData.onTop
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    spacing: 8
-
-                                    Item { Layout.preferredWidth: 18; Layout.preferredHeight: 18 }
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
 
                                     Text {
-                                        text: "󰌨"   // nf-md-layers
-                                        font.pixelSize: 11
-                                        color: Theme.muted2
+                                        text: modelData.name
+                                        font.pixelSize: 12
+                                        font.weight: Font.DemiBold
+                                        color: Theme.text
                                     }
                                     Text {
-                                        text: "Sobre las ventanas"
+                                        text: modelData.description
                                         font.pixelSize: 10
                                         color: Theme.muted2
+                                        elide: Text.ElideRight
                                     }
                                 }
                             }
+                        }
 
-                            ToggleSwitch {
-                                Layout.alignment: Qt.AlignVCenter
-                                checked: modelData.onTop
-                                onToggled: modelData.onTop = value
+                        ToggleSwitch {
+                            Layout.alignment: Qt.AlignVCenter
+                            checked: modelData.enabled
+                            onToggled: modelData.enabled = value
+                        }
+                    }
+
+                    // Renglón 2: capa
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 24
+                        spacing: 10
+
+                        MouseArea {
+                            id: rowTopArea
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: modelData.onTop = !modelData.onTop
+
+                            RowLayout {
+                                anchors.fill: parent
+                                spacing: 8
+
+                                Item { Layout.preferredWidth: 18; Layout.preferredHeight: 18 }
+
+                                Text {
+                                    text: "󰌨"   // nf-md-layers
+                                    font.pixelSize: 11
+                                    color: Theme.muted2
+                                }
+                                Text {
+                                    text: "Sobre las ventanas"
+                                    font.pixelSize: 10
+                                    color: Theme.muted2
+                                }
                             }
+                        }
+
+                        ToggleSwitch {
+                            Layout.alignment: Qt.AlignVCenter
+                            checked: modelData.onTop
+                            onToggled: modelData.onTop = value
                         }
                     }
                 }
             }
+        }
 
-            // ── Hint de cierre ──────────────────────────────────────────
-            Text {
-                Layout.fillWidth: true
-                Layout.topMargin: 6
-                text: "Se cierra con la misma tecla / ESC"
-                font.pixelSize: 10
-                color: Theme.muted3
-                horizontalAlignment: Text.AlignHCenter
-            }
+        // ── Hint de cierre ──────────────────────────────────────────
+        Text {
+            Layout.fillWidth: true
+            Layout.topMargin: 6
+            text: "Se cierra con la misma tecla / ESC"
+            font.pixelSize: 10
+            color: Theme.muted3
+            horizontalAlignment: Text.AlignHCenter
         }
     }
 
