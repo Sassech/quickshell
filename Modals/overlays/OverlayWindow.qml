@@ -28,6 +28,11 @@ PanelWindow {
     property int    animInMs:       300
     property int    animOutMs:      300
     property int    autoHideMs:     0
+    property bool   onTop:          true    // false → detrás de las ventanas (WlrLayer.Bottom)
+    property int    topOffset:      0       // px extra en el margen del corner elegido
+    property int    bottomOffset:   0
+    property int    leftOffset:     0
+    property int    rightOffset:    0
 
     // ── Computed layout ───────────────────────────────────────────────────
     readonly property bool _barOnRight:     corner.endsWith("right")
@@ -42,7 +47,7 @@ PanelWindow {
     implicitWidth:  overlayWidth
     implicitHeight: overlayHeight > 0 ? overlayHeight : overlayCard.implicitHeight
 
-    WlrLayershell.layer:         WlrLayer.Overlay
+    WlrLayershell.layer:         root.onTop ? WlrLayer.Overlay : WlrLayer.Bottom
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
 
@@ -54,10 +59,10 @@ PanelWindow {
     }
     // qmllint disable unqualified unresolved-type
     margins {
-        top:    corner === "top-right"    || corner === "top-left"    ? 16 : 0
-        bottom: corner === "bottom-right" || corner === "bottom-left" ? 16 : 0
-        right:  corner === "top-right"    || corner === "bottom-right" ? 16 : 0
-        left:   corner === "top-left"     || corner === "bottom-left"  ? 16 : 0
+        top:    corner === "top-right"    || corner === "top-left"    ? 16 + root.topOffset    : 0
+        bottom: corner === "bottom-right" || corner === "bottom-left" ? 16 + root.bottomOffset : 0
+        right:  corner === "top-right"    || corner === "bottom-right" ? 16 + root.rightOffset  : 0
+        left:   corner === "top-left"     || corner === "bottom-left"  ? 16 + root.leftOffset   : 0
     }
     // qmllint enable unqualified unresolved-type
 
