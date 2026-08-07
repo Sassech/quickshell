@@ -376,6 +376,32 @@ ShellRoot {
     signal broadcastScreenshot(var screen)
     signal broadcastClipboardCount(int n)
 
+    // ── Modal helpers ────────────────────────────────────────────────────
+    // Centraliza el patrón anti-bug de toggle: guard por screen +
+    // broadcastCloseAll + abrir/cerrar. Cada modal solo declara la señal
+    // broadcast que le corresponde (una línea por conexión).
+    function closeModalOnScreen(inst, screen) {
+        if (inst.modelData !== screen) return
+        inst.visible = false
+    }
+    function toggleModal(inst, screen) {
+        if (inst.modelData !== screen) return
+        var was = inst.visible
+        root.broadcastCloseAll(screen)
+        if (!was) {
+            if (typeof inst.open === "function") inst.open()
+            else inst.visible = true
+        }
+    }
+    // Abre el Control Center directo en un panel (no es toggle: el CC
+    // siempre se muestra al invocar un panel específico).
+    function openControlPanel(screen, panel) {
+        if (ccInst.modelData !== screen) return
+        root.broadcastCloseAll(screen)
+        ccInst.visible = true
+        ccInst._activePanel = panel
+    }
+
     // ── Top Bar ──────────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
@@ -416,15 +442,8 @@ ShellRoot {
             notifModel: notifHistory
             Connections {
                 target: root
-                function onBroadcastCloseAll(screen) {
-                    if (clockModalInst.modelData === screen) clockModalInst.visible = false
-                }
-                function onBroadcastClock(screen) {
-                    if (clockModalInst.modelData !== screen) return
-                    var was = clockModalInst.visible
-                    root.broadcastCloseAll(screen)
-                    clockModalInst.visible = !was
-                }
+                function onBroadcastCloseAll(screen) { root.closeModalOnScreen(clockModalInst, screen) }
+                function onBroadcastClock(screen) { root.toggleModal(clockModalInst, screen) }
             }
         }
     }
@@ -438,15 +457,8 @@ ShellRoot {
             screen: modelData
             Connections {
                 target: root
-                function onBroadcastCloseAll(screen) {
-                    if (weatherModalInst.modelData === screen) weatherModalInst.visible = false
-                }
-                function onBroadcastWeather(screen) {
-                    if (weatherModalInst.modelData !== screen) return
-                    var was = weatherModalInst.visible
-                    root.broadcastCloseAll(screen)
-                    weatherModalInst.visible = !was
-                }
+                function onBroadcastCloseAll(screen) { root.closeModalOnScreen(weatherModalInst, screen) }
+                function onBroadcastWeather(screen) { root.toggleModal(weatherModalInst, screen) }
             }
         }
     }
@@ -462,15 +474,8 @@ ShellRoot {
             onCountChanged: n => root.broadcastClipboardCount(n)
             Connections {
                 target: root
-                function onBroadcastCloseAll(screen) {
-                    if (clipboardModalInst.modelData === screen) clipboardModalInst.visible = false
-                }
-                function onBroadcastClipboard(screen) {
-                    if (clipboardModalInst.modelData !== screen) return
-                    var was = clipboardModalInst.visible
-                    root.broadcastCloseAll(screen)
-                    clipboardModalInst.visible = !was
-                }
+                function onBroadcastCloseAll(screen) { root.closeModalOnScreen(clipboardModalInst, screen) }
+                function onBroadcastClipboard(screen) { root.toggleModal(clipboardModalInst, screen) }
             }
         }
     }
@@ -496,15 +501,8 @@ ShellRoot {
             onRequestFolderBrowser: path => root.broadcastOpenFolderBrowser(modelData, path)
             Connections {
                 target: root
-                function onBroadcastCloseAll(screen) {
-                    if (wallpaperPickerInst.modelData === screen) wallpaperPickerInst.visible = false
-                }
-                function onBroadcastWallpaperPicker(screen) {
-                    if (wallpaperPickerInst.modelData !== screen) return
-                    var was = wallpaperPickerInst.visible
-                    root.broadcastCloseAll(screen)
-                    wallpaperPickerInst.visible = !was
-                }
+                function onBroadcastCloseAll(screen) { root.closeModalOnScreen(wallpaperPickerInst, screen) }
+                function onBroadcastWallpaperPicker(screen) { root.toggleModal(wallpaperPickerInst, screen) }
                 function onBroadcastFolderResult(screen, path) {
                     if (wallpaperPickerInst.modelData !== screen) return
                     wallpaperPickerInst.receiveFolderResult(path)
@@ -635,29 +633,16 @@ ShellRoot {
             screen: modelData
             Connections {
                 target: root
-                function onBroadcastCloseAll(screen) {
-                    if (ccInst.modelData === screen) ccInst.visible = false
-                }
-                function onBroadcastControlCenter(screen) {
-                    if (ccInst.modelData !== screen) return
-                    var was = ccInst.visible
-                    root.broadcastCloseAll(screen)
-                    ccInst.visible = !was
-                }
+                function onBroadcastCloseAll(screen) { root.closeModalOnScreen(ccInst, screen) }
+                function onBroadcastControlCenter(screen) { root.toggleModal(ccInst, screen) }
                 function onBroadcastWifi(screen) {
-                    if (ccInst.modelData !== screen) return
-                    root.broadcastCloseAll(screen)
-                    ccInst.visible          = true
-                    ccInst._activePanel     = "wifi"
-                    ccInst._wifiStatusMsg   = ""
+                    root.openControlPanel(screen, "wifi")
+                    ccInst._wifiStatusMsg = ""
                     ccInst._wifiSelectedIdx = -1
                     ccInst._wifiPasswordByIndex = ({})
                 }
                 function onBroadcastBluetooth(screen) {
-                    if (ccInst.modelData !== screen) return
-                    root.broadcastCloseAll(screen)
-                    ccInst.visible      = true
-                    ccInst._activePanel = "bluetooth"
+                    root.openControlPanel(screen, "bluetooth")
                     ccInst._btStatusMsg = ""
                     ccInst.btRefreshDeviceLists()
                     if (ccInst._btPwrd && ccInst._btAdapter) {
@@ -667,17 +652,11 @@ ShellRoot {
                     }
                 }
                 function onBroadcastAudio(screen) {
-                    if (ccInst.modelData !== screen) return
-                    root.broadcastCloseAll(screen)
-                    ccInst.visible      = true
-                    ccInst._activePanel = "audio"
+                    root.openControlPanel(screen, "audio")
                     ccInst.loadAudioDevices()
                 }
                 function onBroadcastLanguage(screen) {
-                    if (ccInst.modelData !== screen) return
-                    root.broadcastCloseAll(screen)
-                    ccInst.visible      = true
-                    ccInst._activePanel = "language"
+                    root.openControlPanel(screen, "language")
                     ccInst.langRefresh()
                 }
             }
@@ -724,15 +703,8 @@ ShellRoot {
             screen: modelData
             Connections {
                 target: root
-                function onBroadcastCloseAll(screen) {
-                    if (overlaysControlInst.modelData === screen) overlaysControlInst.visible = false
-                }
-                function onBroadcastOverlaysControl(screen) {
-                    if (overlaysControlInst.modelData !== screen) return
-                    var was = overlaysControlInst.visible
-                    root.broadcastCloseAll(screen)
-                    overlaysControlInst.visible = !was
-                }
+                function onBroadcastCloseAll(screen) { root.closeModalOnScreen(overlaysControlInst, screen) }
+                function onBroadcastOverlaysControl(screen) { root.toggleModal(overlaysControlInst, screen) }
             }
         }
     }
@@ -751,15 +723,8 @@ ShellRoot {
             screen: modelData
             Connections {
                 target: root
-                function onBroadcastCloseAll(screen) {
-                    if (screenshotModalInst.modelData === screen) screenshotModalInst.visible = false
-                }
-                function onBroadcastScreenshot(screen) {
-                    if (screenshotModalInst.modelData !== screen) return
-                    var was = screenshotModalInst.visible
-                    root.broadcastCloseAll(screen)
-                    if (!was) screenshotModalInst.open()
-                }
+                function onBroadcastCloseAll(screen) { root.closeModalOnScreen(screenshotModalInst, screen) }
+                function onBroadcastScreenshot(screen) { root.toggleModal(screenshotModalInst, screen) }
             }
         }
     }
