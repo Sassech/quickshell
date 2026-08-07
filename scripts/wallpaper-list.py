@@ -53,8 +53,10 @@ def make_thumb(path):
                     timeout=10, capture_output=True
                 )
             else:
+                # GIFs: use [0] so ImageMagick writes the single flattened
+                # thumb.jpg instead of one file per frame (thumb-0.jpg ...)
                 subprocess.run(
-                    ["magick", path,
+                    ["magick", path + "[0]",
                      "-thumbnail", "180x120^",
                      "-gravity", "center",
                      "-extent", "180x120",
