@@ -85,8 +85,37 @@ start_mpvpaper() {
     # finishing). A wallpaper must loop.
     mpvpaper -l bottom -s -o "hwdec=auto-safe no-audio loop-file=inf" "$output" "$path" \
         &>"/tmp/qs-mpvpaper-$output.log" &
-    echo $! > "/tmp/qs-mpvpaper-$output.pid"
+    local pid=$!
+    echo "$pid" > "/tmp/qs-mpvpaper-$output.pid"
     disown
+
+    # Liveness probe: launching a background process is not the same as it
+    # working. A crash or a fatal startup error (bad codec, corrupt file)
+    # otherwise leaves a black wallpaper while the script already reported
+    # success. Poll briefly (up to ~2s) because mpvpaper takes ~1.8s to give
+    # up on a corrupt file (verified empirically: "Failed to recognize file
+    # format." appears in the log while the process stays alive). Fail fast on
+    # either a dead PID or a fatal log line, and clean up the stray process.
+    local log="/tmp/qs-mpvpaper-$output.log"
+    local fail="failed to recognize|moov atom not found|failed to open|no such file or directory"
+    local ok=0
+    for _ in 1 2 3 4 5 6 7; do
+        sleep 0.3
+        if grep -qiE "$fail" "$log" 2>/dev/null; then
+            ok=1
+            break
+        fi
+        if ! kill -0 "$pid" 2>/dev/null; then
+            ok=1
+            break
+        fi
+    done
+    if [[ $ok -eq 1 ]]; then
+        echo "ERROR: mpvpaper no pudo reproducir el video en $output (revisá $log)" >&2
+        kill_mpvpaper "$output"
+        return 1
+    fi
+    return 0
 }
 
 extract_frame() {
@@ -172,7 +201,10 @@ if [[ "${1:-}" == "--restore" ]]; then
         if is_video "$wp"; then
             has_mpvpaper || continue
             kill_mpvpaper "$out"
-            start_mpvpaper "$wp" "$out"
+            # Best-effort en restore: un video que falla no debe impedir que
+            # los otros monitores recuperen su wallpaper (el error ya quedó
+            # en stderr + log de start_mpvpaper).
+            start_mpvpaper "$wp" "$out" || true
         else
             kill_mpvpaper "$out"
             swww img "$wp" -o "$out" --transition-type none || true
@@ -206,6 +238,8 @@ if [[ $# -ge 1 ]]; then
         # Fondo solo para ese monitor
         kill_mpvpaper "$OUTPUT"
         if is_video "$WALLPAPER"; then
+            # Sin `|| true`: si el probe falla, set -e saca al script con exit
+            # code != 0 → el picker QML muestra el error (onExited exitCode).
             start_mpvpaper "$WALLPAPER" "$OUTPUT"
         else
             swww img "$WALLPAPER" -o "$OUTPUT" \
@@ -222,7 +256,9 @@ if [[ $# -ge 1 ]]; then
         done < <(connected_monitors)
         if is_video "$WALLPAPER"; then
             while IFS= read -r out; do
-                [[ -n "$out" ]] && start_mpvpaper "$WALLPAPER" "$out"
+                # Best-effort en modo global: un monitor que falla no aborta
+                # el resto (error ya en stderr + log).
+                [[ -n "$out" ]] && start_mpvpaper "$WALLPAPER" "$out" || true
             done < <(connected_monitors)
         else
             swww img "$WALLPAPER" \
