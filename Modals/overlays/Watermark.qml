@@ -11,6 +11,7 @@ OverlayWindow {
     id: root
 
     // ── Configuración concreta ────────────────────────────────────────────
+    entryId:        "watermark"     // OverlayWindow auto-gobierna visibilidad vía OverlaysManager
     corner:         "bottom-right"
     overlayWidth:   300
     bgColor:        "transparent"           // sin tarjeta: solo texto flotante
@@ -22,24 +23,6 @@ OverlayWindow {
     onTop:          OverlaysManager.get("watermark").onTop
     bottomOffset:   0
     mouseThrough:   true    // decorativo: los clicks pasan a la ventana de abajo
-
-    // La visibilidad la gobierna OverlaysManager (flag enabled de su entry):
-    // oculto por defecto; se muestra solo si el overlay está habilitado.
-    visible: false
-    Component.onCompleted: {
-        if (OverlaysManager.get("watermark").enabled) root.show()
-    }
-
-    Connections {
-        // Sin parent explícito: Connections no es Item y no tiene property
-        // "parent". Vive en contentArea (default property) como objeto
-        // invisible; su función depende solo de target.
-        target: OverlaysManager.get("watermark")
-        function onEnabledChanged() {
-            if (OverlaysManager.get("watermark").enabled) root.show()
-            else root.hide()
-        }
-    }
 
     // ── Contenido (slot por defecto → contentArea) ─────────────────────────
     Row {

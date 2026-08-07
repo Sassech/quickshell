@@ -11,6 +11,7 @@ OverlayWindow {
     id: root
 
     // ── Configuración concreta ────────────────────────────────────────────
+    entryId:        "preview"       // OverlayWindow auto-gobierna visibilidad vía OverlaysManager
     corner:         "bottom-right"
     overlayWidth:   200
     bgColor:        "transparent"           // solo el GIF, sin tarjeta
@@ -22,19 +23,6 @@ OverlayWindow {
     onTop:          OverlaysManager.get("preview").onTop
     bottomOffset:   70
     mouseThrough:   true    // decorativo: los clicks pasan a la ventana de abajo
-
-    visible: false
-    Component.onCompleted: {
-        if (OverlaysManager.get("preview").enabled) root.show()
-    }
-
-    Connections {
-        target: OverlaysManager.get("preview")
-        function onEnabledChanged() {
-            if (OverlaysManager.get("preview").enabled) root.show()
-            else root.hide()
-        }
-    }
 
     // ── Contenido (slot por defecto → contentArea) ─────────────────────────
     // sourceSize controla el tamaño de decodificación: 200px basta para el

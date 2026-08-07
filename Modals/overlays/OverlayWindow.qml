@@ -35,6 +35,28 @@ PanelWindow {
     property int    rightOffset:    0
     property color  borderColor:    "transparent"  // borde de la tarjeta (transparent = sin borde)
     property bool   mouseThrough:   false   // true → los clicks pasan a la ventana de abajo (overlays decorativos)
+    property string entryId:        ""      // id en OverlayManager; si se setea, la visibilidad la gobierna el manager
+
+    // ── Auto-gobierno de visibilidad vía OverlaysManager ──────────────────
+    // Si entryId se declara (overlays data-driven como Watermark/Preview),
+    // OverlayWindow centraliza visible + arranque + reacción en vivo, así el
+    // overlay concreto solo declara config y contenido. Si entryId queda vacío
+    // (p. ej. NotificationPopup), se omite y el overlay maneja show()/hide().
+    readonly property QtObject _ownEntry:   OverlaysManager.get(root.entryId)
+    // Guard: el gestionado solo aplica cuando hay entryId.
+    property bool _managed: root.entryId !== ""
+
+    Component.onCompleted: {
+        if (root._managed && root._ownEntry && root._ownEntry.enabled) root.show()
+    }
+
+    Connections {
+        target: root._managed ? root._ownEntry : null
+        function onEnabledChanged() {
+            if (root._ownEntry && root._ownEntry.enabled) root.show()
+            else root.hide()
+        }
+    }
 
     // ── Computed layout ───────────────────────────────────────────────────
     readonly property bool _barOnRight:     corner.endsWith("right")
