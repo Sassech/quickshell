@@ -10,8 +10,13 @@ Control Center.
 ```
 Modals/overlays/
 ├── OverlayWindow.qml   # Plantilla base parametrizada (no tocar por instancia)
-└── Watermark.qml       # Instancia concreta: estilo "Activar Windows"
+├── Watermark.qml       # Instancia concreta: estilo "Activar Windows"
+└── PreviewOverlay.qml  # Instancia concreta: GIF decorativo
 ```
+
+El registro de cada overlay (metadatos + estado) vive en
+`Components/OverlayEntry.qml` y el estado centralizado en
+`Components/OverlaysManager.qml` (ver «Gestión de overlays»).
 
 ## Plantilla — OverlayWindow.qml
 
@@ -32,6 +37,8 @@ fade + slide desde el borde.
 | `restingOpacity` | `0.9` | Opacidad final tras el fade-in |
 | `animInMs` / `animOutMs` | `300` / `300` | Duración de entrada / salida |
 | `autoHideMs` | `0` | 0 = queda visible hasta `hide()`; >0 = auto-oculta |
+| `onTop` | `true` | true = capa Overlay (sobre ventanas); false = capa Bottom |
+| `topOffset` / `bottomOffset` / `leftOffset` / `rightOffset` | `0` | Px extra sobre el margen base de 16px del corner elegido (empujan hacia adentro) |
 
 ### API
 
@@ -171,32 +178,53 @@ Para un disparo interno (p. ej. botón en Control Center):
 // o directo si el contexto alcanza: watermarkInst.showOverlay()
 ```
 
-## Estado actual del Watermark
+## Estado del Watermark
 
-- **Gobernado por `OverlaysManager.watermarkEnabled`** (singleton en
+- **Gobernado por `OverlaysManager.get("watermark").enabled`** (singleton en
   `Components/OverlaysManager.qml`): si está habilitado, `Component.onCompleted`
   corre la animación de entrada al arrancar; los cambios del flag en vivo
   disparan `show()`/`hide()`. Si está deshabilitado, no se muestra ni anima.
+  `onTop` lee igual del mismo entry (`OverlaysManager.get("watermark").onTop`).
 - **Sin tarjeta**: `bgColor: "transparent"` + `showAccent: false` — solo texto
   flotante blanco translúcido (con contorno negro) legible sobre cualquier
   wallpaper, incluidos los de video. Colores propios, sin depender de
   `Theme.qml` (ver convención arriba).
 - `autoHideMs: 0` → no se oculta solo.
 - Esquina bottom-right, 300px, opacidad 0.85, anim 250ms.
-- **Trigger (keybind/evento) pendiente de definición** — hasta entonces no
-  tiene por qué haber FIFO ni señal; solo la instancia en `shell.qml`.
 
 ## Gestión de overlays (OverlaysManager + OverlaysControl)
 
-- `Components/OverlaysManager.qml` — singleton que centraliza el estado de
-  cada overlay (`watermarkEnabled`, `recEnabled`) y lo persiste en
-  `config/overlays-state.json` (patrón de `idle-state.json`). Carga al
-  arranque con fallback a defaults; guarda solo tras cargar (`_loaded`).
+Enfoque **data-driven**: cada overlay es una entrada `OverlayEntry` en la lista
+`OverlaysManager.overlays`. El modal (OverlaysControl) renderiza una fila por
+entrada y los overlays leen su estado con `OverlaysManager.get("id")`. Agregar
+un overlay nuevo NO toca ni el modal ni `shell.qml`.
+
+- `Components/OverlayEntry.qml` — registro de un overlay: `entryId` (único,
+  usado para persistencia y lookup), `name`, `description`, `icon`, `source`
+  (ruta al .qml que lo instancia), y estado `enabled`/`onTop` (persistido).
+- `Components/OverlaysManager.qml` — singleton con la lista `overlays` y
+  `function get(id)`. Persiste el estado de todas las entradas en
+  `config/overlays-state.json` (`{"overlays": [{id, enabled, onTop}]}`),
+  con carga al arranque (fallback a defaults) y guardado solo tras cargar
+  (`_loaded`) y solo ante cambios (`enabledChanged`/`onTopChanged`).
 - `Modals/OverlaysControl.qml` — modal del sistema (NO un overlay flotante)
-  que enlaza switches a las properties del manager. Agregar un overlay nuevo:
-  1. Property booleana en `OverlaysManager` (con default).
-  2. Fila con switch en `OverlaysControl` (funcional o «Próximamente»).
-  3. El overlay lee/escucha su flag (patrón del Watermark).
+  que renderiza un switch de visibilidad y un switch de capa por entrada del
+  manager (Repeater sobre `overlays`).
+
+Agregar un overlay nuevo:
+
+1. Crear su `.qml` en `Modals/overlays/` (basado en `OverlayWindow`).
+2. Declarar `corner`, `overlayWidth`, offsets y `onTop` leyendo
+   `OverlaysManager.get("id")` — y el patrón de visibilidad del Watermark:
+   `visible: false`, `Component.onCompleted` con `root.show()` si está
+   habilitado, y un `Connections` al entry para los cambios en vivo.
+3. Agregar su `OverlayEntry` a `OverlaysManager.overlays`.
+4. Instanciarlo por monitor en `shell.qml` con
+   `Variants { model: Quickshell.screens }` (mismo patrón que el resto).
+
+> **REC descartado**: el overlay de grabación se evaluó y se descartó — el
+> grabador elegido (gpu-screen-recorder) ya trae su propia interfaz, así que
+> un indicador en el shell sería redundante. No implementar.
 
 > Nota de imports: los archivos dentro de `Modals/overlays/` importan
 > `"../../Components"` (dos niveles), NO `"../Components"` — esa ruta no existe.
