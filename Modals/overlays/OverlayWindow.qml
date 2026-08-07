@@ -10,6 +10,15 @@ import "../../Components"
 // espacio), con máscara recortada a la tarjeta. El overlay concreto declara su
 // contenido como hijos y aterriza automáticamente en contentArea vía el slot
 // por defecto (default property).
+//
+// Opciones clave:
+//   entryId      → id en OverlaysManager. Si se setea, el template centraliza
+//                  visibilidad (arranque + toggle en vivo) y capa (onTop del
+//                  entry), y el overlay concreto solo declara config/contenido.
+//   mouseThrough → true = mascara de input vacia: los clicks pasan a la ventana
+//                  de abajo (overlays decorativos como Watermark/Preview).
+//   onTop        → capa para overlays NO manejados (entryId vacio): true =
+//                  Overlay (sobre ventanas); false = Bottom (detras).
 // ─────────────────────────────────────────────────────────────────────────────
 PanelWindow {
     id: root
@@ -44,7 +53,17 @@ PanelWindow {
     // (p. ej. NotificationPopup), se omite y el overlay maneja show()/hide().
     readonly property QtObject _ownEntry:   OverlaysManager.get(root.entryId)
     // Guard: el gestionado solo aplica cuando hay entryId.
-    property bool _managed: root.entryId !== ""
+    readonly property bool _managed: root.entryId !== ""
+
+    // Capa efectiva: para overlays manejados sigue al entry (con guard contra
+    // entryId inexistente/mal tipeado); para los no manejados usa la property
+    // onTop declarada (p. ej. NotificationPopup, que siempre va encima).
+    // (qmllint disable below: _ownEntry es QtObject genérico; el tipo real es
+    // OverlayEntry y el guard de runtime ya valida onTop/enabled.)
+    // qmllint disable missing-property
+    readonly property bool _effectiveOnTop: root._managed && root._ownEntry
+        ? root._ownEntry.onTop
+        : root.onTop
 
     Component.onCompleted: {
         if (root._managed && root._ownEntry && root._ownEntry.enabled) root.show()
@@ -57,6 +76,7 @@ PanelWindow {
             else root.hide()
         }
     }
+    // qmllint enable missing-property
 
     // ── Computed layout ───────────────────────────────────────────────────
     readonly property bool _barOnRight:     corner.endsWith("right")
@@ -75,7 +95,7 @@ PanelWindow {
     implicitWidth:  overlayWidth
     implicitHeight: overlayHeight > 0 ? overlayHeight : overlayCard.implicitHeight
 
-    WlrLayershell.layer:         root.onTop ? WlrLayer.Overlay : WlrLayer.Bottom
+    WlrLayershell.layer:         root._effectiveOnTop ? WlrLayer.Overlay : WlrLayer.Bottom
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
 

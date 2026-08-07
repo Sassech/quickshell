@@ -664,8 +664,9 @@ ShellRoot {
     }
 
     // ── WATERMARK OVERLAY ─────────────────────────────────────────────────
-    // Visibilidad gobernada por su OverlayEntry en OverlaysManager (siempre
-    // visible cuando está habilitado; arranca oculto).
+    // Visibilidad y capa gobernadas por su OverlayEntry en OverlaysManager:
+    // arranca oculto y se muestra en onCompleted si está habilitado; los toggles
+    // en vivo del manager lo muestran/ocultan.
     Variants {
         model: Quickshell.screens
         Watermark {

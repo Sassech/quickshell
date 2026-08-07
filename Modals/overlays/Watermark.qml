@@ -1,6 +1,5 @@
 // qmllint disable uncreatable-type
 import QtQuick
-import "../../Components"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Watermark — overlay estilo "Activar Windows" anclado abajo a la derecha.
@@ -20,8 +19,7 @@ OverlayWindow {
     animInMs:       250
     animOutMs:      250
     autoHideMs:     0                       // 0 = siempre visible (estilo Windows)
-    onTop:          OverlaysManager.get("watermark").onTop
-    bottomOffset:   0
+    bottomOffset:   0                       // capa = la provee OverlayWindow vía _effectiveOnTop
     mouseThrough:   true    // decorativo: los clicks pasan a la ventana de abajo
 
     // ── Contenido (slot por defecto → contentArea) ─────────────────────────
@@ -77,8 +75,4 @@ OverlayWindow {
             }
         }
     }
-
-    // ── API passthrough ───────────────────────────────────────────────────
-    function showOverlay() { root.show() }
-    function hideOverlay() { root.hide() }
 }

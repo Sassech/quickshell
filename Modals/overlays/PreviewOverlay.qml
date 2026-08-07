@@ -1,6 +1,5 @@
 // qmllint disable uncreatable-type
 import QtQuick
-import "../../Components"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PreviewOverlay — overlay decorativo con GIF animado (preview.gif).
@@ -20,8 +19,7 @@ OverlayWindow {
     animInMs:       250
     animOutMs:      250
     autoHideMs:     0                       // 0 = siempre visible (loop)
-    onTop:          OverlaysManager.get("preview").onTop
-    bottomOffset:   70
+    bottomOffset:   70                      // capa = la provee OverlayWindow vía _effectiveOnTop
     mouseThrough:   true    // decorativo: los clicks pasan a la ventana de abajo
 
     // ── Contenido (slot por defecto → contentArea) ─────────────────────────
