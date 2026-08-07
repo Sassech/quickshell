@@ -2,7 +2,6 @@
 import QtQuick
 import Quickshell
 import QtQuick.Layouts
-import Quickshell.Wayland
 import "../Widgets"
 
 PanelWindow {
@@ -17,7 +16,9 @@ PanelWindow {
     implicitHeight: 30
     color:          Theme.cardBg2
 
-    WlrLayershell.layer: WlrLayer.Bottom
+    // No explicit WlrLayershell.layer: inherits default Layer.Top,
+    // consistent with TopBar so the bottom bar renders above windows
+    // instead of competing with overlays in the Bottom layer.
 
     RowLayout {
         anchors.fill:    parent

@@ -1,6 +1,5 @@
 // qmllint disable uncreatable-type
 import QtQuick
-import "../../Components"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Watermark — overlay estilo "Activar Windows" anclado abajo a la derecha.
@@ -11,6 +10,7 @@ OverlayWindow {
     id: root
 
     // ── Configuración concreta ────────────────────────────────────────────
+    entryId:        "watermark"     // OverlayWindow auto-gobierna visibilidad vía OverlaysManager
     corner:         "bottom-right"
     overlayWidth:   300
     bgColor:        "transparent"           // sin tarjeta: solo texto flotante
@@ -19,30 +19,19 @@ OverlayWindow {
     animInMs:       250
     animOutMs:      250
     autoHideMs:     0                       // 0 = siempre visible (estilo Windows)
-    onTop:          OverlaysManager.get("watermark").onTop
-    bottomOffset:   0
-
-    // La visibilidad la gobierna OverlaysManager (flag enabled de su entry):
-    // oculto por defecto; se muestra solo si el overlay está habilitado.
-    visible: false
-    Component.onCompleted: {
-        if (OverlaysManager.get("watermark").enabled) root.show()
-    }
-
-    Connections {
-        // Sin parent explícito: Connections no es Item y no tiene property
-        // "parent". Vive en contentArea (default property) como objeto
-        // invisible; su función depende solo de target.
-        target: OverlaysManager.get("watermark")
-        function onEnabledChanged() {
-            if (OverlaysManager.get("watermark").enabled) root.show()
-            else root.hide()
-        }
-    }
+    bottomOffset:   0                       // capa = la provee OverlayWindow vía _effectiveOnTop
+    mouseThrough:   true    // decorativo: los clicks pasan a la ventana de abajo
 
     // ── Contenido (slot por defecto → contentArea) ─────────────────────────
     Row {
-        width: parent.width
+        anchors {
+            left: parent.left
+            right: parent.right
+            top: parent.top
+            leftMargin: 14
+            rightMargin: 14
+            topMargin: 14
+        }
         spacing: 12
 
         // Ícono (Nerd Font — mismo glifo de acento que el resto del shell)
@@ -86,8 +75,4 @@ OverlayWindow {
             }
         }
     }
-
-    // ── API passthrough ───────────────────────────────────────────────────
-    function showOverlay() { root.show() }
-    function hideOverlay() { root.hide() }
 }

@@ -1,7 +1,6 @@
 // qmllint disable uncreatable-type
 import QtQuick
 import QtQml
-import Quickshell
 
 // ─────────────────────────────────────────────────────────────────────────────
 // OverlayEntry — un registro de overlay dentro de OverlaysManager.overlays.
@@ -23,7 +22,4 @@ QtObject {
     // ── Estado (persistido) ───────────────────────────────────────────────
     property bool enabled: true
     property bool onTop:   true
-
-    // Helper: expone la ruta como URL resoluble desde el directorio de
-    // OverlaysManager en Components/ (~/overlays/…).
 }

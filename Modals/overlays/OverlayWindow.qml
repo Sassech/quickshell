@@ -10,6 +10,15 @@ import "../../Components"
 // espacio), con máscara recortada a la tarjeta. El overlay concreto declara su
 // contenido como hijos y aterriza automáticamente en contentArea vía el slot
 // por defecto (default property).
+//
+// Opciones clave:
+//   entryId      → id en OverlaysManager. Si se setea, el template centraliza
+//                  visibilidad (arranque + toggle en vivo) y capa (onTop del
+//                  entry), y el overlay concreto solo declara config/contenido.
+//   mouseThrough → true = mascara de input vacia: los clicks pasan a la ventana
+//                  de abajo (overlays decorativos como Watermark/Preview).
+//   onTop        → capa para overlays NO manejados (entryId vacio): true =
+//                  Overlay (sobre ventanas); false = Bottom (detras).
 // ─────────────────────────────────────────────────────────────────────────────
 PanelWindow {
     id: root
@@ -33,6 +42,41 @@ PanelWindow {
     property int    bottomOffset:   0
     property int    leftOffset:     0
     property int    rightOffset:    0
+    property color  borderColor:    "transparent"  // borde de la tarjeta (transparent = sin borde)
+    property bool   mouseThrough:   false   // true → los clicks pasan a la ventana de abajo (overlays decorativos)
+    property string entryId:        ""      // id en OverlayManager; si se setea, la visibilidad la gobierna el manager
+
+    // ── Auto-gobierno de visibilidad vía OverlaysManager ──────────────────
+    // Si entryId se declara (overlays data-driven como Watermark/Preview),
+    // OverlayWindow centraliza visible + arranque + reacción en vivo, así el
+    // overlay concreto solo declara config y contenido. Si entryId queda vacío
+    // (p. ej. NotificationPopup), se omite y el overlay maneja show()/hide().
+    readonly property QtObject _ownEntry:   OverlaysManager.get(root.entryId)
+    // Guard: el gestionado solo aplica cuando hay entryId.
+    readonly property bool _managed: root.entryId !== ""
+
+    // Capa efectiva: para overlays manejados sigue al entry (con guard contra
+    // entryId inexistente/mal tipeado); para los no manejados usa la property
+    // onTop declarada (p. ej. NotificationPopup, que siempre va encima).
+    // (qmllint disable below: _ownEntry es QtObject genérico; el tipo real es
+    // OverlayEntry y el guard de runtime ya valida onTop/enabled.)
+    // qmllint disable missing-property
+    readonly property bool _effectiveOnTop: root._managed && root._ownEntry
+        ? root._ownEntry.onTop
+        : root.onTop
+
+    Component.onCompleted: {
+        if (root._managed && root._ownEntry && root._ownEntry.enabled) root.show()
+    }
+
+    Connections {
+        target: root._managed ? root._ownEntry : null
+        function onEnabledChanged() {
+            if (root._ownEntry && root._ownEntry.enabled) root.show()
+            else root.hide()
+        }
+    }
+    // qmllint enable missing-property
 
     // ── Computed layout ───────────────────────────────────────────────────
     readonly property bool _barOnRight:     corner.endsWith("right")
@@ -44,10 +88,14 @@ PanelWindow {
     // (p. ej. en Watermark.qml) se insertan directamente en contentArea.
     default property alias content: contentArea.data
 
+    // Referencia a la tarjeta para que los hijos puedan anclar contenido
+    // directo (p. ej. NotificationPopup usa toda la card, no el slot).
+    property alias card: overlayCard
+
     implicitWidth:  overlayWidth
     implicitHeight: overlayHeight > 0 ? overlayHeight : overlayCard.implicitHeight
 
-    WlrLayershell.layer:         root.onTop ? WlrLayer.Overlay : WlrLayer.Bottom
+    WlrLayershell.layer:         root._effectiveOnTop ? WlrLayer.Overlay : WlrLayer.Bottom
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
 
@@ -66,10 +114,22 @@ PanelWindow {
     }
     // qmllint enable unqualified unresolved-type
 
-    mask: Region { item: overlayCard }
+    // Mascara de input: por defecto solo la tarjeta es clickeable; con
+    // mouseThrough se anula para que los clics pasen a la ventana de abajo.
+    // (No usar Region {} inline en un ternario: QML no instancia objetos
+    // dentro de una expresión.) Usamos dos Region nombradas y elegimos una.
+    Region { id: _mouseThroughRegion }
+    Region { id: _cardRegion; item: overlayCard }
+    mask: root.mouseThrough ? _mouseThroughRegion : _cardRegion
 
     // ── API pública ───────────────────────────────────────────────────────
     function show() {
+        root._animateIn()
+    }
+
+    // Lógica real de entrada. Separada para que un hijo que sobreescriba
+    // show() (con otros argumentos) pueda llamarla vía root._animateIn().
+    function _animateIn() {
         hideOutAnim.stop()
         autoHideTimer.stop()
 
@@ -135,9 +195,11 @@ PanelWindow {
         height: root.overlayHeight > 0 ? root.overlayHeight : implicitHeight
         radius: 12
         color:  root.bgColor
+        border.color: root.borderColor
+        border.width: 1
         clip:   true
 
-        implicitHeight: contentArea.implicitHeight + root._contentMargin * 2
+        implicitHeight: contentArea.childrenRect.height + root._contentMargin * 2
 
         // Franja de acento del lado anclado
         Rectangle {
@@ -154,18 +216,12 @@ PanelWindow {
             }
         }
 
-        // Área de contenido (donde aterrizan los hijos del overlay concreto)
-        Column {
+        // Área de contenido: llena la tarjeta para que los overlays puedan
+        // anclar directo (parent = la card completa, p. ej. NotificationPopup).
+        // Los overlays simples posicionan su contenido con margins explícitos.
+        Item {
             id: contentArea
-            anchors {
-                top: parent.top
-                left: parent.left
-                right: parent.right
-                topMargin: root._contentMargin
-                leftMargin:  root._barOnRight ? root._contentMargin     : root._contentMargin + 3
-                rightMargin: root._barOnRight ? root._contentMargin + 3 : root._contentMargin
-            }
-            spacing: 6
+            anchors.fill: parent
         }
     }
 }

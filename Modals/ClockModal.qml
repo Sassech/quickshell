@@ -3,24 +3,19 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
-import Quickshell
 import Quickshell.Io
-import Quickshell.Wayland
 import "../Components"
 
-PanelWindow {
+QmModalBase {
     id: root
 
-    visible: false
-    color: "transparent"
-
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
-
-    anchors.top: true
-    anchors.bottom: true
-    anchors.left: true
-    anchors.right: true
+    cardWidth: 800
+    cardFixedHeight: 450
+    fixedHeight: true
+    cardRadius: 16
+    cardBorderColor: Theme.surface2
+    scrimOpacity: 0.55
+    focusCard: true
 
     property var targetScreen: null   // renombrado para evitar conflicto con WindowInterface.screen
     property var notifModel: null
@@ -45,7 +40,6 @@ PanelWindow {
             currentYear  = now.getFullYear()
             updateCalendar()
             clockText.updateTime()
-            Qt.callLater(function() { card.forceActiveFocus() })
         }
     }
 
@@ -79,155 +73,127 @@ PanelWindow {
         return days
     }
 
-
-
-    // ── Overlay oscuro ────────────────────────────────────────────────────
-    Rectangle {
+    // ── UI ─────────────────────────────────────────────────────────────────
+    RowLayout {
         anchors.fill: parent
-        color: Theme.scrim
-        opacity: 0.55
+        spacing: 0
 
-        MouseArea {
-            anchors.fill: parent
-            onClicked: root.visible = false
-        }
-    }
+        // ── Columna izquierda: Notificaciones ─────────────────────────
+        Item {
+            Layout.fillHeight: true
+            Layout.preferredWidth: 360
 
-    // ── Card principal ────────────────────────────────────────────────────
-    Rectangle {
-        id: card
-        focus: true
-        anchors.centerIn: parent
-        width: 800
-        height: 450
-        radius: 16
-        color: Theme.cardBg3
-        border.color: Theme.surface2
-        border.width: 1
+            // Borde derecho separador
+            Rectangle {
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.topMargin: 16
+                anchors.bottomMargin: 16
+                width: 1
+                color: Theme.surface2
+            }
 
-        Keys.onEscapePressed: root.visible = false
-        MouseArea { anchors.fill: parent; onClicked: {} }
+            ColumnLayout {
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.leftMargin: 16
+                anchors.rightMargin: 16
+                anchors.topMargin: 16
+                anchors.bottomMargin: 16
+                spacing: 10
 
-        RowLayout {
-            anchors.fill: parent
-            spacing: 0
+                // ── Header ────────────────────────────────────────────
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 0
 
-            // ── Columna izquierda: Notificaciones ─────────────────────────
-            Item {
-                Layout.fillHeight: true
-                Layout.preferredWidth: 360
-
-                // Borde derecho separador
-                Rectangle {
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    anchors.topMargin: 16
-                    anchors.bottomMargin: 16
-                    width: 1
-                    color: Theme.surface2
-                }
-
-                ColumnLayout {
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 16
-                    anchors.topMargin: 16
-                    anchors.bottomMargin: 16
-                    spacing: 10
-
-                    // ── Header ────────────────────────────────────────────
-                    RowLayout {
+                    Text {
+                        text: "Notificaciones"
+                        font.pixelSize: 14
+                        font.bold: true
+                        color: Theme.text
                         Layout.fillWidth: true
-                        spacing: 0
+                    }
 
-                        Text {
-                            text: "Notificaciones"
-                            font.pixelSize: 14
-                            font.bold: true
-                            color: Theme.text
-                            Layout.fillWidth: true
+                    // Botón limpiar todo
+                    Rectangle {
+                        implicitWidth: 82
+                        implicitHeight: 28
+                        radius: 8
+                        color: clearAllArea.containsMouse ? Theme.surface4 : Theme.surface3
+                        visible: root.notifModel && root.notifModel.count > 0
+
+                        Behavior on color { ColorAnimation { duration: 100 } }
+
+                        MouseArea {
+                            id: clearAllArea
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            hoverEnabled: true
+                            onClicked: {
+                                if (root.notifModel) root.notifModel.clear()
+                            }
                         }
 
-                        // Botón limpiar todo
-                        Rectangle {
-                            implicitWidth: 82
-                             implicitHeight: 28
-                             radius: 8
-                             color: clearAllArea.containsMouse ? Theme.surface4 : Theme.surface3
-                             visible: root.notifModel && root.notifModel.count > 0
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: 5
 
-                            Behavior on color { ColorAnimation { duration: 100 } }
+                            Text {
+                                text: "󰩹"
+                                font.pixelSize: 13
+                                color: clearAllArea.containsMouse ? Theme.error : Theme.muted2
+                                anchors.verticalCenter: parent.verticalCenter
 
-                            MouseArea {
-                                id: clearAllArea
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                hoverEnabled: true
-                                onClicked: {
-                                    if (root.notifModel) root.notifModel.clear()
-                                }
+                                Behavior on color { ColorAnimation { duration: 100 } }
                             }
+                            Text {
+                                text: "Limpiar"
+                                font.pixelSize: 11
+                                color: clearAllArea.containsMouse ? Theme.text : Theme.muted1
+                                anchors.verticalCenter: parent.verticalCenter
 
-                            Row {
-                                anchors.centerIn: parent
-                                spacing: 5
-
-                                Text {
-                                    text: "󰩹"
-                                    font.pixelSize: 13
-                                    color: clearAllArea.containsMouse ? Theme.error : Theme.muted2
-                                    anchors.verticalCenter: parent.verticalCenter
-
-                                    Behavior on color { ColorAnimation { duration: 100 } }
-                                }
-                                Text {
-                                    text: "Limpiar"
-                                    font.pixelSize: 11
-                                    color: clearAllArea.containsMouse ? Theme.text : Theme.muted1
-                                    anchors.verticalCenter: parent.verticalCenter
-
-                                    Behavior on color { ColorAnimation { duration: 100 } }
-                                }
+                                Behavior on color { ColorAnimation { duration: 100 } }
                             }
                         }
                     }
+                }
 
-                    // ── Área de contenido (vacío o lista) ────────────────
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
+                // ── Área de contenido (vacío o lista) ────────────────
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
 
-                        // Estado vacío
-                        Column {
-                            anchors.centerIn: parent
-                            spacing: 8
-                            visible: !root.notifModel || root.notifModel.count === 0
+                    // Estado vacío
+                    Column {
+                        anchors.centerIn: parent
+                        spacing: 8
+                        visible: !root.notifModel || root.notifModel.count === 0
 
-                            Text {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                text: "󰂚"
-                                font.pixelSize: 36
-                                color: Theme.muted3
-                            }
-                            Text {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                text: "Sin notificaciones"
-                                font.pixelSize: 12
-                                color: Theme.muted2
-                            }
+                        Text {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: "󰂚"
+                            font.pixelSize: 36
+                            color: Theme.muted3
                         }
+                        Text {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: "Sin notificaciones"
+                            font.pixelSize: 12
+                            color: Theme.muted2
+                        }
+                    }
 
-                        // Lista con scroll
-                        Flickable {
-                            id: notifFlick
-                            anchors.fill: parent
-                            visible: root.notifModel && root.notifModel.count > 0
-                            clip: true
-                            contentHeight: notifColumn.implicitHeight
+                    // Lista con scroll
+                    Flickable {
+                        id: notifFlick
+                        anchors.fill: parent
+                        visible: root.notifModel && root.notifModel.count > 0
+                        clip: true
+                        contentHeight: notifColumn.implicitHeight
                         flickableDirection: Flickable.VerticalFlick
 
                         // Scroll suave con rueda
@@ -388,249 +354,248 @@ PanelWindow {
                             }
                         }
                     } // fin Flickable
-                    } // fin Item wrapper
+                } // fin Item wrapper
+            }
+        }
+
+        // ── Columna derecha: Reloj + Calendario ───────────────────────
+        ColumnLayout {
+            Layout.fillHeight: true
+            Layout.fillWidth: true
+            spacing: 0
+
+            Item { Layout.preferredHeight: 20 }
+
+            // ── Reloj grande ──────────────────────────────────────────
+            Text {
+                id: clockText
+                Layout.alignment: Qt.AlignHCenter
+                font.pixelSize: 64
+                font.bold: true
+                color: Theme.text
+
+                property string _time: ""
+                text: _time
+
+                function updateTime() {
+                    const now = new Date()
+                    if (root.use24hFormat) {
+                        const h = String(now.getHours()).padStart(2, "0")
+                        const m = String(now.getMinutes()).padStart(2, "0")
+                        _time = h + ":" + m
+                    } else {
+                        let h = now.getHours()
+                        const ampm = h >= 12 ? "PM" : "AM"
+                        h = h % 12 || 12
+                        const m = String(now.getMinutes()).padStart(2, "0")
+                        _time = h + ":" + m + " " + ampm
+                    }
+                    root._dateText = Qt.formatDateTime(now, "dddd, d 'de' MMMM")
+                }
+
+                Component.onCompleted: updateTime()
+            }
+
+            // ── Fecha completa ────────────────────────────────────────
+            Text {
+                Layout.alignment: Qt.AlignHCenter
+                text: root._dateText
+                font.pixelSize: 13
+                color: Theme.muted1
+            }
+
+            Item { Layout.preferredHeight: 12 }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                implicitHeight: 1
+                color: Theme.surface2
+            }
+
+            Item { Layout.preferredHeight: 10 }
+
+            // ── Navegación del calendario ─────────────────────────────
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                spacing: 4
+
+                // ‹ mes anterior
+                Rectangle {
+                    implicitWidth: 28; implicitHeight: 28; radius: 7; color: Theme.surface3
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (root.currentMonth === 0) { root.currentMonth = 11; root.currentYear-- }
+                            else { root.currentMonth-- }
+                            root.updateCalendar()
+                        }
+                    }
+                    Text { anchors.centerIn: parent; text: "‹"; font.pixelSize: 16; color: Theme.text }
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    text: Qt.formatDateTime(new Date(root.currentYear, root.currentMonth, 1), "MMMM")
+                    font.pixelSize: 13
+                    font.bold: true
+                    color: Theme.text
+                }
+
+                // › mes siguiente
+                Rectangle {
+                    implicitWidth: 28; implicitHeight: 28; radius: 7; color: Theme.surface3
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (root.currentMonth === 11) { root.currentMonth = 0; root.currentYear++ }
+                            else { root.currentMonth++ }
+                            root.updateCalendar()
+                        }
+                    }
+                    Text { anchors.centerIn: parent; text: "›"; font.pixelSize: 16; color: Theme.text }
+                }
+
+                Item { Layout.preferredWidth: 8 }
+
+                // ‹ año anterior
+                Rectangle {
+                    implicitWidth: 28; implicitHeight: 28; radius: 7; color: Theme.surface3
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: { root.currentYear--; root.updateCalendar() }
+                    }
+                    Text { anchors.centerIn: parent; text: "‹"; font.pixelSize: 16; color: Theme.text }
+                }
+
+                Text {
+                    text: String(root.currentYear)
+                    font.pixelSize: 13
+                    font.bold: true
+                    color: Theme.text
+                }
+
+                // › año siguiente
+                Rectangle {
+                    implicitWidth: 28; implicitHeight: 28; radius: 7; color: Theme.surface3
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: { root.currentYear++; root.updateCalendar() }
+                    }
+                    Text { anchors.centerIn: parent; text: "›"; font.pixelSize: 16; color: Theme.text }
                 }
             }
 
-            // ── Columna derecha: Reloj + Calendario ───────────────────────
-            ColumnLayout {
-                Layout.fillHeight: true
-                Layout.fillWidth: true
+            Item { Layout.preferredHeight: 8 }
+
+            // ── Días de la semana ─────────────────────────────────────
+            Row {
+                Layout.alignment: Qt.AlignHCenter
                 spacing: 0
 
-                Item { Layout.preferredHeight: 20 }
-
-                // ── Reloj grande ──────────────────────────────────────────
-                Text {
-                    id: clockText
-                    Layout.alignment: Qt.AlignHCenter
-                    font.pixelSize: 64
-                    font.bold: true
-                    color: Theme.text
-
-                    property string _time: ""
-                    text: _time
-
-                    function updateTime() {
-                        const now = new Date()
-                        if (root.use24hFormat) {
-                            const h = String(now.getHours()).padStart(2, "0")
-                            const m = String(now.getMinutes()).padStart(2, "0")
-                            _time = h + ":" + m
-                        } else {
-                            let h = now.getHours()
-                            const ampm = h >= 12 ? "PM" : "AM"
-                            h = h % 12 || 12
-                            const m = String(now.getMinutes()).padStart(2, "0")
-                            _time = h + ":" + m + " " + ampm
-                        }
-                        root._dateText = Qt.formatDateTime(now, "dddd, d 'de' MMMM")
-                    }
-
-                    Component.onCompleted: updateTime()
-                }
-
-                // ── Fecha completa ────────────────────────────────────────
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: root._dateText
-                    font.pixelSize: 13
-                    color: Theme.muted1
-                }
-
-                Item { Layout.preferredHeight: 12 }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 16
-                    Layout.rightMargin: 16
-                    implicitHeight: 1
-                    color: Theme.surface2
-                }
-
-                Item { Layout.preferredHeight: 10 }
-
-                // ── Navegación del calendario ─────────────────────────────
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 16
-                    Layout.rightMargin: 16
-                    spacing: 4
-
-                    // ‹ mes anterior
-                    Rectangle {
-                        implicitWidth: 28; implicitHeight: 28; radius: 7; color: Theme.surface3
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (root.currentMonth === 0) { root.currentMonth = 11; root.currentYear-- }
-                                else { root.currentMonth-- }
-                                root.updateCalendar()
-                            }
-                        }
-                        Text { anchors.centerIn: parent; text: "‹"; font.pixelSize: 16; color: Theme.text }
-                    }
-
+                Repeater {
+                    model: ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
                     Text {
-                        Layout.fillWidth: true
-                        horizontalAlignment: Text.AlignHCenter
-                        text: Qt.formatDateTime(new Date(root.currentYear, root.currentMonth, 1), "MMMM")
-                        font.pixelSize: 13
-                        font.bold: true
-                        color: Theme.text
-                    }
-
-                    // › mes siguiente
-                    Rectangle {
-                        implicitWidth: 28; implicitHeight: 28; radius: 7; color: Theme.surface3
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (root.currentMonth === 11) { root.currentMonth = 0; root.currentYear++ }
-                                else { root.currentMonth++ }
-                                root.updateCalendar()
-                            }
-                        }
-                        Text { anchors.centerIn: parent; text: "›"; font.pixelSize: 16; color: Theme.text }
-                    }
-
-                    Item { Layout.preferredWidth: 8 }
-
-                    // ‹ año anterior
-                    Rectangle {
-                        implicitWidth: 28; implicitHeight: 28; radius: 7; color: Theme.surface3
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: { root.currentYear--; root.updateCalendar() }
-                        }
-                        Text { anchors.centerIn: parent; text: "‹"; font.pixelSize: 16; color: Theme.text }
-                    }
-
-                    Text {
-                        text: String(root.currentYear)
-                        font.pixelSize: 13
-                        font.bold: true
-                        color: Theme.text
-                    }
-
-                    // › año siguiente
-                    Rectangle {
-                        implicitWidth: 28; implicitHeight: 28; radius: 7; color: Theme.surface3
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: { root.currentYear++; root.updateCalendar() }
-                        }
-                        Text { anchors.centerIn: parent; text: "›"; font.pixelSize: 16; color: Theme.text }
-                    }
-                }
-
-                Item { Layout.preferredHeight: 8 }
-
-                // ── Días de la semana ─────────────────────────────────────
-                Row {
-                    Layout.alignment: Qt.AlignHCenter
-                    spacing: 0
-
-                    Repeater {
-                        model: ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
-                        Text {
-                            required property var modelData
-                            width: 48
-                            text: modelData
-                            color: Theme.muted2
-                            font.pixelSize: 10
-                            font.bold: true
-                            horizontalAlignment: Text.AlignHCenter
-                        }
-                    }
-                }
-
-                Item { Layout.preferredHeight: 4 }
-
-                // ── Grid del calendario ───────────────────────────────────
-                Grid {
-                    id: calendarGrid
-                    Layout.alignment: Qt.AlignHCenter
-                    columns: 7
-                    spacing: 3
-                    property var model: []
-
-                    Repeater {
-                        model: calendarGrid.model
-                        Rectangle {
-                            id: calDay
-                            required property var modelData
-                            width: 48; height: 30; radius: 6
-                            color: calDay.modelData.isToday ? Theme.accent
-                                   : calDay.modelData.otherMonth ? "transparent"
-                                   : Theme.surface3
-                            opacity: calDay.modelData.otherMonth ? 0.35 : 1.0
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: calDay.modelData.day
-                                font.pixelSize: 12
-                                color: calDay.modelData.isToday ? Theme.cardBg3
-                                       : calDay.modelData.otherMonth ? Theme.muted3
-                                       : Theme.text
-                            }
-                        }
-                    }
-                }
-
-                Item { Layout.fillHeight: true }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 16
-                    Layout.rightMargin: 16
-                    implicitHeight: 1
-                    color: Theme.surface2
-                }
-
-                Item { Layout.preferredHeight: 10 }
-
-                // ── Selector de formato ───────────────────────────────────
-                RowLayout {
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.bottomMargin: 14
-                    spacing: 8
-
-                    Text {
-                        text: "Formato:"
-                        font.pixelSize: 11
+                        required property var modelData
+                        width: 48
+                        text: modelData
                         color: Theme.muted2
+                        font.pixelSize: 10
+                        font.bold: true
+                        horizontalAlignment: Text.AlignHCenter
                     }
+                }
+            }
 
+            Item { Layout.preferredHeight: 4 }
+
+            // ── Grid del calendario ───────────────────────────────────
+            Grid {
+                id: calendarGrid
+                Layout.alignment: Qt.AlignHCenter
+                columns: 7
+                spacing: 3
+                property var model: []
+
+                Repeater {
+                    model: calendarGrid.model
                     Rectangle {
-                        implicitWidth: 44; implicitHeight: 26; radius: 7; color: Theme.surface2
-                        border.color: Theme.accent
-                        border.width: root.use24hFormat ? 2 : 0
+                        id: calDay
+                        required property var modelData
+                        width: 48; height: 30; radius: 6
+                        color: calDay.modelData.isToday ? Theme.accent
+                               : calDay.modelData.otherMonth ? "transparent"
+                               : Theme.surface3
+                        opacity: calDay.modelData.otherMonth ? 0.35 : 1.0
 
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.setFormat(true)
+                        Text {
+                            anchors.centerIn: parent
+                            text: calDay.modelData.day
+                            font.pixelSize: 12
+                            color: calDay.modelData.isToday ? Theme.cardBg3
+                                   : calDay.modelData.otherMonth ? Theme.muted3
+                                   : Theme.text
                         }
-                        Text { anchors.centerIn: parent; text: "24h"; font.pixelSize: 11; color: Theme.text }
                     }
+                }
+            }
 
-                    Rectangle {
-                        implicitWidth: 44; implicitHeight: 26; radius: 7; color: Theme.surface2
-                        border.color: Theme.accent
-                        border.width: root.use24hFormat ? 0 : 2
+            Item { Layout.fillHeight: true }
 
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.setFormat(false)
-                        }
-                        Text { anchors.centerIn: parent; text: "12h"; font.pixelSize: 11; color: Theme.text }
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                implicitHeight: 1
+                color: Theme.surface2
+            }
+
+            Item { Layout.preferredHeight: 10 }
+
+            // ── Selector de formato ───────────────────────────────────
+            RowLayout {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.bottomMargin: 14
+                spacing: 8
+
+                Text {
+                    text: "Formato:"
+                    font.pixelSize: 11
+                    color: Theme.muted2
+                }
+
+                Rectangle {
+                    implicitWidth: 44; implicitHeight: 26; radius: 7; color: Theme.surface2
+                    border.color: Theme.accent
+                    border.width: root.use24hFormat ? 2 : 0
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.setFormat(true)
                     }
+                    Text { anchors.centerIn: parent; text: "24h"; font.pixelSize: 11; color: Theme.text }
+                }
+
+                Rectangle {
+                    implicitWidth: 44; implicitHeight: 26; radius: 7; color: Theme.surface2
+                    border.color: Theme.accent
+                    border.width: root.use24hFormat ? 0 : 2
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.setFormat(false)
+                    }
+                    Text { anchors.centerIn: parent; text: "12h"; font.pixelSize: 11; color: Theme.text }
                 }
             }
         }

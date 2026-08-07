@@ -37,8 +37,10 @@ fade + slide desde el borde.
 | `restingOpacity` | `0.9` | Opacidad final tras el fade-in |
 | `animInMs` / `animOutMs` | `300` / `300` | Duración de entrada / salida |
 | `autoHideMs` | `0` | 0 = queda visible hasta `hide()`; >0 = auto-oculta |
-| `onTop` | `true` | true = capa Overlay (sobre ventanas); false = capa Bottom |
+| `onTop` | `true` | true = capa Overlay (sobre todas las ventanas); false = capa Bottom (queda debajo de las ventanas maximizadas) |
 | `topOffset` / `bottomOffset` / `leftOffset` / `rightOffset` | `0` | Px extra sobre el margen base de 16px del corner elegido (empujan hacia adentro) |
+| `mouseThrough` | `false` | true = los clicks pasan a la ventana de abajo (overlays decorativos); false = solo la tarjeta es clickeable |
+| `entryId` | `""` | id de la entrada en `OverlaysManager`; si se setea, el template auto-gobierna la visibilidad (visible al arrancar si está habilitado + reacción en vivo al toggle). Vacío = el overlay maneja `show()`/`hide()` manualmente |
 
 ### API
 
@@ -83,9 +85,14 @@ Convención:
 import QtQuick
 
 MyOverlay {
+    entryId:        "myOverlay"   // el template auto-gobierna la visibilidad
+                                  // (arranque + reacción al toggle, sin boilerplate)
     corner:         "top-right"
     overlayWidth:   280
-    autoHideMs:     4000
+    autoHideMs:     0
+    onTop:          OverlaysManager.get("myOverlay").onTop
+    // mouseThrough: true  // si es decorativo (sin interacción), para que los
+                          // clicks pasen a la ventana de abajo
 
     // Contenido → contentArea automáticamente.
     // Colores propios del overlay, NO Theme.*
@@ -98,99 +105,40 @@ MyOverlay {
             opacity: 0.8
         }
     }
-
-    function showOverlay() { root.show() }
-    function hideOverlay() { root.hide() }
 }
 ```
 
-Guardarlo en `Modals/overlays/`, instanciarlo por monitor en `shell.qml`
-con `Variants { model: Quickshell.screens }` (mismo patrón que el resto).
+Guardarlo en `Modals/overlays/`, declarar el `OverlayEntry` correspondiente en
+`OverlaysManager.overlays` y definir su id en `entryId`. Al usar `entryId`,
+el template centraliza la visibilidad (visible al arrancar si está habilitado
++ sincronización en vivo del toggle); no hace falta escribir `visible`,
+`Component.onCompleted` ni `Connections` a mano. Si el overlay necesita
+control manual de `show()`/`hide()` (p. ej. threshold, como NotificationPopup),
+dejar `entryId` vacío y exponer funciones que llamen a `root.show()` / `root.hide()`.
+Instanciarlo por monitor en `shell.qml` con
+`Variants { model: Quickshell.screens }` (mismo patrón que el resto).
 
 ## Conectar un trigger
 
-### A. Keybind de Hyprland (patrón FIFO existente)
+Los overlays **data-driven** (con `entryId`) no necesitan trigger: el template
+los muestra automáticamente cuando su `OverlayEntry` está habilitado y reacciona
+al toggle en vivo desde `OverlaysControl` (o escribiendo el estado). Solo los
+overlays **no manejados** (con `entryId` vacío) controalan su visibilidad a mano.
 
-El mecanismo ya usado por clipboard (SUPER+V), wallpaper (SUPER+Y), overview
-(SUPER+TAB) y screenshot (SUPER+SHIFT+S):
-
-1. **KeyBind.conf** — escribir al FIFO (con monitor activo o sin él):
-
-   ```
-   bind = $mod, H, exec, bash ~/.config/quickshell/scripts/qs-active-monitor.sh > /tmp/qs-watermark
-   # o sin monitor: bind = $mod, H, exec, echo 1 > /tmp/qs-watermark
-   ```
-
-2. **shell.qml** — `Process` que lee el FIFO y dispara la señal:
-
-   ```qml
-   Process {
-       id: watermarkFifo
-       running: true
-       command: root.mkFifoCmd("/tmp/qs-watermark")
-       stdout: SplitParser {
-           splitMarker: "\n"
-           onRead: monName => root.fifoScreenReader(monName, root.broadcastWatermark)
-       }
-   }
-   ```
-
-3. **shell.qml** — señal raíz (junto a las otras `broadcast*`, ~línea 369):
-
-   ```qml
-   signal broadcastWatermark(var screen)
-   ```
-
-4. **shell.qml** — `Connections` en la instancia del overlay (toggle):
-
-   ```qml
-   Watermark {
-       id: watermarkInst
-       property var modelData
-       screen: modelData
-       Connections {
-           target: root
-           function onBroadcastWatermark(screen) {
-               watermarkInst.visible ? watermarkInst.hideOverlay()
-                                     : watermarkInst.showOverlay()
-           }
-       }
-   }
-   ```
-
-### B. Evento interno (script periódico o monitor)
-
-Un script externo (p. ej. detección de VPN caída, updates disponibles) escribe
-al mismo FIFO:
-
-```bash
-echo 1 > /tmp/qs-watermark
-```
-
-La shell reacciona sin cambios: el `Process` del FIFO ya está escuchando.
-
-### C. Señal directa desde otro componente QML
-
-Para un disparo interno (p. ej. botón en Control Center):
+Para controlar un overlay no manejado desde otro componente (p. ej. un botón en
+el Control Center), exponer funciones públicas y llamarlas con contexto:
 
 ```qml
-// En shell.qml: root.broadcastWatermark(screen)
-// o directo si el contexto alcanza: watermarkInst.showOverlay()
+// En el overlay concreto: quedar visibles para shell.qml
+function showOverlay() { root.show() }
+function hideOverlay() { root.hide() }
 ```
 
-## Estado del Watermark
-
-- **Gobernado por `OverlaysManager.get("watermark").enabled`** (singleton en
-  `Components/OverlaysManager.qml`): si está habilitado, `Component.onCompleted`
-  corre la animación de entrada al arrancar; los cambios del flag en vivo
-  disparan `show()`/`hide()`. Si está deshabilitado, no se muestra ni anima.
-  `onTop` lee igual del mismo entry (`OverlaysManager.get("watermark").onTop`).
-- **Sin tarjeta**: `bgColor: "transparent"` + `showAccent: false` — solo texto
-  flotante blanco translúcido (con contorno negro) legible sobre cualquier
-  wallpaper, incluidos los de video. Colores propios, sin depender de
-  `Theme.qml` (ver convención arriba).
-- `autoHideMs: 0` → no se oculta solo.
-- Esquina bottom-right, 300px, opacidad 0.85, anim 250ms.
+```qml
+// En shell.qml, desde cualquier componente: overlayInst.showOverlay()
+// o el patrón FIFO + broadcast* existente si se quiere disparar desde un
+// script/keybind (ver el mecanismo usado por clipboard/overview con FifoChannel).
+```
 
 ## Gestión de overlays (OverlaysManager + OverlaysControl)
 
@@ -214,17 +162,21 @@ un overlay nuevo NO toca ni el modal ni `shell.qml`.
 Agregar un overlay nuevo:
 
 1. Crear su `.qml` en `Modals/overlays/` (basado en `OverlayWindow`).
-2. Declarar `corner`, `overlayWidth`, offsets y `onTop` leyendo
-   `OverlaysManager.get("id")` — y el patrón de visibilidad del Watermark:
-   `visible: false`, `Component.onCompleted` con `root.show()` si está
-   habilitado, y un `Connections` al entry para los cambios en vivo.
+2. Declarar `entryId`, `corner`, `overlayWidth` y offsets. `entryId` hace que
+   el template auto-gobierne **visibilidad y capa** (deriva `onTop` del entry),
+   así que no hay que escribir `visible` / `Component.onCompleted` /
+   `Connections` / `onTop` a mano. Si es decorativo (sin interacción), activar
+   `mouseThrough: true` para que los clicks pasen a la ventana de abajo.
 3. Agregar su `OverlayEntry` a `OverlaysManager.overlays`.
 4. Instanciarlo por monitor en `shell.qml` con
    `Variants { model: Quickshell.screens }` (mismo patrón que el resto).
 
-> **REC descartado**: el overlay de grabación se evaluó y se descartó — el
-> grabador elegido (gpu-screen-recorder) ya trae su propia interfaz, así que
-> un indicador en el shell sería redundante. No implementar.
-
 > Nota de imports: los archivos dentro de `Modals/overlays/` importan
 > `"../../Components"` (dos niveles), NO `"../Components"` — esa ruta no existe.
+>
+> Nota de arranque: los `OverlayEntry` arrancan con defaults (`enabled: true`,
+> `onTop: true`) y `OverlaysManager.loadProc` aplica el JSON persistido de forma
+> asíncrona justo después de instanciarse. En el primer frame un overlay puede
+> verse en `Overlay` y luego moverse a `Bottom` (o viceversa) si el estado
+> guardado difiere — un fogonazo de capa cosmético e inofensivo (no compite con
+> la barra, que vive en `Layer.Top`). No requiere fix.

@@ -164,17 +164,6 @@ ShellRoot {
         return Quickshell.screens[0]
     }
 
-    function mkFifoCmd(fifoPath) {
-        const rawPath = String(fifoPath ?? "")
-        const safePath = rawPath.replace(/'/g, "'\"'\"'")
-        return [
-            "bash", "-c",
-            "rm -f '" + safePath + "'; mkfifo '" + safePath + "'; " +
-            "exec 3<>'" + safePath + "'; " +
-            "while IFS= read -r line <&3; do printf '%s\\n' \"$line\"; done"
-        ]
-    }
-
     function fifoScreenReader(monName, broadcaster) {
         const name = (monName ?? "").trim()
         const targetScreen = name.length > 0
@@ -387,6 +376,32 @@ ShellRoot {
     signal broadcastScreenshot(var screen)
     signal broadcastClipboardCount(int n)
 
+    // ── Modal helpers ────────────────────────────────────────────────────
+    // Centraliza el patrón anti-bug de toggle: guard por screen +
+    // broadcastCloseAll + abrir/cerrar. Cada modal solo declara la señal
+    // broadcast que le corresponde (una línea por conexión).
+    function closeModalOnScreen(inst, screen) {
+        if (inst.modelData !== screen) return
+        inst.visible = false
+    }
+    function toggleModal(inst, screen) {
+        if (inst.modelData !== screen) return
+        var was = inst.visible
+        root.broadcastCloseAll(screen)
+        if (!was) {
+            if (typeof inst.open === "function") inst.open()
+            else inst.visible = true
+        }
+    }
+    // Abre el Control Center directo en un panel (no es toggle: el CC
+    // siempre se muestra al invocar un panel específico).
+    function openControlPanel(screen, panel) {
+        if (ccInst.modelData !== screen) return
+        root.broadcastCloseAll(screen)
+        ccInst.visible = true
+        ccInst._activePanel = panel
+    }
+
     // ── Top Bar ──────────────────────────────────────────────────────────
     Variants {
         model: Quickshell.screens
@@ -427,15 +442,8 @@ ShellRoot {
             notifModel: notifHistory
             Connections {
                 target: root
-                function onBroadcastCloseAll(screen) {
-                    if (clockModalInst.modelData === screen) clockModalInst.visible = false
-                }
-                function onBroadcastClock(screen) {
-                    if (clockModalInst.modelData !== screen) return
-                    var was = clockModalInst.visible
-                    root.broadcastCloseAll(screen)
-                    clockModalInst.visible = !was
-                }
+                function onBroadcastCloseAll(screen) { root.closeModalOnScreen(clockModalInst, screen) }
+                function onBroadcastClock(screen) { root.toggleModal(clockModalInst, screen) }
             }
         }
     }
@@ -449,15 +457,8 @@ ShellRoot {
             screen: modelData
             Connections {
                 target: root
-                function onBroadcastCloseAll(screen) {
-                    if (weatherModalInst.modelData === screen) weatherModalInst.visible = false
-                }
-                function onBroadcastWeather(screen) {
-                    if (weatherModalInst.modelData !== screen) return
-                    var was = weatherModalInst.visible
-                    root.broadcastCloseAll(screen)
-                    weatherModalInst.visible = !was
-                }
+                function onBroadcastCloseAll(screen) { root.closeModalOnScreen(weatherModalInst, screen) }
+                function onBroadcastWeather(screen) { root.toggleModal(weatherModalInst, screen) }
             }
         }
     }
@@ -473,41 +474,22 @@ ShellRoot {
             onCountChanged: n => root.broadcastClipboardCount(n)
             Connections {
                 target: root
-                function onBroadcastCloseAll(screen) {
-                    if (clipboardModalInst.modelData === screen) clipboardModalInst.visible = false
-                }
-                function onBroadcastClipboard(screen) {
-                    if (clipboardModalInst.modelData !== screen) return
-                    var was = clipboardModalInst.visible
-                    root.broadcastCloseAll(screen)
-                    clipboardModalInst.visible = !was
-                }
+                function onBroadcastCloseAll(screen) { root.closeModalOnScreen(clipboardModalInst, screen) }
+                function onBroadcastClipboard(screen) { root.toggleModal(clipboardModalInst, screen) }
             }
         }
     }
 
     // ── CLIPBOARD FIFO (SUPER+V) ──────────────────────────────────────────
-    Process {
-        id: clipboardFifo
-        running: true
-        command: root.mkFifoCmd("/tmp/qs-clipboard")
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: monName => root.fifoScreenReader(monName, root.broadcastClipboard)
-        }
-        onRunningChanged: if (!running) running = true
+    FifoChannel {
+        path: "/tmp/qs-clipboard"
+        onLine: monName => root.fifoScreenReader(monName, root.broadcastClipboard)
     }
 
     // ── WALLPAPER PICKER FIFO (SUPER+Y) ───────────────────────────────────
-    Process {
-        id: wallpaperFifo
-        running: true
-        command: root.mkFifoCmd("/tmp/qs-wallpaper")
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: monName => root.fifoScreenReader(monName, root.broadcastWallpaperPicker)
-        }
-        onRunningChanged: if (!running) running = true
+    FifoChannel {
+        path: "/tmp/qs-wallpaper"
+        onLine: monName => root.fifoScreenReader(monName, root.broadcastWallpaperPicker)
     }
 
     Variants {
@@ -519,15 +501,8 @@ ShellRoot {
             onRequestFolderBrowser: path => root.broadcastOpenFolderBrowser(modelData, path)
             Connections {
                 target: root
-                function onBroadcastCloseAll(screen) {
-                    if (wallpaperPickerInst.modelData === screen) wallpaperPickerInst.visible = false
-                }
-                function onBroadcastWallpaperPicker(screen) {
-                    if (wallpaperPickerInst.modelData !== screen) return
-                    var was = wallpaperPickerInst.visible
-                    root.broadcastCloseAll(screen)
-                    wallpaperPickerInst.visible = !was
-                }
+                function onBroadcastCloseAll(screen) { root.closeModalOnScreen(wallpaperPickerInst, screen) }
+                function onBroadcastWallpaperPicker(screen) { root.toggleModal(wallpaperPickerInst, screen) }
                 function onBroadcastFolderResult(screen, path) {
                     if (wallpaperPickerInst.modelData !== screen) return
                     wallpaperPickerInst.receiveFolderResult(path)
@@ -555,27 +530,15 @@ ShellRoot {
     }
 
     // ── OVERVIEW FIFO ─────────────────────────────────────────────────────
-    Process {
-        id: overviewFifo
-        running: true
-        command: root.mkFifoCmd("/tmp/qs-overview")
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: monName => root.fifoScreenReader(monName, root.broadcastOverview)
-        }
-        onRunningChanged: if (!running) running = true
+    FifoChannel {
+        path: "/tmp/qs-overview"
+        onLine: monName => root.fifoScreenReader(monName, root.broadcastOverview)
     }
 
     // ── SPOTLIGHT FIFO ────────────────────────────────────────────────────
-    Process {
-        id: spotlightFifo
-        running: true
-        command: root.mkFifoCmd("/tmp/qs-spotlight")
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: monName => root.fifoScreenReader(monName, root.broadcastSpotlight)
-        }
-        onRunningChanged: if (!running) running = true
+    FifoChannel {
+        path: "/tmp/qs-spotlight"
+        onLine: monName => root.fifoScreenReader(monName, root.broadcastSpotlight)
     }
 
     Variants {
@@ -643,13 +606,13 @@ ShellRoot {
             id: notifPopup
             property var modelData
             screen: modelData
-            dismissMs:   root._notifDismissMs
-            animInMs:    root._notifAnimInMs
-            animOutMs:   root._notifAnimOutMs
-            marginTop:   root._notifMarginTop
-            marginRight: root._notifMarginRight
-            popupWidth:  root._notifWidth
-            position:    root._notifPosition
+            autoHideMs:   root._notifDismissMs
+            animInMs:     root._notifAnimInMs
+            animOutMs:    root._notifAnimOutMs
+            topOffset:    root._notifMarginTop - 16    // margen base del template es 16
+            rightOffset:  root._notifMarginRight - 16
+            overlayWidth: root._notifWidth
+            corner:       root._notifPosition
             Connections {
                 target: root
                 function onBroadcastNotify(title, body, icon, active, isMedia) {
@@ -670,29 +633,16 @@ ShellRoot {
             screen: modelData
             Connections {
                 target: root
-                function onBroadcastCloseAll(screen) {
-                    if (ccInst.modelData === screen) ccInst.visible = false
-                }
-                function onBroadcastControlCenter(screen) {
-                    if (ccInst.modelData !== screen) return
-                    var was = ccInst.visible
-                    root.broadcastCloseAll(screen)
-                    ccInst.visible = !was
-                }
+                function onBroadcastCloseAll(screen) { root.closeModalOnScreen(ccInst, screen) }
+                function onBroadcastControlCenter(screen) { root.toggleModal(ccInst, screen) }
                 function onBroadcastWifi(screen) {
-                    if (ccInst.modelData !== screen) return
-                    root.broadcastCloseAll(screen)
-                    ccInst.visible          = true
-                    ccInst._activePanel     = "wifi"
-                    ccInst._wifiStatusMsg   = ""
+                    root.openControlPanel(screen, "wifi")
+                    ccInst._wifiStatusMsg = ""
                     ccInst._wifiSelectedIdx = -1
                     ccInst._wifiPasswordByIndex = ({})
                 }
                 function onBroadcastBluetooth(screen) {
-                    if (ccInst.modelData !== screen) return
-                    root.broadcastCloseAll(screen)
-                    ccInst.visible      = true
-                    ccInst._activePanel = "bluetooth"
+                    root.openControlPanel(screen, "bluetooth")
                     ccInst._btStatusMsg = ""
                     ccInst.btRefreshDeviceLists()
                     if (ccInst._btPwrd && ccInst._btAdapter) {
@@ -702,17 +652,11 @@ ShellRoot {
                     }
                 }
                 function onBroadcastAudio(screen) {
-                    if (ccInst.modelData !== screen) return
-                    root.broadcastCloseAll(screen)
-                    ccInst.visible      = true
-                    ccInst._activePanel = "audio"
+                    root.openControlPanel(screen, "audio")
                     ccInst.loadAudioDevices()
                 }
                 function onBroadcastLanguage(screen) {
-                    if (ccInst.modelData !== screen) return
-                    root.broadcastCloseAll(screen)
-                    ccInst.visible      = true
-                    ccInst._activePanel = "language"
+                    root.openControlPanel(screen, "language")
                     ccInst.langRefresh()
                 }
             }
@@ -720,8 +664,9 @@ ShellRoot {
     }
 
     // ── WATERMARK OVERLAY ─────────────────────────────────────────────────
-    // Visibilidad gobernada por su OverlayEntry en OverlaysManager (siempre
-    // visible cuando está habilitado; arranca oculto).
+    // Visibilidad y capa gobernadas por su OverlayEntry en OverlaysManager:
+    // arranca oculto y se muestra en onCompleted si está habilitado; los toggles
+    // en vivo del manager lo muestran/ocultan.
     Variants {
         model: Quickshell.screens
         Watermark {
@@ -743,15 +688,9 @@ ShellRoot {
     }
 
     // ── OVERLAYS CONTROL FIFO (SUPER+O) ──────────────────────────────────
-    Process {
-        id: overlaysControlFifo
-        running: true
-        command: root.mkFifoCmd("/tmp/qs-overlays")
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: monName => root.fifoScreenReader(monName, root.broadcastOverlaysControl)
-        }
-        onRunningChanged: if (!running) running = true
+    FifoChannel {
+        path: "/tmp/qs-overlays"
+        onLine: monName => root.fifoScreenReader(monName, root.broadcastOverlaysControl)
     }
 
     // ── OVERLAYS CONTROL MODAL ───────────────────────────────────────────
@@ -765,29 +704,16 @@ ShellRoot {
             screen: modelData
             Connections {
                 target: root
-                function onBroadcastCloseAll(screen) {
-                    if (overlaysControlInst.modelData === screen) overlaysControlInst.visible = false
-                }
-                function onBroadcastOverlaysControl(screen) {
-                    if (overlaysControlInst.modelData !== screen) return
-                    var was = overlaysControlInst.visible
-                    root.broadcastCloseAll(screen)
-                    overlaysControlInst.visible = !was
-                }
+                function onBroadcastCloseAll(screen) { root.closeModalOnScreen(overlaysControlInst, screen) }
+                function onBroadcastOverlaysControl(screen) { root.toggleModal(overlaysControlInst, screen) }
             }
         }
     }
 
     // ── SCREENSHOT MODAL ──────────────────────────────────────────────────
-    Process {
-        id: screenshotFifo
-        running: true
+    FifoChannel {
         command: ["bash", root._scriptsPath + "/screenshot-fifo.sh"]
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: monName => root.fifoScreenReader(monName, root.broadcastScreenshot)
-        }
-        onRunningChanged: if (!running) running = true
+        onLine: monName => root.fifoScreenReader(monName, root.broadcastScreenshot)
     }
 
     Variants {
@@ -798,33 +724,21 @@ ShellRoot {
             screen: modelData
             Connections {
                 target: root
-                function onBroadcastCloseAll(screen) {
-                    if (screenshotModalInst.modelData === screen) screenshotModalInst.visible = false
-                }
-                function onBroadcastScreenshot(screen) {
-                    if (screenshotModalInst.modelData !== screen) return
-                    var was = screenshotModalInst.visible
-                    root.broadcastCloseAll(screen)
-                    if (!was) screenshotModalInst.open()
-                }
+                function onBroadcastCloseAll(screen) { root.closeModalOnScreen(screenshotModalInst, screen) }
+                function onBroadcastScreenshot(screen) { root.toggleModal(screenshotModalInst, screen) }
             }
         }
     }
 
     // ── VOLUME OSD ────────────────────────────────────────────────────────
-    Process {
-        id: volumeFifo
-        running: true
+    FifoChannel {
         command: ["bash", root._scriptsPath + "/qs-volume-fifo.sh"]
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: line => {
-                var parts = line.trim().split(":")
-                var pct   = parseInt(parts[0]) || 0
-                var muted = (parts[1] === "1")
-                if (root.shouldEmitInternal("volume", "osd", "osd")) {
-                    root.broadcastVolume()
-                }
+        onLine: line => {
+            var parts = line.trim().split(":")
+            var pct   = parseInt(parts[0]) || 0
+            var muted = (parts[1] === "1")
+            if (root.shouldEmitInternal("volume", "osd", "osd")) {
+                root.broadcastVolume()
             }
         }
     }
@@ -845,16 +759,11 @@ ShellRoot {
     }
 
     // ── BRIGHTNESS OSD ────────────────────────────────────────────────────
-    Process {
-        id: brightnessFifo
-        running: true
+    FifoChannel {
         command: ["bash", root._scriptsPath + "/qs-brightness-fifo.sh"]
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: pct => {
-                if (root.shouldEmitInternal("brightness", "osd", "osd")) {
-                    root.broadcastBrightness(parseInt(pct.trim()))
-                }
+        onLine: pct => {
+            if (root.shouldEmitInternal("brightness", "osd", "osd")) {
+                root.broadcastBrightness(parseInt(pct.trim()))
             }
         }
     }
@@ -982,15 +891,5 @@ ShellRoot {
         loadNotificationConfig()
         console.log("Quickshell loaded")
         console.log("✅ SysData | Workspaces | Power Menu | Weather | Notifications | UPower")
-    }
-
-    Component.onDestruction: {
-        clipboardFifo.running = false
-        wallpaperFifo.running = false
-        overviewFifo.running = false
-        spotlightFifo.running = false
-        screenshotFifo.running = false
-        volumeFifo.running = false
-        brightnessFifo.running = false
     }
 }
