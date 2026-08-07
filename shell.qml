@@ -720,11 +720,23 @@ ShellRoot {
     }
 
     // ── WATERMARK OVERLAY ─────────────────────────────────────────────────
-    // Trigger pendiente: aún no hay keybind/orden que lo muestre.
+    // Visibilidad gobernada por su OverlayEntry en OverlaysManager (siempre
+    // visible cuando está habilitado; arranca oculto).
     Variants {
         model: Quickshell.screens
         Watermark {
             id: watermarkInst
+            property var modelData
+            screen: modelData
+        }
+    }
+
+    // ── PREVIEW OVERLAY (GIF decorativo) ──────────────────────────────────
+    // Visibilidad gobernada por su OverlayEntry en OverlaysManager.
+    Variants {
+        model: Quickshell.screens
+        PreviewOverlay {
+            id: previewInst
             property var modelData
             screen: modelData
         }
@@ -758,8 +770,9 @@ ShellRoot {
                 }
                 function onBroadcastOverlaysControl(screen) {
                     if (overlaysControlInst.modelData !== screen) return
+                    var was = overlaysControlInst.visible
                     root.broadcastCloseAll(screen)
-                    overlaysControlInst.visible = !overlaysControlInst.visible
+                    overlaysControlInst.visible = !was
                 }
             }
         }

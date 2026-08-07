@@ -19,21 +19,23 @@ OverlayWindow {
     animInMs:       250
     animOutMs:      250
     autoHideMs:     0                       // 0 = siempre visible (estilo Windows)
+    onTop:          OverlaysManager.get("watermark").onTop
+    bottomOffset:   0
 
-    // La visibilidad la gobierna OverlaysManager (flag watermarkEnabled):
+    // La visibilidad la gobierna OverlaysManager (flag enabled de su entry):
     // oculto por defecto; se muestra solo si el overlay está habilitado.
     visible: false
     Component.onCompleted: {
-        if (OverlaysManager.watermarkEnabled) root.show()
+        if (OverlaysManager.get("watermark").enabled) root.show()
     }
 
     Connections {
         // Sin parent explícito: Connections no es Item y no tiene property
         // "parent". Vive en contentArea (default property) como objeto
         // invisible; su función depende solo de target.
-        target: OverlaysManager
-        function onWatermarkEnabledChanged() {
-            if (OverlaysManager.watermarkEnabled) root.show()
+        target: OverlaysManager.get("watermark")
+        function onEnabledChanged() {
+            if (OverlaysManager.get("watermark").enabled) root.show()
             else root.hide()
         }
     }
