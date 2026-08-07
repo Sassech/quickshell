@@ -1,6 +1,8 @@
 import QtQuick
 import "../../Components"
 
+pragma ComponentBehavior: Bound
+
 // ── CcGpuPanel ───────────────────────────────────────────────────────────────
 // Panel de detalle multi-GPU. Muestra cada GPU detectada por gpu-detail.sh:
 //   - dGPU (NVIDIA/AMD): 2 cards resumen + barras de shader/VRAM/freq/power

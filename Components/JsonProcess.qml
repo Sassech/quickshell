@@ -17,6 +17,7 @@ Process {
         splitMarker: "\n"
         onRead: d => root.buffer += d + "\n"
     }
+    // qmllint disable signal-handler-parameters
     onExited: {
         const s = root.buffer.trim()
         root.buffer = ""
@@ -25,4 +26,5 @@ Process {
         } catch (e) {}
         root.finished()
     }
+    // qmllint enable signal-handler-parameters
 }

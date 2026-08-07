@@ -800,9 +800,11 @@ QtObject {
         stdout: StdioCollector {
             onStreamFinished: data.parseNvidiaSmi(text)
         }
+        // qmllint disable signal-handler-parameters
         onExited: function(exitCode) {
             if (exitCode !== 0) data.fetchGpuSysfs()
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // Sysfs fallback — only exercised when nvidia-smi is absent/fails.

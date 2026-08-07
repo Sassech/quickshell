@@ -1,6 +1,8 @@
 import QtQuick
 import "../../Components"
 
+pragma ComponentBehavior: Bound
+
 // ── CcRamPanel ───────────────────────────────────────────────────────────────
 // Panel de detalle de RAM: desglose Apps / Caché / Libre + Swap.
 Rectangle {

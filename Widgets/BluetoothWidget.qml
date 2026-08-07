@@ -14,7 +14,9 @@ Rectangle {
 
     // Widget de solo estado — no emite clicks ni tiene hover
 
+    // qmllint disable unresolved-type
     property var  adapter:   Bluetooth.defaultAdapter
+    // qmllint enable unresolved-type
     property bool available: adapter !== null
     property bool powered:   adapter ? adapter.enabled : false
 

@@ -1,6 +1,8 @@
 import QtQuick
 import "../../Components"
 
+pragma ComponentBehavior: Bound
+
 // ── CcCpuPanel ───────────────────────────────────────────────────────────────
 // Panel de detalle de CPU: modelo, threads, frecuencia, gobernador,
 // 2 cards de resumen (uso + temp) y lista de núcleos con barra + temp.

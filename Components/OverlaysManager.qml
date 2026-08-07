@@ -113,6 +113,8 @@ QtObject {
         }
         // Fallback: si el proceso termina sin onRead (archivo vacío/borrado),
         // igualmente habilitamos el guard para no bloquear la persistencia.
+        // qmllint disable signal-handler-parameters
         onExited: root._loaded = true
+        // qmllint enable signal-handler-parameters
     }
 }

@@ -10,7 +10,9 @@ QtObject {
     id: root
 
     // ── Estado del adaptador ──────────────────────────────────────────────
+    // qmllint disable unresolved-type
     property var    _btAdapter:   Bluetooth.defaultAdapter
+    // qmllint enable unresolved-type
     property bool   _btAvailable: _btAdapter !== null
     property bool   _btPwrd:      _btAdapter ? _btAdapter.enabled : false
     property bool   _btScanning:  false
@@ -36,14 +38,20 @@ QtObject {
     property string _btCurrentCodecMac:  ""
 
     // ── Propiedades de resumen para CcQuickToggles / CcPanelOverlay ──────
+    // qmllint disable unresolved-type
     property var  btAdapter: Bluetooth.defaultAdapter
+    // qmllint enable unresolved-type
     property bool btPowered: btAdapter ? btAdapter.enabled : false
 
     // Bluetooth.devices expone SOLO los dispositivos actualmente conectados
+    // qmllint disable unresolved-type
     property int btConnectedCount: Bluetooth.devices.values.length
+    // qmllint enable unresolved-type
 
     readonly property string btFirstConnectedName: {
+        // qmllint disable unresolved-type
         const devs = Bluetooth.devices.values
+        // qmllint enable unresolved-type
         if (devs.length === 0) return ""
         const d = devs[0]
         return d.name || d.deviceName || d.address || ""

@@ -60,6 +60,7 @@ QmModalBase {
             model: OverlaysManager.overlays
 
             delegate: Rectangle {
+                id: row
                 required property var modelData
                 Layout.fillWidth: true
                 implicitHeight: 78
@@ -89,14 +90,14 @@ QmModalBase {
                             Layout.fillHeight: true
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: modelData.enabled = !modelData.enabled
+                            onClicked: row.modelData.enabled = !row.modelData.enabled
 
                             RowLayout {
                                 anchors.fill: parent
                                 spacing: 10
 
                                 Text {
-                                    text: modelData.icon
+                                    text: row.modelData.icon
                                     font.pixelSize: 18
                                     color: Theme.accent
                                 }
@@ -106,13 +107,13 @@ QmModalBase {
                                     spacing: 2
 
                                     Text {
-                                        text: modelData.name
+                                        text: row.modelData.name
                                         font.pixelSize: 12
                                         font.weight: Font.DemiBold
                                         color: Theme.text
                                     }
                                     Text {
-                                        text: modelData.description
+                                        text: row.modelData.description
                                         font.pixelSize: 10
                                         color: Theme.muted2
                                         elide: Text.ElideRight
@@ -123,8 +124,8 @@ QmModalBase {
 
                         ToggleSwitch {
                             Layout.alignment: Qt.AlignVCenter
-                            checked: modelData.enabled
-                            onToggled: modelData.enabled = value
+                            checked: row.modelData.enabled
+                            onToggled: value => row.modelData.enabled = value
                         }
                     }
 
@@ -140,7 +141,7 @@ QmModalBase {
                             Layout.fillHeight: true
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: modelData.onTop = !modelData.onTop
+                            onClicked: row.modelData.onTop = !row.modelData.onTop
 
                             RowLayout {
                                 anchors.fill: parent
@@ -163,8 +164,8 @@ QmModalBase {
 
                         ToggleSwitch {
                             Layout.alignment: Qt.AlignVCenter
-                            checked: modelData.onTop
-                            onToggled: modelData.onTop = value
+                            checked: row.modelData.onTop
+                            onToggled: value => row.modelData.onTop = value
                         }
                     }
                 }

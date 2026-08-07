@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import Quickshell
 import Quickshell.Widgets
 import Quickshell.Services.SystemTray
 
@@ -16,7 +15,7 @@ Rectangle {
     radius: 4
 
     // ── Color de fondo según estado ──────────────────────────────────────
-    property bool _needsAttention: root.trayItem.status === SystemTrayStatus.NeedsAttention
+    property bool _needsAttention: root.trayItem.status === Status.NeedsAttention
 
     color: ma.containsMouse ? "#22ffffff" : "transparent"
     Behavior on color { ColorAnimation { duration: 100 } }

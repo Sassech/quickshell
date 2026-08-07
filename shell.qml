@@ -34,6 +34,7 @@ ShellRoot {
         stdout: StdioCollector {
             onStreamFinished: SysData.parseHwmonDiscovery(text)
         }
+        // qmllint disable signal-handler-parameters
         onExited: {
             if (SysData._hwmonCpu.length > 0) {
                 coreTempDiscovery.running = true
@@ -41,6 +42,7 @@ ShellRoot {
                 rootDeviceDiscovery.running = true
             }
         }
+        // qmllint enable signal-handler-parameters
     }
 
     // Stage 2 — per-core temp label→path map → SysData._coreTempPaths (skipped if no CPU hwmon)
@@ -51,7 +53,9 @@ ShellRoot {
         stdout: StdioCollector {
             onStreamFinished: SysData.parseCoreTempDiscovery(text)
         }
+        // qmllint disable signal-handler-parameters
         onExited: rootDeviceDiscovery.running = true
+        // qmllint enable signal-handler-parameters
     }
 
     // Stage 3 — root block device → SysData._rootDevice
@@ -69,7 +73,9 @@ ShellRoot {
         stdout: StdioCollector {
             onStreamFinished: SysData._rootDevice = text.trim()
         }
+        // qmllint disable signal-handler-parameters
         onExited: cpuInfoDiscovery.running = true
+        // qmllint enable signal-handler-parameters
     }
 
     // Stage 4 — CPU model + core count → SysData.cpuModel/cpuNcores
@@ -80,7 +86,9 @@ ShellRoot {
         stdout: StdioCollector {
             onStreamFinished: SysData.parseCpuInfo(text)
         }
+        // qmllint disable signal-handler-parameters
         onExited: gpuCardDiscovery.running = true
+        // qmllint enable signal-handler-parameters
     }
 
     // Stage 5 — GPU card path → SysData._gpuCardPath; flips pollersReady when done
@@ -91,7 +99,9 @@ ShellRoot {
         stdout: StdioCollector {
             onStreamFinished: SysData._gpuCardPath = text.trim()
         }
+        // qmllint disable signal-handler-parameters
         onExited: SysData.pollersReady = true
+        // qmllint enable signal-handler-parameters
     }
 
     // Default network interface — pure FileView read, no subprocess needed.
@@ -395,11 +405,11 @@ ShellRoot {
     }
     // Abre el Control Center directo en un panel (no es toggle: el CC
     // siempre se muestra al invocar un panel específico).
-    function openControlPanel(screen, panel) {
-        if (ccInst.modelData !== screen) return
+    function openControlPanel(inst, screen, panel) {
+        if (inst.modelData !== screen) return
         root.broadcastCloseAll(screen)
-        ccInst.visible = true
-        ccInst._activePanel = panel
+        inst.visible = true
+        inst._activePanel = panel
     }
 
     // ── Top Bar ──────────────────────────────────────────────────────────
@@ -636,13 +646,13 @@ ShellRoot {
                 function onBroadcastCloseAll(screen) { root.closeModalOnScreen(ccInst, screen) }
                 function onBroadcastControlCenter(screen) { root.toggleModal(ccInst, screen) }
                 function onBroadcastWifi(screen) {
-                    root.openControlPanel(screen, "wifi")
+                    root.openControlPanel(ccInst, screen, "wifi")
                     ccInst._wifiStatusMsg = ""
                     ccInst._wifiSelectedIdx = -1
                     ccInst._wifiPasswordByIndex = ({})
                 }
                 function onBroadcastBluetooth(screen) {
-                    root.openControlPanel(screen, "bluetooth")
+                    root.openControlPanel(ccInst, screen, "bluetooth")
                     ccInst._btStatusMsg = ""
                     ccInst.btRefreshDeviceLists()
                     if (ccInst._btPwrd && ccInst._btAdapter) {
@@ -652,11 +662,11 @@ ShellRoot {
                     }
                 }
                 function onBroadcastAudio(screen) {
-                    root.openControlPanel(screen, "audio")
+                    root.openControlPanel(ccInst, screen, "audio")
                     ccInst.loadAudioDevices()
                 }
                 function onBroadcastLanguage(screen) {
-                    root.openControlPanel(screen, "language")
+                    root.openControlPanel(ccInst, screen, "language")
                     ccInst.langRefresh()
                 }
             }

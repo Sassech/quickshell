@@ -24,9 +24,11 @@ Item {
 
     // ── Hay al menos un ícono Passive? ───────────────────────────────────
     property bool _hasPassive: {
+        // qmllint disable missing-property
         for (let i = 0; i < SystemTray.items.length; i++) {
-            if (SystemTray.items[i].status === SystemTrayStatus.Passive) return true
+            if (SystemTray.items[i].status === Status.Passive) return true
         }
+        // qmllint enable missing-property
         return false
     }
 
@@ -49,7 +51,7 @@ Item {
                 panelWindow: root.panelWindow
 
                 // Ocultar Passive cuando no está expandido
-                visible: root.expanded || modelData.status !== SystemTrayStatus.Passive
+                visible: root.expanded || modelData.status !== Status.Passive
 
                 Behavior on visible {
                     // Fade suave al mostrar/ocultar
