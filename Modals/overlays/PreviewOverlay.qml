@@ -39,6 +39,12 @@ OverlayWindow {
     // sourceSize controla el tamaño de decodificación: 200px basta para el
     // render, evita decodificar el GIF completo en RAM. Asset 192x192 (1:1).
     AnimatedImage {
+        anchors {
+            left: parent.left
+            top: parent.top
+            leftMargin: 14
+            topMargin: 14
+        }
         width: root.overlayWidth
         height: root.overlayWidth            // ratio 1:1 del asset
         source: "assets/preview.gif"

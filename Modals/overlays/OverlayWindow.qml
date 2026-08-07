@@ -33,6 +33,7 @@ PanelWindow {
     property int    bottomOffset:   0
     property int    leftOffset:     0
     property int    rightOffset:    0
+    property color  borderColor:    "transparent"  // borde de la tarjeta (transparent = sin borde)
 
     // ── Computed layout ───────────────────────────────────────────────────
     readonly property bool _barOnRight:     corner.endsWith("right")
@@ -43,6 +44,10 @@ PanelWindow {
     // Slot por defecto: los hijos declarados dentro del overlay concreto
     // (p. ej. en Watermark.qml) se insertan directamente en contentArea.
     default property alias content: contentArea.data
+
+    // Referencia a la tarjeta para que los hijos puedan anclar contenido
+    // directo (p. ej. NotificationPopup usa toda la card, no el slot).
+    property alias card: overlayCard
 
     implicitWidth:  overlayWidth
     implicitHeight: overlayHeight > 0 ? overlayHeight : overlayCard.implicitHeight
@@ -70,6 +75,12 @@ PanelWindow {
 
     // ── API pública ───────────────────────────────────────────────────────
     function show() {
+        root._animateIn()
+    }
+
+    // Lógica real de entrada. Separada para que un hijo que sobreescriba
+    // show() (con otros argumentos) pueda llamarla vía root._animateIn().
+    function _animateIn() {
         hideOutAnim.stop()
         autoHideTimer.stop()
 
@@ -135,9 +146,11 @@ PanelWindow {
         height: root.overlayHeight > 0 ? root.overlayHeight : implicitHeight
         radius: 12
         color:  root.bgColor
+        border.color: root.borderColor
+        border.width: 1
         clip:   true
 
-        implicitHeight: contentArea.implicitHeight + root._contentMargin * 2
+        implicitHeight: contentArea.childrenRect.height + root._contentMargin * 2
 
         // Franja de acento del lado anclado
         Rectangle {
@@ -154,18 +167,12 @@ PanelWindow {
             }
         }
 
-        // Área de contenido (donde aterrizan los hijos del overlay concreto)
-        Column {
+        // Área de contenido: llena la tarjeta para que los overlays puedan
+        // anclar directo (parent = la card completa, p. ej. NotificationPopup).
+        // Los overlays simples posicionan su contenido con margins explícitos.
+        Item {
             id: contentArea
-            anchors {
-                top: parent.top
-                left: parent.left
-                right: parent.right
-                topMargin: root._contentMargin
-                leftMargin:  root._barOnRight ? root._contentMargin     : root._contentMargin + 3
-                rightMargin: root._barOnRight ? root._contentMargin + 3 : root._contentMargin
-            }
-            spacing: 6
+            anchors.fill: parent
         }
     }
 }

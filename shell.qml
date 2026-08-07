@@ -606,13 +606,13 @@ ShellRoot {
             id: notifPopup
             property var modelData
             screen: modelData
-            dismissMs:   root._notifDismissMs
-            animInMs:    root._notifAnimInMs
-            animOutMs:   root._notifAnimOutMs
-            marginTop:   root._notifMarginTop
-            marginRight: root._notifMarginRight
-            popupWidth:  root._notifWidth
-            position:    root._notifPosition
+            autoHideMs:   root._notifDismissMs
+            animInMs:     root._notifAnimInMs
+            animOutMs:    root._notifAnimOutMs
+            topOffset:    root._notifMarginTop - 16    // margen base del template es 16
+            rightOffset:  root._notifMarginRight - 16
+            overlayWidth: root._notifWidth
+            corner:       root._notifPosition
             Connections {
                 target: root
                 function onBroadcastNotify(title, body, icon, active, isMedia) {

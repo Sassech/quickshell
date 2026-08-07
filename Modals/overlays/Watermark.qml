@@ -42,7 +42,14 @@ OverlayWindow {
 
     // ── Contenido (slot por defecto → contentArea) ─────────────────────────
     Row {
-        width: parent.width
+        anchors {
+            left: parent.left
+            right: parent.right
+            top: parent.top
+            leftMargin: 14
+            rightMargin: 14
+            topMargin: 14
+        }
         spacing: 12
 
         // Ícono (Nerd Font — mismo glifo de acento que el resto del shell)
