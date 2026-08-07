@@ -4,6 +4,7 @@ singleton Paths 1.0 Paths.qml
 singleton OverlaysManager 1.0 OverlaysManager.qml
 OverlayEntry 1.0 OverlayEntry.qml
 WeatherHelpers 1.0 WeatherHelpers.qml
+FifoChannel 1.0 FifoChannel.qml
 singleton WeatherProvider 1.0 WeatherProvider.qml
 BottomBar 1.0 BottomBar.qml
 TopBar 1.0 TopBar.qml

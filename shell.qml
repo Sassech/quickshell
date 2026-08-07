@@ -164,17 +164,6 @@ ShellRoot {
         return Quickshell.screens[0]
     }
 
-    function mkFifoCmd(fifoPath) {
-        const rawPath = String(fifoPath ?? "")
-        const safePath = rawPath.replace(/'/g, "'\"'\"'")
-        return [
-            "bash", "-c",
-            "rm -f '" + safePath + "'; mkfifo '" + safePath + "'; " +
-            "exec 3<>'" + safePath + "'; " +
-            "while IFS= read -r line <&3; do printf '%s\\n' \"$line\"; done"
-        ]
-    }
-
     function fifoScreenReader(monName, broadcaster) {
         const name = (monName ?? "").trim()
         const targetScreen = name.length > 0
@@ -487,27 +476,15 @@ ShellRoot {
     }
 
     // ── CLIPBOARD FIFO (SUPER+V) ──────────────────────────────────────────
-    Process {
-        id: clipboardFifo
-        running: true
-        command: root.mkFifoCmd("/tmp/qs-clipboard")
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: monName => root.fifoScreenReader(monName, root.broadcastClipboard)
-        }
-        onRunningChanged: if (!running) running = true
+    FifoChannel {
+        path: "/tmp/qs-clipboard"
+        onLine: monName => root.fifoScreenReader(monName, root.broadcastClipboard)
     }
 
     // ── WALLPAPER PICKER FIFO (SUPER+Y) ───────────────────────────────────
-    Process {
-        id: wallpaperFifo
-        running: true
-        command: root.mkFifoCmd("/tmp/qs-wallpaper")
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: monName => root.fifoScreenReader(monName, root.broadcastWallpaperPicker)
-        }
-        onRunningChanged: if (!running) running = true
+    FifoChannel {
+        path: "/tmp/qs-wallpaper"
+        onLine: monName => root.fifoScreenReader(monName, root.broadcastWallpaperPicker)
     }
 
     Variants {
@@ -555,27 +532,15 @@ ShellRoot {
     }
 
     // ── OVERVIEW FIFO ─────────────────────────────────────────────────────
-    Process {
-        id: overviewFifo
-        running: true
-        command: root.mkFifoCmd("/tmp/qs-overview")
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: monName => root.fifoScreenReader(monName, root.broadcastOverview)
-        }
-        onRunningChanged: if (!running) running = true
+    FifoChannel {
+        path: "/tmp/qs-overview"
+        onLine: monName => root.fifoScreenReader(monName, root.broadcastOverview)
     }
 
     // ── SPOTLIGHT FIFO ────────────────────────────────────────────────────
-    Process {
-        id: spotlightFifo
-        running: true
-        command: root.mkFifoCmd("/tmp/qs-spotlight")
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: monName => root.fifoScreenReader(monName, root.broadcastSpotlight)
-        }
-        onRunningChanged: if (!running) running = true
+    FifoChannel {
+        path: "/tmp/qs-spotlight"
+        onLine: monName => root.fifoScreenReader(monName, root.broadcastSpotlight)
     }
 
     Variants {
@@ -743,15 +708,9 @@ ShellRoot {
     }
 
     // ── OVERLAYS CONTROL FIFO (SUPER+O) ──────────────────────────────────
-    Process {
-        id: overlaysControlFifo
-        running: true
-        command: root.mkFifoCmd("/tmp/qs-overlays")
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: monName => root.fifoScreenReader(monName, root.broadcastOverlaysControl)
-        }
-        onRunningChanged: if (!running) running = true
+    FifoChannel {
+        path: "/tmp/qs-overlays"
+        onLine: monName => root.fifoScreenReader(monName, root.broadcastOverlaysControl)
     }
 
     // ── OVERLAYS CONTROL MODAL ───────────────────────────────────────────
@@ -779,15 +738,9 @@ ShellRoot {
     }
 
     // ── SCREENSHOT MODAL ──────────────────────────────────────────────────
-    Process {
-        id: screenshotFifo
-        running: true
+    FifoChannel {
         command: ["bash", root._scriptsPath + "/screenshot-fifo.sh"]
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: monName => root.fifoScreenReader(monName, root.broadcastScreenshot)
-        }
-        onRunningChanged: if (!running) running = true
+        onLine: monName => root.fifoScreenReader(monName, root.broadcastScreenshot)
     }
 
     Variants {
@@ -812,19 +765,14 @@ ShellRoot {
     }
 
     // ── VOLUME OSD ────────────────────────────────────────────────────────
-    Process {
-        id: volumeFifo
-        running: true
+    FifoChannel {
         command: ["bash", root._scriptsPath + "/qs-volume-fifo.sh"]
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: line => {
-                var parts = line.trim().split(":")
-                var pct   = parseInt(parts[0]) || 0
-                var muted = (parts[1] === "1")
-                if (root.shouldEmitInternal("volume", "osd", "osd")) {
-                    root.broadcastVolume()
-                }
+        onLine: line => {
+            var parts = line.trim().split(":")
+            var pct   = parseInt(parts[0]) || 0
+            var muted = (parts[1] === "1")
+            if (root.shouldEmitInternal("volume", "osd", "osd")) {
+                root.broadcastVolume()
             }
         }
     }
@@ -845,16 +793,11 @@ ShellRoot {
     }
 
     // ── BRIGHTNESS OSD ────────────────────────────────────────────────────
-    Process {
-        id: brightnessFifo
-        running: true
+    FifoChannel {
         command: ["bash", root._scriptsPath + "/qs-brightness-fifo.sh"]
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: pct => {
-                if (root.shouldEmitInternal("brightness", "osd", "osd")) {
-                    root.broadcastBrightness(parseInt(pct.trim()))
-                }
+        onLine: pct => {
+            if (root.shouldEmitInternal("brightness", "osd", "osd")) {
+                root.broadcastBrightness(parseInt(pct.trim()))
             }
         }
     }
@@ -982,15 +925,5 @@ ShellRoot {
         loadNotificationConfig()
         console.log("Quickshell loaded")
         console.log("✅ SysData | Workspaces | Power Menu | Weather | Notifications | UPower")
-    }
-
-    Component.onDestruction: {
-        clipboardFifo.running = false
-        wallpaperFifo.running = false
-        overviewFifo.running = false
-        spotlightFifo.running = false
-        screenshotFifo.running = false
-        volumeFifo.running = false
-        brightnessFifo.running = false
     }
 }
