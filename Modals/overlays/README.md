@@ -39,6 +39,7 @@ fade + slide desde el borde.
 | `autoHideMs` | `0` | 0 = queda visible hasta `hide()`; >0 = auto-oculta |
 | `onTop` | `true` | true = capa Overlay (sobre ventanas); false = capa Bottom |
 | `topOffset` / `bottomOffset` / `leftOffset` / `rightOffset` | `0` | Px extra sobre el margen base de 16px del corner elegido (empujan hacia adentro) |
+| `mouseThrough` | `false` | true = los clicks pasan a la ventana de abajo (overlays decorativos); false = solo la tarjeta es clickeable |
 
 ### API
 
@@ -178,20 +179,6 @@ Para un disparo interno (p. ej. botón en Control Center):
 // o directo si el contexto alcanza: watermarkInst.showOverlay()
 ```
 
-## Estado del Watermark
-
-- **Gobernado por `OverlaysManager.get("watermark").enabled`** (singleton en
-  `Components/OverlaysManager.qml`): si está habilitado, `Component.onCompleted`
-  corre la animación de entrada al arrancar; los cambios del flag en vivo
-  disparan `show()`/`hide()`. Si está deshabilitado, no se muestra ni anima.
-  `onTop` lee igual del mismo entry (`OverlaysManager.get("watermark").onTop`).
-- **Sin tarjeta**: `bgColor: "transparent"` + `showAccent: false` — solo texto
-  flotante blanco translúcido (con contorno negro) legible sobre cualquier
-  wallpaper, incluidos los de video. Colores propios, sin depender de
-  `Theme.qml` (ver convención arriba).
-- `autoHideMs: 0` → no se oculta solo.
-- Esquina bottom-right, 300px, opacidad 0.85, anim 250ms.
-
 ## Gestión de overlays (OverlaysManager + OverlaysControl)
 
 Enfoque **data-driven**: cada overlay es una entrada `OverlayEntry` en la lista
@@ -218,13 +205,11 @@ Agregar un overlay nuevo:
    `OverlaysManager.get("id")` — y el patrón de visibilidad del Watermark:
    `visible: false`, `Component.onCompleted` con `root.show()` si está
    habilitado, y un `Connections` al entry para los cambios en vivo.
+   Si es decorativo (sin interacción), activar `mouseThrough: true` para que
+   los clicks pasen a la ventana de abajo.
 3. Agregar su `OverlayEntry` a `OverlaysManager.overlays`.
 4. Instanciarlo por monitor en `shell.qml` con
    `Variants { model: Quickshell.screens }` (mismo patrón que el resto).
-
-> **REC descartado**: el overlay de grabación se evaluó y se descartó — el
-> grabador elegido (gpu-screen-recorder) ya trae su propia interfaz, así que
-> un indicador en el shell sería redundante. No implementar.
 
 > Nota de imports: los archivos dentro de `Modals/overlays/` importan
 > `"../../Components"` (dos niveles), NO `"../Components"` — esa ruta no existe.
