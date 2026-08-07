@@ -34,6 +34,7 @@ PanelWindow {
     property int    leftOffset:     0
     property int    rightOffset:    0
     property color  borderColor:    "transparent"  // borde de la tarjeta (transparent = sin borde)
+    property bool   mouseThrough:   false   // true → los clicks pasan a la ventana de abajo (overlays decorativos)
 
     // ── Computed layout ───────────────────────────────────────────────────
     readonly property bool _barOnRight:     corner.endsWith("right")
@@ -71,7 +72,9 @@ PanelWindow {
     }
     // qmllint enable unqualified unresolved-type
 
-    mask: Region { item: overlayCard }
+    // Mascara de input: por defecto solo la tarjeta es clickeable; con
+    // mouseThrough se anula para que los clicks pasen a la ventana de abajo.
+    mask: root.mouseThrough ? Region {} : Region { item: overlayCard }
 
     // ── API pública ───────────────────────────────────────────────────────
     function show() {
