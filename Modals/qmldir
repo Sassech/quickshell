@@ -8,4 +8,5 @@ FolderBrowserModal 1.0 FolderBrowserModal.qml
 BrightnessOsd 1.0 BrightnessOsd.qml
 VolumeOsd 1.0 VolumeOsd.qml
 ControlCenter 1.0 ControlCenter.qml
+OverlaysControl 1.0 OverlaysControl.qml
 ScreenshotModal 1.0 ScreenshotModal.qml

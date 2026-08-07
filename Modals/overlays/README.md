@@ -1,0 +1,202 @@
+# Overlays — Subsistema de Overlays Animados
+
+Ventanas flotantes en esquinas (fade + slide) reutilizables, separadas de los
+modales del sistema (`Modals/` raíz: NotificationPopup, ClockModal,
+ClipboardModal, etc.) siguiendo el mismo criterio que `Modals/cc/` para el
+Control Center.
+
+## Estructura
+
+```
+Modals/overlays/
+├── OverlayWindow.qml   # Plantilla base parametrizada (no tocar por instancia)
+└── Watermark.qml       # Instancia concreta: estilo "Activar Windows"
+```
+
+## Plantilla — OverlayWindow.qml
+
+`PanelWindow` anclado a una esquina, sin exclusión de espacio
+(`ExclusionMode.Ignore`), con máscara recortada a la tarjeta y animación
+fade + slide desde el borde.
+
+### Parámetros
+
+| Propiedad | Defecto | Descripción |
+|---|---|---|
+| `corner` | `"bottom-right"` | `bottom-right` \| `bottom-left` \| `top-right` \| `top-left` |
+| `overlayWidth` | `320` | Ancho fijo de la tarjeta |
+| `overlayHeight` | `0` | 0 = el contenido decide la altura |
+| `bgColor` | `Theme.cardBg3` | Fondo de la tarjeta |
+| `accent` | `Theme.accent` | Color de la franja lateral de acento |
+| `showAccent` | `true` | Muestra la franja lateral (false = solo texto, p. ej. watermark) |
+| `restingOpacity` | `0.9` | Opacidad final tras el fade-in |
+| `animInMs` / `animOutMs` | `300` / `300` | Duración de entrada / salida |
+| `autoHideMs` | `0` | 0 = queda visible hasta `hide()`; >0 = auto-oculta |
+
+### API
+
+- `show()` — hace visible y corre fade+slide de entrada (reinicia auto-hide).
+- `hide()` — corre la animación de salida y oculta al terminar.
+
+### Contenido
+
+Los hijos declarados dentro de un overlay concreto aterrizan automáticamente
+en `contentArea` vía la *default property* (`default property alias content`).
+El overlay concreto NO hereda ni toca la plantilla: solo declara su UI.
+
+## Colores: no depender de Theme.qml
+
+Los overlays NO deben usar `Theme.text`, `Theme.muted2` ni otros colores de
+`Theme.qml` para su contenido. Razones:
+
+- `Theme.qml` se **regenera en cada cambio de wallpaper** (`wallpaper-set.sh`
+  lo reescribe); un overlay que herede esos colores cambia de look sin aviso.
+- Cada overlay puede necesitar **tonos o identidad propios** (agresivo,
+  discreto, corporativo, estado crítico…).
+- Los overlays flotan sobre el wallpaper (a veces video), así que la
+  legibilidad depende de contraste fijo, no del tema del momento.
+
+Convención:
+
+1. Cada overlay concreto declara **sus propios colores** (hex, `Qt.rgba`,
+   blanco/negro con alpha) directamente en su contenido.
+2. Si un color debe ser configurable desde afuera, exponerlo como `property`
+   del overlay concreto (nunca leer `Theme.*` en el cuerpo del contenido).
+3. `OverlayWindow` sí usa `Theme.cardBg3`/`Theme.accent` como **defaults** de
+   la plantilla, pero el overlay concreto puede sobreescribirlos
+   (`bgColor`, `accent`), como hace `Watermark` con `bgColor: "transparent"`.
+4. Para legibilidad sobre cualquier fondo, preferir blanco translúcido con
+   contorno (`style: Text.Outline; styleColor: "black"`) o un color fijo con
+   opacidad controlada, en vez de heredar el color del tema.
+
+## Crear un overlay nuevo
+
+```qml
+// qmllint disable uncreatable-type
+import QtQuick
+
+MyOverlay {
+    corner:         "top-right"
+    overlayWidth:   280
+    autoHideMs:     4000
+
+    // Contenido → contentArea automáticamente.
+    // Colores propios del overlay, NO Theme.*
+    Row {
+        Text {
+            text: "Aviso"
+            color: "white"
+            style: Text.Outline
+            styleColor: "black"
+            opacity: 0.8
+        }
+    }
+
+    function showOverlay() { root.show() }
+    function hideOverlay() { root.hide() }
+}
+```
+
+Guardarlo en `Modals/overlays/`, instanciarlo por monitor en `shell.qml`
+con `Variants { model: Quickshell.screens }` (mismo patrón que el resto).
+
+## Conectar un trigger
+
+### A. Keybind de Hyprland (patrón FIFO existente)
+
+El mecanismo ya usado por clipboard (SUPER+V), wallpaper (SUPER+Y), overview
+(SUPER+TAB) y screenshot (SUPER+SHIFT+S):
+
+1. **KeyBind.conf** — escribir al FIFO (con monitor activo o sin él):
+
+   ```
+   bind = $mod, H, exec, bash ~/.config/quickshell/scripts/qs-active-monitor.sh > /tmp/qs-watermark
+   # o sin monitor: bind = $mod, H, exec, echo 1 > /tmp/qs-watermark
+   ```
+
+2. **shell.qml** — `Process` que lee el FIFO y dispara la señal:
+
+   ```qml
+   Process {
+       id: watermarkFifo
+       running: true
+       command: root.mkFifoCmd("/tmp/qs-watermark")
+       stdout: SplitParser {
+           splitMarker: "\n"
+           onRead: monName => root.fifoScreenReader(monName, root.broadcastWatermark)
+       }
+   }
+   ```
+
+3. **shell.qml** — señal raíz (junto a las otras `broadcast*`, ~línea 369):
+
+   ```qml
+   signal broadcastWatermark(var screen)
+   ```
+
+4. **shell.qml** — `Connections` en la instancia del overlay (toggle):
+
+   ```qml
+   Watermark {
+       id: watermarkInst
+       property var modelData
+       screen: modelData
+       Connections {
+           target: root
+           function onBroadcastWatermark(screen) {
+               watermarkInst.visible ? watermarkInst.hideOverlay()
+                                     : watermarkInst.showOverlay()
+           }
+       }
+   }
+   ```
+
+### B. Evento interno (script periódico o monitor)
+
+Un script externo (p. ej. detección de VPN caída, updates disponibles) escribe
+al mismo FIFO:
+
+```bash
+echo 1 > /tmp/qs-watermark
+```
+
+La shell reacciona sin cambios: el `Process` del FIFO ya está escuchando.
+
+### C. Señal directa desde otro componente QML
+
+Para un disparo interno (p. ej. botón en Control Center):
+
+```qml
+// En shell.qml: root.broadcastWatermark(screen)
+// o directo si el contexto alcanza: watermarkInst.showOverlay()
+```
+
+## Estado actual del Watermark
+
+- **Gobernado por `OverlaysManager.watermarkEnabled`** (singleton en
+  `Components/OverlaysManager.qml`): si está habilitado, `Component.onCompleted`
+  corre la animación de entrada al arrancar; los cambios del flag en vivo
+  disparan `show()`/`hide()`. Si está deshabilitado, no se muestra ni anima.
+- **Sin tarjeta**: `bgColor: "transparent"` + `showAccent: false` — solo texto
+  flotante blanco translúcido (con contorno negro) legible sobre cualquier
+  wallpaper, incluidos los de video. Colores propios, sin depender de
+  `Theme.qml` (ver convención arriba).
+- `autoHideMs: 0` → no se oculta solo.
+- Esquina bottom-right, 300px, opacidad 0.85, anim 250ms.
+- **Trigger (keybind/evento) pendiente de definición** — hasta entonces no
+  tiene por qué haber FIFO ni señal; solo la instancia en `shell.qml`.
+
+## Gestión de overlays (OverlaysManager + OverlaysControl)
+
+- `Components/OverlaysManager.qml` — singleton que centraliza el estado de
+  cada overlay (`watermarkEnabled`, `recEnabled`) y lo persiste en
+  `config/overlays-state.json` (patrón de `idle-state.json`). Carga al
+  arranque con fallback a defaults; guarda solo tras cargar (`_loaded`).
+- `Modals/OverlaysControl.qml` — modal del sistema (NO un overlay flotante)
+  que enlaza switches a las properties del manager. Agregar un overlay nuevo:
+  1. Property booleana en `OverlaysManager` (con default).
+  2. Fila con switch en `OverlaysControl` (funcional o «Próximamente»).
+  3. El overlay lee/escucha su flag (patrón del Watermark).
+
+> Nota de imports: los archivos dentro de `Modals/overlays/` importan
+> `"../../Components"` (dos niveles), NO `"../Components"` — esa ruta no existe.

@@ -8,6 +8,7 @@ import Quickshell.Services.Notifications
 import Quickshell.Services.UPower
 import "Components"
 import "Modals"
+import "Modals/overlays"
 
 ShellRoot {
     id: root
@@ -382,6 +383,7 @@ ShellRoot {
     signal broadcastVolume()
     signal broadcastClock(var screen)
     signal broadcastControlCenter(var screen)
+    signal broadcastOverlaysControl(var screen)
     signal broadcastScreenshot(var screen)
     signal broadcastClipboardCount(int n)
 
@@ -712,6 +714,52 @@ ShellRoot {
                     ccInst.visible      = true
                     ccInst._activePanel = "language"
                     ccInst.langRefresh()
+                }
+            }
+        }
+    }
+
+    // ── WATERMARK OVERLAY ─────────────────────────────────────────────────
+    // Trigger pendiente: aún no hay keybind/orden que lo muestre.
+    Variants {
+        model: Quickshell.screens
+        Watermark {
+            id: watermarkInst
+            property var modelData
+            screen: modelData
+        }
+    }
+
+    // ── OVERLAYS CONTROL FIFO (SUPER+O) ──────────────────────────────────
+    Process {
+        id: overlaysControlFifo
+        running: true
+        command: root.mkFifoCmd("/tmp/qs-overlays")
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: monName => root.fifoScreenReader(monName, root.broadcastOverlaysControl)
+        }
+        onRunningChanged: if (!running) running = true
+    }
+
+    // ── OVERLAYS CONTROL MODAL ───────────────────────────────────────────
+    // Toggle con SUPER+O; cierra con broadcastCloseAll como el resto.
+    // Estado de cada overlay gestionado por OverlaysManager.
+    Variants {
+        model: Quickshell.screens
+        OverlaysControl {
+            id: overlaysControlInst
+            property var modelData
+            screen: modelData
+            Connections {
+                target: root
+                function onBroadcastCloseAll(screen) {
+                    if (overlaysControlInst.modelData === screen) overlaysControlInst.visible = false
+                }
+                function onBroadcastOverlaysControl(screen) {
+                    if (overlaysControlInst.modelData !== screen) return
+                    root.broadcastCloseAll(screen)
+                    overlaysControlInst.visible = !overlaysControlInst.visible
                 }
             }
         }
