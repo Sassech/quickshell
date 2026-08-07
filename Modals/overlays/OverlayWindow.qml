@@ -1,0 +1,166 @@
+// qmllint disable uncreatable-type
+import QtQuick
+import Quickshell
+import Quickshell.Wayland
+import "../../Components"
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OverlayWindow — plantilla reutilizable para overlays flotantes (fade + slide).
+// Un PanelWindow liviano anclado a una esquina, sin exclusión (nunca roba
+// espacio), con máscara recortada a la tarjeta. El overlay concreto declara su
+// contenido como hijos y aterriza automáticamente en contentArea vía el slot
+// por defecto (default property).
+// ─────────────────────────────────────────────────────────────────────────────
+PanelWindow {
+    id: root
+
+    visible: false
+    color: "transparent"
+
+    // ── Config properties (set from shell.qml) ────────────────────────────
+    property string corner:         "bottom-right"
+    property int    overlayWidth:   320
+    property int    overlayHeight:  0
+    property color  bgColor:        Theme.cardBg3
+    property color  accent:         Theme.accent
+    property bool   showAccent:     true        // franja lateral de acento
+    property real   restingOpacity: 0.9
+    property int    animInMs:       300
+    property int    animOutMs:      300
+    property int    autoHideMs:     0
+
+    // ── Computed layout ───────────────────────────────────────────────────
+    readonly property bool _barOnRight:     corner.endsWith("right")
+    readonly property int  _contentMargin:  14
+    readonly property int  _slideOffset:    overlayWidth + 16 + 24
+    readonly property int  _slideStart:     _barOnRight ? _slideOffset : -_slideOffset
+
+    // Slot por defecto: los hijos declarados dentro del overlay concreto
+    // (p. ej. en Watermark.qml) se insertan directamente en contentArea.
+    default property alias content: contentArea.data
+
+    implicitWidth:  overlayWidth
+    implicitHeight: overlayHeight > 0 ? overlayHeight : overlayCard.implicitHeight
+
+    WlrLayershell.layer:         WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    WlrLayershell.exclusionMode: ExclusionMode.Ignore
+
+    anchors {
+        top:    corner === "top-right"    || corner === "top-left"
+        bottom: corner === "bottom-right" || corner === "bottom-left"
+        right:  corner === "top-right"    || corner === "bottom-right"
+        left:   corner === "top-left"     || corner === "bottom-left"
+    }
+    // qmllint disable unqualified unresolved-type
+    margins {
+        top:    corner === "top-right"    || corner === "top-left"    ? 16 : 0
+        bottom: corner === "bottom-right" || corner === "bottom-left" ? 16 : 0
+        right:  corner === "top-right"    || corner === "bottom-right" ? 16 : 0
+        left:   corner === "top-left"     || corner === "bottom-left"  ? 16 : 0
+    }
+    // qmllint enable unqualified unresolved-type
+
+    mask: Region { item: overlayCard }
+
+    // ── API pública ───────────────────────────────────────────────────────
+    function show() {
+        hideOutAnim.stop()
+        autoHideTimer.stop()
+
+        overlayCard.x       = root._slideStart
+        overlayCard.opacity = 0
+        root.visible        = true
+        showInAnim.start()
+
+        if (root.autoHideMs > 0) autoHideTimer.restart()
+    }
+
+    function hide() {
+        showInAnim.stop()
+        autoHideTimer.stop()
+        hideOutAnim.start()
+    }
+
+    // ── Auto-hide ─────────────────────────────────────────────────────────
+    Timer {
+        id: autoHideTimer
+        interval: root.autoHideMs
+        onTriggered: root.hide()
+    }
+
+    // ── Animaciones ───────────────────────────────────────────────────────
+    ParallelAnimation {
+        id: showInAnim
+        NumberAnimation {
+            target: overlayCard; property: "x"
+            to: 0
+            duration: root.animInMs
+            easing.type: Easing.OutCubic
+        }
+        NumberAnimation {
+            target: overlayCard; property: "opacity"
+            to: root.restingOpacity
+            duration: root.animInMs
+            easing.type: Easing.OutCubic
+        }
+    }
+
+    ParallelAnimation {
+        id: hideOutAnim
+        NumberAnimation {
+            target: overlayCard; property: "x"
+            to: root._slideStart
+            duration: root.animOutMs
+            easing.type: Easing.InCubic
+        }
+        NumberAnimation {
+            target: overlayCard; property: "opacity"
+            to: 0
+            duration: root.animOutMs
+            easing.type: Easing.InCubic
+        }
+        onFinished: root.visible = false
+    }
+
+    // ── Tarjeta ───────────────────────────────────────────────────────────
+    Rectangle {
+        id: overlayCard
+        width:  root.overlayWidth
+        height: root.overlayHeight > 0 ? root.overlayHeight : implicitHeight
+        radius: 12
+        color:  root.bgColor
+        clip:   true
+
+        implicitHeight: contentArea.implicitHeight + root._contentMargin * 2
+
+        // Franja de acento del lado anclado
+        Rectangle {
+            visible: root.showAccent
+            width: 3
+            x:     root._barOnRight ? parent.width - 3 : 0
+            radius: 1
+            color: root.accent
+            anchors {
+                top: parent.top
+                bottom: parent.bottom
+                topMargin: 6
+                bottomMargin: 6
+            }
+        }
+
+        // Área de contenido (donde aterrizan los hijos del overlay concreto)
+        Column {
+            id: contentArea
+            anchors {
+                top: parent.top
+                left: parent.left
+                right: parent.right
+                topMargin: root._contentMargin
+                leftMargin:  root._barOnRight ? root._contentMargin     : root._contentMargin + 3
+                rightMargin: root._barOnRight ? root._contentMargin + 3 : root._contentMargin
+            }
+            spacing: 6
+        }
+    }
+}
