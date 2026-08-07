@@ -9,6 +9,7 @@ Shell para compositor Wayland Quickshell con entorno de escritorio estilo Hyprla
 ![Top Bar](assets/topBar.png)
 
 **Componentes:**
+
 - [Barra Izquierda](assets/topBarLeft.png) - Widget de estado (CPU, RAM, Disco, Red, Bluetooth)
 - [Centro](assets/topBarCenter.png) - Reloj, fecha y música
 - [Derecha](assets/topBarRight.png) - Notificaciones y controles rápidos
@@ -50,11 +51,14 @@ Shell para compositor Wayland Quickshell con entorno de escritorio estilo Hyprla
 ```
 quickshell/
 ├── shell.qml           # Punto de entrada principal
-├── Components/         # Elementos UI reutilizables (Theme.qml, TopBar.qml)
+├── Components/         # Elementos UI reutilizables (Theme.qml, TopBar.qml, SysData.qml, OverlaysManager.qml)
 ├── Widgets/            # Componentes de la barra de estado
-├── Modals/             # Ventanas superpuestas (AudioModal.qml, WeatherModal.qml)
+├── Modals/             # Ventanas superpuestas (WeatherModal.qml, ControlCenter.qml)
+│   ├── cc/             # Controladores y paneles del Centro de Control
+│   └── overlays/       # OverlayWindow y overlays del sistema
 ├── scripts/            # Scripts backend (Bash/Python)
 ├── config/             # Archivos de configuración JSON
+├── packages.sh         # Instalador de dependencias (Fedora/dnf)
 └── assets/             # Imágenes y capturas de UI
 ```
 
@@ -64,17 +68,8 @@ Ver `install.sh` para instrucciones completas.
 
 ## Dependencias
 
-Quickshell, Hyprland, cliphist+wl-clipboard, mpDris2 (MPRIS), pactl/wpctl (audio), NetworkManager, bluetoothctl/bluez, curl, Open-Meteo API.
+Quickshell, Hyprland, cliphist+wl-clipboard, mpDris2 (MPRIS), PipeWire (audio nativo, con pactl/wpctl como fallback), NetworkManager, bluetoothctl/bluez, curl, Open-Meteo API.
 
 Las métricas de sistema (CPU, RAM, disco, red, ventilador) se leen de forma
 nativa vía QML `FileView` sobre `/proc` y `/sys` — ya no dependen de `dgop`
 ni de un backend Python.
-
-## Migración
-
-Si venís de una instalación anterior con el backend Python, limpiá el
-servicio systemd huérfano:
-
-```
-systemctl --user disable --now quickshell-backend 2>/dev/null; true
-```

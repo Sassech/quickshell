@@ -10,3 +10,4 @@ assets/*
 scripts/__pycache__/*
 .atl/
 .codegraph/
+missfont.log

@@ -16,7 +16,7 @@ LOG_FILE="${LOG_FILE:-/tmp/quickshell-install.log}"
 # ── Packages where binary name == dnf package name ────────────────────────────
 # swww=wallpaper daemon, matugen=Material You colors, cava=audio visualizer,
 # grim/slurp=screenshot, mako=notifications, brightnessctl=backlight,
-# curl=HTTP client, kitty=terminal
+# curl=HTTP client, kitty=terminal, jq=JSON parsing in helper scripts
 SIMPLE_PKGS=(
   swww
   mpvpaper
@@ -28,6 +28,7 @@ SIMPLE_PKGS=(
   mako
   brightnessctl
   curl
+  jq
   kitty
 )
 
@@ -43,6 +44,8 @@ declare -A MAPPED_PKGS=(
   ["notify-send"]="libnotify"    # screenshot.sh notifications
   ["nmcli"]="NetworkManager"     # WiFi/Ethernet backend
   ["xdg-open"]="xdg-utils"      # spotlight-search.py
+  ["pactl"]="pipewire-pulse"     # audio: CC card profiles + bt-codec.sh
+  ["wpctl"]="wireplumber"        # audio: volume fallback (OSD/Cava/fifo)
 )
 
 # ── Packages with no binary — checked via systemd service ─────────────────────
