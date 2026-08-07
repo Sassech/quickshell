@@ -86,9 +86,6 @@ PanelWindow {
     property int    wifiPwFetchResultIdx: -2
     property int    _wifiPwFetchIdx:       -1
 
-    // Buffers
-    property string _wEthBuf:    ""
-
     // ── Bluetooth inline state ────────────────────────────────────────────
     property var    _btAdapter:   Bluetooth.defaultAdapter
     property bool   _btAvailable: _btAdapter !== null
@@ -114,7 +111,6 @@ PanelWindow {
     property var    _btCodecData:        ({})
     property var    _btCodecQueue:       []
     property string _btCurrentCodecMac:  ""
-    property string _btCodecBuf:         ""
 
     // ── Mensajes de estado Bluetooth ──────────────────────────────────────
     readonly property string _btMsgConnected:    "✓ Conectado"
@@ -131,7 +127,6 @@ PanelWindow {
 
     // Fan profiles (read from fan-control.sh)
     property var    _fanProfiles:  []     // [{id, label}] from fan-control.sh list
-    property string _fanBuf:       ""
 
     // ── Battery — UPower API ──────────────────────────────────────────────
     property var    _upowerDev:    UPower.displayDevice
@@ -152,10 +147,7 @@ PanelWindow {
     property string _langLayout:   "—"
     property string _langLocale:   "—"
     property var    _langLayouts:  []   // [{label, code}]
-    property string _langBuf:      ""
-    property string _langSetBuf:   ""
     property var    _langLocales:  []
-    property string _langLocaleBuf:""
     property string _langSearch:        ""   // valor debounced (el que leen los filtros)
     property string _langSearchPending: ""   // valor inmediato del campo de texto
     property string _langTab:           "keyboard"
@@ -200,7 +192,6 @@ PanelWindow {
     // Each: { vendor, name, util, temp, tempJun, freq, power, vramUsed, vramTotal, driver, status }
     property bool   _gpuLoaded: false
     property var    _gpus:      []        // populated by gpuDetailProc
-    property string _gpuBuf:    ""
 
     // ── Audio — Pipewire API nativa ───────────────────────────────────────
     property var defaultSink:   Pipewire.defaultAudioSink
@@ -278,15 +269,14 @@ PanelWindow {
     // Puerto de disponibilidad — sigue necesitando pactl (no expuesto por API)
     property var    _audioSinkAvail:   ({})   // { nodeName: bool }
     property var    _audioSourceAvail: ({})
-    property string _audioSinkBuf:     ""
-    property string _audioSourceBuf:   ""
+
 
     // Combo-jack: tarjetas donde Speaker y Headphones son perfiles ALSA
     // mutuamente excluyentes (no puertos del mismo sink). Se detectan vía
     // pactl list cards — necesario para poder ofrecer "Altavoces" aunque el
     // perfil activo tenga los audífonos (o HDMI) puestos.
     property var    _audioComboCards:  []     // [{ name, activeProfile, profiles: [{name, priority, available}] }]
-    property string _audioCardBuf:     ""
+
     property string _pendingSinkToken: ""     // "speaker" | "headphones" — sink que estamos esperando tras un profile switch
     property int    _pendingSinkRetries: 0
 
@@ -478,9 +468,6 @@ PanelWindow {
     }
 
     function loadAudioDevices() {
-        _audioSinkBuf   = ""
-        _audioSourceBuf = ""
-        _audioCardBuf   = ""
         _audioSinkAvailProc.running   = true
         _audioSourceAvailProc.running = true
         _audioCardsProc.running       = true
@@ -812,7 +799,6 @@ PanelWindow {
         if (root._btCodecQueue.length === 0 || btCodecProc.running) return
         root._btCurrentCodecMac = root._btCodecQueue[0]
         root._btCodecQueue      = root._btCodecQueue.slice(1)
-        root._btCodecBuf        = ""
         var safeMac = root.btSanitizeMac(root._btCurrentCodecMac)
         btCodecProc.command = [Paths.scripts + "/bt-codec.sh", "info", safeMac]
         btCodecProc.running = true
@@ -1934,9 +1920,9 @@ PanelWindow {
     Timer {
         interval: 1500; repeat: true
         running: root.visible && root._activePanel === "gpu"
-        onTriggered: { root._gpuBuf = ""; gpuDetailProc.running = true }
+        onTriggered: { gpuDetailProc.running = true }
         onRunningChanged: {
-            if (running) { root._gpuBuf = ""; gpuDetailProc.running = true }
+            if (running) { gpuDetailProc.running = true }
         }
     }
 
