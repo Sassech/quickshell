@@ -6,6 +6,8 @@ singleton IconHelpers 1.0 IconHelpers.qml
 OverlayEntry 1.0 OverlayEntry.qml
 WeatherHelpers 1.0 WeatherHelpers.qml
 FifoChannel 1.0 FifoChannel.qml
+JsonProcess 1.0 JsonProcess.qml
+LineProcess 1.0 LineProcess.qml
 singleton WeatherProvider 1.0 WeatherProvider.qml
 BottomBar 1.0 BottomBar.qml
 TopBar 1.0 TopBar.qml

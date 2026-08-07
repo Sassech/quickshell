@@ -513,83 +513,69 @@ PanelWindow {
 
     // Fetch port availability (pactl — no expuesto por Pipewire API)
     // LANG=C fuerza output en inglés — pactl es locale-sensitive
-    Process {
+    JsonProcess {
         id: _audioSinkAvailProc
         command: ["bash", "-c", "LANG=C pactl --format=json list sinks 2>/dev/null"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._audioSinkBuf += d + "\n" }
-        // qmllint disable signal-handler-parameters
-        onExited: {
-            try {
-                var data = JSON.parse(root._audioSinkBuf)
-                var map = ({})
-                var activeName = root.defaultSink?.name ?? ""
-                for (var i = 0; i < data.length; i++) {
-                    var s = data[i]; var name = s.name || ""; if (!name) continue
-                    var ports = s.ports || []
-                    var ok = true
-                    if (ports.length > 0) {
-                        ok = false
-                        for (var p = 0; p < ports.length; p++) {
-                            var port = ports[p]
-                            var av = (port.availability || "").toString().toLowerCase()
-                            var ptype = (port.type || "").toString().toLowerCase()
-                            // Solo HDMI/DisplayPort dependen de un cable físico real —
-                            // el resto (Headphones/Speaker combo-jack) puede marcar
-                            // "not available" por jack-sense y aun así seguir sonando
-                            // por el parlante interno (auto-switch hecho por firmware).
-                            var requiresCable = (ptype === "hdmi" || ptype === "displayport")
-                            if (!requiresCable || av !== "not available") { ok = true; break }
-                        }
+        onParsed: data => {
+            var map = ({})
+            var activeName = root.defaultSink?.name ?? ""
+            for (var i = 0; i < data.length; i++) {
+                var s = data[i]; var name = s.name || ""; if (!name) continue
+                var ports = s.ports || []
+                var ok = true
+                if (ports.length > 0) {
+                    ok = false
+                    for (var p = 0; p < ports.length; p++) {
+                        var port = ports[p]
+                        var av = (port.availability || "").toString().toLowerCase()
+                        var ptype = (port.type || "").toString().toLowerCase()
+                        // Solo HDMI/DisplayPort dependen de un cable físico real —
+                        // el resto (Headphones/Speaker combo-jack) puede marcar
+                        // "not available" por jack-sense y aun así seguir sonando
+                        // por el parlante interno (auto-switch hecho por firmware).
+                        var requiresCable = (ptype === "hdmi" || ptype === "displayport")
+                        if (!requiresCable || av !== "not available") { ok = true; break }
                     }
-                    // Nunca ocultar el sink activo ahora mismo, sea cual sea su jack-sense.
-                    if (name === activeName) ok = true
-                    map[name] = ok
                 }
-                root._audioSinkAvail = map
-                root._pwRev++
-            } catch(e) {}
-            root._audioSinkBuf = ""
+                // Nunca ocultar el sink activo ahora mismo, sea cual sea su jack-sense.
+                if (name === activeName) ok = true
+                map[name] = ok
+            }
+            root._audioSinkAvail = map
+            root._pwRev++
         }
-        // qmllint enable signal-handler-parameters
     }
 
-    Process {
+    JsonProcess {
         id: _audioSourceAvailProc
         command: ["bash", "-c", "LANG=C pactl --format=json list sources 2>/dev/null"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._audioSourceBuf += d + "\n" }
-        // qmllint disable signal-handler-parameters
-        onExited: {
-            try {
-                var data = JSON.parse(root._audioSourceBuf)
-                var map = ({})
-                var activeName = root.defaultSource?.name ?? ""
-                for (var i = 0; i < data.length; i++) {
-                    var s = data[i]; var name = s.name || ""
-                    if (!name || name.endsWith(".monitor")) continue
-                    var ports = s.ports || []
-                    var ok = true
-                    if (ports.length > 0) {
-                        ok = false
-                        for (var p = 0; p < ports.length; p++) {
-                            var port = ports[p]
-                            var av = (port.availability || "").toString().toLowerCase()
-                            var ptype = (port.type || "").toString().toLowerCase()
-                            // Mismo criterio que en sinks: solo HDMI/DisplayPort
-                            // dependen de un cable físico real.
-                            var requiresCable = (ptype === "hdmi" || ptype === "displayport")
-                            if (!requiresCable || av !== "not available") { ok = true; break }
-                        }
+        onParsed: data => {
+            var map = ({})
+            var activeName = root.defaultSource?.name ?? ""
+            for (var i = 0; i < data.length; i++) {
+                var s = data[i]; var name = s.name || ""
+                if (!name || name.endsWith(".monitor")) continue
+                var ports = s.ports || []
+                var ok = true
+                if (ports.length > 0) {
+                    ok = false
+                    for (var p = 0; p < ports.length; p++) {
+                        var port = ports[p]
+                        var av = (port.availability || "").toString().toLowerCase()
+                        var ptype = (port.type || "").toString().toLowerCase()
+                        // Mismo criterio que en sinks: solo HDMI/DisplayPort
+                        // dependen de un cable físico real.
+                        var requiresCable = (ptype === "hdmi" || ptype === "displayport")
+                        if (!requiresCable || av !== "not available") { ok = true; break }
                     }
-                    // Nunca ocultar la fuente activa ahora mismo.
-                    if (name === activeName) ok = true
-                    map[name] = ok
                 }
-                root._audioSourceAvail = map
-                root._pwRev++
-            } catch(e) {}
-            root._audioSourceBuf = ""
+                // Nunca ocultar la fuente activa ahora mismo.
+                if (name === activeName) ok = true
+                map[name] = ok
+            }
+            root._audioSourceAvail = map
+            root._pwRev++
         }
-        // qmllint enable signal-handler-parameters
     }
 
     // Mover streams al nuevo sink/source (pactl — necesario, no expuesto por API)
@@ -598,45 +584,38 @@ PanelWindow {
 
     // Detectar tarjetas combo-jack (Speaker/Headphones como perfiles ALSA
     // excluyentes) — no expuesto por Pipewire API, necesita pactl list cards.
-    Process {
+    JsonProcess {
         id: _audioCardsProc
         command: ["bash", "-c", "LANG=C pactl --format=json list cards 2>/dev/null"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._audioCardBuf += d + "\n" }
-        // qmllint disable signal-handler-parameters
-        onExited: {
-            try {
-                var data = JSON.parse(root._audioCardBuf)
-                var combos = []
-                for (var i = 0; i < data.length; i++) {
-                    var c = data[i]
-                    // "ports" es un objeto { "[Out] Speaker": {...}, ... }, no un array
-                    var ports = c.ports || {}
-                    var hasSpeaker = false, hasHeadphones = false
-                    for (var portKey in ports) {
-                        var t = (ports[portKey].type || "").toString().toLowerCase()
-                        if (t === "speaker") hasSpeaker = true
-                        if (t === "headphones") hasHeadphones = true
-                    }
-                    // Solo nos interesan tarjetas donde ambos existen como
-                    // puertos posibles pero no pueden convivir en un perfil.
-                    if (!hasSpeaker || !hasHeadphones) continue
-                    var profiles = []
-                    var pmap = c.profiles || {}
-                    for (var key in pmap) {
-                        profiles.push({
-                            name: key,
-                            priority: pmap[key].priority || 0,
-                            available: pmap[key].available !== false
-                        })
-                    }
-                    combos.push({ name: c.name, activeProfile: c.active_profile || "", profiles: profiles })
+        onParsed: data => {
+            var combos = []
+            for (var i = 0; i < data.length; i++) {
+                var c = data[i]
+                // "ports" es un objeto { "[Out] Speaker": {...}, ... }, no un array
+                var ports = c.ports || {}
+                var hasSpeaker = false, hasHeadphones = false
+                for (var portKey in ports) {
+                    var t = (ports[portKey].type || "").toString().toLowerCase()
+                    if (t === "speaker") hasSpeaker = true
+                    if (t === "headphones") hasHeadphones = true
                 }
-                root._audioComboCards = combos
-                root._pwRev++
-            } catch(e) {}
-            root._audioCardBuf = ""
+                // Solo nos interesan tarjetas donde ambos existen como
+                // puertos posibles pero no pueden convivir en un perfil.
+                if (!hasSpeaker || !hasHeadphones) continue
+                var profiles = []
+                var pmap = c.profiles || {}
+                for (var key in pmap) {
+                    profiles.push({
+                        name: key,
+                        priority: pmap[key].priority || 0,
+                        available: pmap[key].available !== false
+                    })
+                }
+                combos.push({ name: c.name, activeProfile: c.active_profile || "", profiles: profiles })
+            }
+            root._audioComboCards = combos
+            root._pwRev++
         }
-        // qmllint enable signal-handler-parameters
     }
 
     // Cambiar de perfil ALSA (combo-jack Speaker/Headphones) — no expuesto
@@ -1134,23 +1113,15 @@ PanelWindow {
     on_BtAdapterChanged: { root.btRefreshDeviceLists() }
 
     // ── Bluetooth codec processes ─────────────────────────────────────────
-    Process {
+    JsonProcess {
         id: btCodecProc
         command: ["bash", "-c", ""]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._btCodecBuf += d + "\n" }
-        // qmllint disable signal-handler-parameters
-        onExited: {
-            var output = root._btCodecBuf.trim()
-            root._btCodecBuf = ""
-            try {
-                var data = JSON.parse(output)
-                var mac  = root._btCurrentCodecMac.toUpperCase()
-                root._btCodecData[mac] = data
-                root._btCodecDataChanged()
-            } catch(e) {}
-            root.btRunNextCodecQuery()
+        onParsed: data => {
+            var mac  = root._btCurrentCodecMac.toUpperCase()
+            root._btCodecData[mac] = data
+            root._btCodecDataChanged()
         }
-        // qmllint enable signal-handler-parameters
+        onFinished: root.btRunNextCodecQuery()
     }
 
     Process {
@@ -1326,7 +1297,7 @@ PanelWindow {
     }
 
     // Fetch ethernet info on panel open (still needs nmcli)
-    Process {
+    LineProcess {
         id: wEthProc
         command: ["bash", "-c",
             "ETH_IFACE=$(LANG=C nmcli -t -f DEVICE,TYPE,STATE dev 2>/dev/null | grep ':ethernet:connected' | cut -d: -f1); "
@@ -1335,16 +1306,11 @@ PanelWindow {
             + "LANG=C nmcli -t -f IP4.ADDRESS dev show \"$ETH_IFACE\" 2>/dev/null | cut -d: -f2 | cut -d/ -f1; "
             + "ethtool \"$ETH_IFACE\" 2>/dev/null | grep \"Speed:\" | awk '{print $2}'; "
             + "else echo \"disconnected\"; fi"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._wEthBuf += d + "\n" }
-        // qmllint disable signal-handler-parameters
-        onExited: {
-            var lines = root._wEthBuf.trim().split("\n")
-            root._wEthBuf = ""
+        onLines: lines => {
             root._ethConnected = (lines[0] || "").trim() === "connected"
             root._ethIp    = (lines[1] || "").trim()
             root._ethSpeed = (lines[2] || "").trim()
         }
-        // qmllint enable signal-handler-parameters
     }
 
     // Connect new network with password
@@ -1373,9 +1339,8 @@ PanelWindow {
     }
 
     // Fetch IP/Gateway/DNS for connected WiFi (nmcli)
-    Process {
+    LineProcess {
         id: wWifiInfoProc
-        property string _buf: ""
         command: ["bash", "-c",
             "IFACE=$(nmcli dev | grep wifi | grep -v p2p | awk '{print $1}' | head -1); "
             + "if [ -n \"$IFACE\" ]; then "
@@ -1383,16 +1348,11 @@ PanelWindow {
             + "nmcli -g IP4.GATEWAY dev show \"$IFACE\" 2>/dev/null; "
             + "nmcli -g IP4.DNS dev show \"$IFACE\" 2>/dev/null; "
             + "fi"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => wWifiInfoProc._buf += d + "\n" }
-        // qmllint disable signal-handler-parameters
-        onExited: {
-            var lines = wWifiInfoProc._buf.trim().split("\n")
-            wWifiInfoProc._buf = ""
+        onLines: lines => {
             root._wifiIp      = (lines[0] || "").split("/")[0].trim()
             root._wifiGateway = (lines[1] || "").trim()
             root._wifiDns     = (lines[2] || "").trim()
         }
-        // qmllint enable signal-handler-parameters
     }
 
     // Reveal saved PSK (nmcli -s)
@@ -1926,18 +1886,15 @@ PanelWindow {
     }
 
     // ── GPU detail process — multi-vendor parser ──────────────────────────
-    Process {
+    LineProcess {
         id: gpuDetailProc
         command: ["bash", Paths.scripts + "/gpu-detail.sh"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._gpuBuf += d + "\n" }
-        // qmllint disable signal-handler-parameters
-        onExited: {
+        onLines: lines => {
             var kv = {}
-            root._gpuBuf.trim().split("\n").forEach(function(line) {
+            lines.forEach(function(line) {
                 var idx = line.indexOf(":")
                 if (idx > 0) kv[line.substring(0, idx)] = line.substring(idx + 1)
             })
-            root._gpuBuf = ""
 
             var count = parseInt(kv["GPU_COUNT"]) || 0
             var list = []
@@ -1972,7 +1929,6 @@ PanelWindow {
             root._gpus = list
             root._gpuLoaded = true
         }
-        // qmllint enable signal-handler-parameters
     }
 
     Timer {
@@ -1985,14 +1941,10 @@ PanelWindow {
     }
 
     // ── Fan profiles process — reads available profiles dynamically ────────
-    Process {
+    LineProcess {
         id: fanProfilesProc
         command: ["bash", Paths.scripts + "/fan-control.sh", "list_profiles"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._fanBuf += d + "\n" }
-        // qmllint disable signal-handler-parameters
-        onExited: {
-            var lines = root._fanBuf.trim().split("\n")
-            root._fanBuf = ""
+        onLines: lines => {
             var profiles = []
             for (var i = 0; i < lines.length; i++) {
                 var id = lines[i].trim()
@@ -2007,16 +1959,6 @@ PanelWindow {
             }
             if (profiles.length > 0) root._fanProfiles = profiles
         }
-        // qmllint enable signal-handler-parameters
-    }
-
-    // Fan apply process
-    Process {
-        id: fanApplyProc
-        running: false
-        // qmllint disable signal-handler-parameters
-        onExited: running = false
-        // qmllint enable signal-handler-parameters
     }
 
     // ── Language processes ────────────────────────────────────────────────
@@ -2047,14 +1989,10 @@ PanelWindow {
     }
 
     // Available layouts from localectl (X11/XKB layouts — the ones Hyprland understands)
-    Process {
+    LineProcess {
         id: langLayoutProc
         command: ["sh", "-c", "timeout 3s localectl list-x11-keymap-layouts 2>/dev/null"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._langBuf += d + "\n" }
-        // qmllint disable signal-handler-parameters
-        onExited: {
-            var lines = root._langBuf.trim().split("\n")
-            root._langBuf = ""
+        onLines: lines => {
             var layouts = []
             for (var i = 0; i < lines.length; i++) {
                 var code = lines[i].trim()
@@ -2063,7 +2001,6 @@ PanelWindow {
             }
             if (layouts.length > 0) root._langLayouts = layouts
         }
-        // qmllint enable signal-handler-parameters
     }
 
     // Apply layout via Hyprland — command is set dynamically before running
@@ -2076,14 +2013,10 @@ PanelWindow {
     }
 
     // Available locales from localectl
-    Process {
+    LineProcess {
         id: langLocaleListProc
         command: ["sh", "-c", "timeout 3s localectl list-locales 2>/dev/null"]
-        stdout: SplitParser { splitMarker: "\n"; onRead: d => root._langLocaleBuf += d + "\n" }
-        // qmllint disable signal-handler-parameters
-        onExited: {
-            var lines = root._langLocaleBuf.trim().split("\n")
-            root._langLocaleBuf = ""
+        onLines: lines => {
             var locales = []
             for (var i = 0; i < lines.length; i++) {
                 var value = lines[i].trim()
@@ -2092,7 +2025,6 @@ PanelWindow {
             }
             if (locales.length > 0) root._langLocales = locales
         }
-        // qmllint enable signal-handler-parameters
     }
 
     // Apply locale via localectl
