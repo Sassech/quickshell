@@ -56,8 +56,8 @@ QmModalBase {
     Process {
         id: listProc
         property string targetPath: ""
-        command: ["python3",
-            Paths.scripts + "/folder-list.py",
+        command: [Paths.scripts + "/qs-helper/qs-helper",
+            "folder",
             targetPath
         ]
         stdout: SplitParser {

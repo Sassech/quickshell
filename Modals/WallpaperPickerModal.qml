@@ -79,7 +79,7 @@ QmModalBase {
         saveConfigProc.running = false
     }
 
-    // Safety net: si wallpaper-list.py cuelga, desbloquea _loading
+    // Safety net: si el listado de wallpapers cuelga, desbloquea _loading
     Timer {
         id: loadSafetyTimer
         interval: 10000
@@ -109,8 +109,8 @@ QmModalBase {
 
     Process {
         id: listProc
-        command: ["python3",
-            Paths.scripts + "/wallpaper-list.py",
+        command: [Paths.scripts + "/qs-helper/qs-helper",
+            "wallpaper",
             root.currentFolder
         ]
         stdout: SplitParser {
@@ -148,14 +148,14 @@ QmModalBase {
     // ── Guarda config ──────────────────────────────────────────
     Process {
         id: saveConfigProc
-        command: ["python3", Paths.scripts + "/wallpaper-save-config.py", ""]
+        command: [Paths.scripts + "/qs-helper/qs-helper", "wallpaper-save", ""]
         property string pendingFolder: ""
         running: false
     }
 
     function saveFolder(f) {
         currentFolder = f
-        saveConfigProc.command = ["python3", Paths.scripts + "/wallpaper-save-config.py", f]
+        saveConfigProc.command = [Paths.scripts + "/qs-helper/qs-helper", "wallpaper-save", f]
         saveConfigProc.running = true
         loadImages()
     }

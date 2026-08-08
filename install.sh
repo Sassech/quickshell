@@ -44,6 +44,33 @@ info() { echo "   $*"; }
 # packages.sh always exits 0; failures are reported in its summary.
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 0.5 Build and install qs-helper (Go binary)
+# ─────────────────────────────────────────────────────────────────────────────
+echo ""
+info "▶ Compilando qs-helper (Go)..."
+QS_HELPER_DIR="$SCRIPT_DIR/scripts/qs-helper"
+QS_BIN_DIR="$USER_HOME/.local/bin"
+mkdir -p "$QS_BIN_DIR"
+
+if command -v go >/dev/null 2>&1; then
+    if (cd "$QS_HELPER_DIR" && go build -o qs-helper .) >> "$LOG_FILE" 2>&1; then
+        install -m 0755 "$QS_HELPER_DIR/qs-helper" "$QS_BIN_DIR/qs-helper"
+        ok "qs-helper compilado e instalado en $QS_BIN_DIR/qs-helper."
+    else
+        warn "Fallo al compilar qs-helper. Ver $LOG_FILE. El repo conserva el binario precompilado."
+    fi
+else
+    warn "Go no está instalado. Usando binario precompilado si existe."
+    if [ -x "$QS_HELPER_DIR/qs-helper" ]; then
+        install -m 0755 "$QS_HELPER_DIR/qs-helper" "$QS_BIN_DIR/qs-helper"
+        ok "Binario precompilado instalado en $QS_BIN_DIR/qs-helper."
+    else
+        warn "No hay binario precompilado ni Go: los modales que usan qs-helper fallarán."
+    fi
+fi
+chown -R "$CURRENT_USER:$CURRENT_USER" "$QS_BIN_DIR" 2>/dev/null || true
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 1. sudoers rules for quickshell scripts
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""

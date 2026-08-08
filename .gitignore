@@ -11,3 +11,4 @@ scripts/__pycache__/*
 .atl/
 .codegraph/
 missfont.log
+scripts/qs-helper/qs-helper

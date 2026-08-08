@@ -93,11 +93,11 @@ PanelWindow {
         id: searchProc
         property string query: ""
         command: searchProc.query === "--list-apps"
-            ? ["python3",
-               Paths.scripts + "/spotlight-search.py",
+            ? [Paths.scripts + "/qs-helper/qs-helper",
+               "spotlight",
                "--list-apps"]
-            : ["python3",
-               Paths.scripts + "/spotlight-search.py",
+            : [Paths.scripts + "/qs-helper/qs-helper",
+               "spotlight",
                searchProc.query]
         stdout: SplitParser {
             splitMarker: "\n"

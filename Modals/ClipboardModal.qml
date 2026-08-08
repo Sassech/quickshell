@@ -62,7 +62,7 @@ QmModalBase {
     // ── Carga la lista ──────────────────────────────────────────────────
     Process {
         id: listProc
-        command: ["bash", Paths.scripts + "/clipboard-list.sh"]
+        command: [Paths.scripts + "/qs-helper/qs-helper", "clipboard"]
         stdout: SplitParser {
             splitMarker: ""
             onRead: data => root._listBuf += data
@@ -103,7 +103,7 @@ QmModalBase {
         function copyEntry(id) {
             if (_isCopying) return
             _isCopying = true
-            copyProc.command = ["bash", Paths.scripts + "/clipboard-copy.sh", id]
+            copyProc.command = [Paths.scripts + "/qs-helper/qs-helper", "clipboard-copy", id]
             copyProc.running = true
         }
 

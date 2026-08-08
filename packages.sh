@@ -35,7 +35,6 @@ SIMPLE_PKGS=(
 # ── Packages where binary != dnf package name ─────────────────────────────────
 # Format: ["binary_to_check"]="dnf_package_name"
 declare -A MAPPED_PKGS=(
-  ["fd"]="fd"                    # spotlight-search.py file search
   ["bluetoothctl"]="bluez"       # Quickshell.Bluetooth native QML
   ["wl-copy"]="wl-clipboard"     # clipboard (wl-copy / wl-paste)
   ["cliphist"]="cliphist"        # clipboard history
@@ -43,7 +42,7 @@ declare -A MAPPED_PKGS=(
   ["lspci"]="pciutils"           # gpu-detail.sh
   ["notify-send"]="libnotify"    # screenshot.sh notifications
   ["nmcli"]="NetworkManager"     # WiFi/Ethernet backend
-  ["xdg-open"]="xdg-utils"      # spotlight-search.py
+  ["xdg-open"]="xdg-utils"      # qs-helper spotlight file open
   ["pactl"]="pipewire-pulse"     # audio: CC card profiles + bt-codec.sh
   ["wpctl"]="wireplumber"        # audio: volume fallback (OSD/Cava/fifo)
 )
