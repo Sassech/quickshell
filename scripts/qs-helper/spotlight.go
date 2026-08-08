@@ -180,144 +180,192 @@ var fileExcludes = map[string]bool{
 	"node_modules":       true,
 }
 
-func fileCandidates(query string) []spotlightItem {
-	type cand struct {
-		path  string
-		score int
-	}
-	q := strings.ToLower(strings.TrimSpace(query))
-	if q == "" {
-		return nil
-	}
+// fileCand es un candidato rankeado (directo o subsecuencia).
+type fileCand struct {
+	path  string
+	score int
+}
 
-	// Cola BFS compartida (dir + depth), protegida por mutex.
-	type bfsItem struct {
-		dir   string
-		depth int
-	}
-	var (
-		mu        sync.Mutex
-		queue     = []bfsItem{{dir: homeDir, depth: 0}}
-		direct    []cand // substring/prefix matches (como fd)
-		subseq    []cand // solo subsecuencia (fallback fuzzy)
-		stop      atomic.Bool
-		inflight  atomic.Int64
-		deadline  = time.Now().Add(2 * time.Second)
-	)
-	queueEmpty := sync.NewCond(&mu)
+// bfsDir es un directorio pendiente de procesar en la BFS.
+type bfsDir struct {
+	dir   string
+	depth int
+}
 
-	addCand := func(list *[]cand, c cand) {
-		mu.Lock()
-		*list = append(*list, c)
-		if len(direct) >= 12 {
-			stop.Store(true)
+// fileWalker ejecuta la búsqueda BFS compartida entre workers.
+type fileWalker struct {
+	q        string
+	mu       sync.Mutex
+	queue    []bfsDir
+	direct   []fileCand // substring/prefix matches (como fd)
+	subseq   []fileCand // solo subsecuencia (fallback fuzzy)
+	stop     atomic.Bool
+	inflight atomic.Int64
+	deadline time.Time
+	cond     *sync.Cond
+}
+
+func newFileWalker(q string) *fileWalker {
+	w := &fileWalker{
+		q:        q,
+		queue:    []bfsDir{{dir: homeDir, depth: 0}},
+		deadline: time.Now().Add(2 * time.Second),
+	}
+	w.cond = sync.NewCond(&w.mu)
+	return w
+}
+
+// addDirect registra un candidato directo y corta la búsqueda al llegar a 12.
+func (w *fileWalker) addDirect(c fileCand) {
+	w.mu.Lock()
+	w.direct = append(w.direct, c)
+	if len(w.direct) >= 12 {
+		w.stop.Store(true)
+	}
+	w.mu.Unlock()
+}
+
+// pop saca el próximo dir a procesar, bloqueando mientras la cola esté vacía.
+// El pop y el incremento de inflight ocurren bajo EL MISMO lock: el goroutine
+// de terminación nunca observa "cola vacía + inflight 0" en el medio.
+func (w *fileWalker) pop() (bfsDir, bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for len(w.queue) == 0 && !w.stop.Load() {
+		w.cond.Wait()
+	}
+	if w.stop.Load() || len(w.queue) == 0 {
+		return bfsDir{}, false
+	}
+	it := w.queue[0]
+	w.queue = w.queue[1:]
+	w.inflight.Add(1)
+	if len(w.queue) == 0 {
+		w.cond.Broadcast()
+	}
+	return it, true
+}
+
+// isExcluded decide si un entry (por nombre y ruta relativa) debe saltarse.
+func isExcluded(rel, name string) bool {
+	if fileExcludes[name] || strings.HasPrefix(name, ".") {
+		return true
+	}
+	if rel != "" && fileExcludes[rel+"/"+name] {
+		return true
+	}
+	return false
+}
+
+// scanDir procesa un dir: enqueuea subdirectorios y rankea archivos.
+func (w *fileWalker) scanDir(it bfsDir) {
+	entries, err := os.ReadDir(it.dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if w.stop.Load() || time.Now().After(w.deadline) {
+			return
 		}
-		mu.Unlock()
-	}
-
-	// Un worker: popea un dir de la cola, procesa sus entries.
-	worker := func() {
-		for {
-			if stop.Load() || time.Now().After(deadline) {
-				return
-			}
-			// Pop e incremento de inflight bajo EL MISMO lock: el goroutine
-			// de terminación nunca puede observar "cola vacía + inflight 0"
-			// entre el pop y el procesamiento.
-			mu.Lock()
-			for len(queue) == 0 && !stop.Load() {
-				queueEmpty.Wait()
-			}
-			if stop.Load() || len(queue) == 0 {
-				mu.Unlock()
-				return
-			}
-			it := queue[0]
-			queue = queue[1:]
-			inflight.Add(1)
-			if len(queue) == 0 {
-				queueEmpty.Broadcast()
-			}
-			mu.Unlock()
-
-			func() {
-				entries, err := os.ReadDir(it.dir)
-				if err != nil {
-					return
-				}
-				for _, e := range entries {
-					if stop.Load() || time.Now().After(deadline) {
-						return
-					}
-					name := e.Name()
-					if fileExcludes[name] || strings.HasPrefix(name, ".") {
-						continue
-					}
-					rel, _ := filepath.Rel(homeDir, it.dir)
-					if rel == "." {
-						rel = ""
-					}
-					if rel != "" && fileExcludes[rel+"/"+name] {
-						continue
-					}
-					full := filepath.Join(it.dir, name)
-					if e.IsDir() {
-						if it.depth+1 < 6 {
-							mu.Lock()
-							queue = append(queue, bfsItem{dir: full, depth: it.depth + 1})
-							queueEmpty.Signal()
-							mu.Unlock()
-						}
-						continue
-					}
-					lower := strings.ToLower(name)
-					if strings.Contains(lower, q) {
-						s := fuzzyScoreNoTypo(q, name, "")
-						if s > 0 {
-							addCand(&direct, cand{path: full, score: s})
-						}
-					} else if s := subsequenceScore(q, lower, 3); s > 0 {
-						mu.Lock()
-						subseq = append(subseq, cand{path: full, score: s})
-						mu.Unlock()
-					}
-				}
-			}()
-
-			mu.Lock()
-			inflight.Add(-1)
-			queueEmpty.Broadcast()
-			mu.Unlock()
+		name := e.Name()
+		rel, _ := filepath.Rel(homeDir, it.dir)
+		if rel == "." {
+			rel = ""
 		}
+		if isExcluded(rel, name) {
+			continue
+		}
+		full := filepath.Join(it.dir, name)
+		if e.IsDir() {
+			w.enqueueDir(full, it.depth)
+			continue
+		}
+		w.rankFile(full, name)
 	}
+}
 
+func (w *fileWalker) enqueueDir(full string, depth int) {
+	if depth+1 < 6 {
+		w.mu.Lock()
+		w.queue = append(w.queue, bfsDir{dir: full, depth: depth + 1})
+		w.cond.Signal()
+		w.mu.Unlock()
+	}
+}
+
+// rankFile clasifica un archivo como match directo o subsecuencia.
+func (w *fileWalker) rankFile(full, name string) {
+	lower := strings.ToLower(name)
+	if strings.Contains(lower, w.q) {
+		if s := fuzzyScoreNoTypo(w.q, name, ""); s > 0 {
+			w.addDirect(fileCand{path: full, score: s})
+		}
+		return
+	}
+	if s := subsequenceScore(w.q, lower, 3); s > 0 {
+		w.mu.Lock()
+		w.subseq = append(w.subseq, fileCand{path: full, score: s})
+		w.mu.Unlock()
+	}
+}
+
+// worker consume dirs de la cola hasta parar o agotar el deadline.
+func (w *fileWalker) worker() {
+	for {
+		if w.stop.Load() || time.Now().After(w.deadline) {
+			return
+		}
+		it, ok := w.pop()
+		if !ok {
+			return
+		}
+		w.scanDir(it)
+		w.mu.Lock()
+		w.inflight.Add(-1)
+		w.cond.Broadcast()
+		w.mu.Unlock()
+	}
+}
+
+// run lanza los workers y espera a que la cola se vacíe, sin dirs en vuelo,
+// o a un corte temprano (stop/deadline).
+func (w *fileWalker) run() {
 	const maxWorkers = 8
 	var wg sync.WaitGroup
 	for i := 0; i < maxWorkers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			worker()
+			w.worker()
 		}()
 	}
 
-	// Espera a que la cola se vacíe Y no haya dirs en vuelo, o corte temprano.
 	done := make(chan struct{})
 	go func() {
-		mu.Lock()
-		for (len(queue) > 0 || inflight.Load() > 0) && !stop.Load() {
-			queueEmpty.Wait()
+		w.mu.Lock()
+		for (len(w.queue) > 0 || w.inflight.Load() > 0) && !w.stop.Load() {
+			w.cond.Wait()
 		}
-		stop.Store(true)
-		queueEmpty.Broadcast()
-		mu.Unlock()
+		w.stop.Store(true)
+		w.cond.Broadcast()
+		w.mu.Unlock()
 		close(done)
 	}()
 	<-done
 	wg.Wait()
+}
+
+func fileCandidates(query string) []spotlightItem {
+	q := strings.ToLower(strings.TrimSpace(query))
+	if q == "" {
+		return nil
+	}
+
+	w := newFileWalker(q)
+	w.run()
 
 	// Rankear: direct primero (más relevantes), subseq como relleno.
-	all := append(direct, subseq...)
+	all := append(w.direct, w.subseq...)
 	sort.SliceStable(all, func(i, j int) bool { return all[i].score > all[j].score })
 	if len(all) > 6 {
 		all = all[:6]
@@ -340,11 +388,24 @@ func fileCandidates(query string) []spotlightItem {
 func spotlightSearch(query string) []spotlightItem {
 	queryLow := strings.ToLower(strings.TrimSpace(query))
 	results := []spotlightItem{}
-	rec := loadFrecency()
 
-	// Calculadora (primera)
+	appendCalcResult(query, &results)
+	appendAppMatches(queryLow, &results)
+	appendFileMatches(query, queryLow, &results)
+	appendWindowMatches(query, queryLow, &results)
+	appendShellCommand(query, &results)
+
+	// Slice a 15
+	if len(results) > 15 {
+		results = results[:15]
+	}
+	return results
+}
+
+// appendCalcResult antepone el resultado de calculadora, si la query es una.
+func appendCalcResult(query string, results *[]spotlightItem) {
 	if val, ok := tryCalc(query); ok {
-		results = append(results, spotlightItem{
+		*results = append(*results, spotlightItem{
 			Type:     "calc",
 			Name:     "= " + val,
 			Detail:   "Copiar resultado al portapapeles",
@@ -353,82 +414,89 @@ func spotlightSearch(query string) []spotlightItem {
 			IconPath: "",
 		})
 	}
+}
 
-	// Aplicaciones (top 10 por score, boost de recencia)
-	if queryLow != "" {
-		apps := scanApps()
-		seen := map[string]bool{}
-		scored := []spotlightItem{}
-		for _, a := range apps {
-			if seen[a.name] {
-				continue
-			}
-			seen[a.name] = true
-			extra := strings.TrimSpace(a.generic + " " + a.keywords)
-			s := fuzzyScore(queryLow, a.name, extra)
-			if s == 0 {
-				continue
-			}
-			scored = append(scored, spotlightItem{
-				Type:     "app",
-				Name:     a.name,
-				Detail:   a.exec,
-				Exec:     a.exec,
-				Icon:     "󰣆",
-				IconPath: findIconPath(a.icon),
-				score:    s + rec[a.exec]*5,
-			})
-		}
-		sort.SliceStable(scored, func(i, j int) bool {
-			if scored[i].score != scored[j].score {
-				return scored[i].score > scored[j].score
-			}
-			return strings.ToLower(scored[i].Name) < strings.ToLower(scored[j].Name)
-		})
-		for _, it := range scored {
-			if len(results) >= 10 {
-				break
-			}
-			results = append(results, it)
-		}
+// appendAppMatches agrega apps (top 10 por score, boost de recencia).
+func appendAppMatches(queryLow string, results *[]spotlightItem) {
+	if queryLow == "" {
+		return
 	}
-
-	// Archivos (solo si hay espacio y query >= 2)
-	if queryLow != "" && len([]rune(queryLow)) >= 2 && len(results) < 12 {
-		for _, it := range fileCandidates(query) {
-			if len(results) >= 12 {
-				break
-			}
-			results = append(results, it)
+	apps := scanApps()
+	rec := loadFrecency()
+	seen := map[string]bool{}
+	scored := []spotlightItem{}
+	for _, a := range apps {
+		if seen[a.name] {
+			continue
 		}
-	}
-
-	// Ventanas
-	if queryLow != "" {
-		for _, it := range hyprWindows(query) {
-			results = append(results, it)
+		seen[a.name] = true
+		extra := strings.TrimSpace(a.generic + " " + a.keywords)
+		s := fuzzyScore(queryLow, a.name, extra)
+		if s == 0 {
+			continue
 		}
-	}
-
-	// Comando de shell (siempre al final si no es calc)
-	if query != "" && !calcRe.MatchString(query) {
-		cmdArgs := []string{"kitty", "-e", "bash", "-i", "-c",
-			fmt.Sprintf("history -s -- %s; exec bash", pythonRepr(query))}
-		results = append(results, spotlightItem{
-			Type:     "cmd",
-			Name:     query,
-			Detail:   "Ejecutar en terminal",
-			ExecArgs: cmdArgs,
-			Icon:     "󰆍",
-			IconPath: "",
+		scored = append(scored, spotlightItem{
+			Type:     "app",
+			Name:     a.name,
+			Detail:   a.exec,
+			Exec:     a.exec,
+			Icon:     "󰣆",
+			IconPath: findIconPath(a.icon),
+			score:    s + rec[a.exec]*5,
 		})
 	}
-
-	// Slice a 15
-	if len(results) > 15 {
-		results = results[:15]
+	sort.SliceStable(scored, func(i, j int) bool {
+		if scored[i].score != scored[j].score {
+			return scored[i].score > scored[j].score
+		}
+		return strings.ToLower(scored[i].Name) < strings.ToLower(scored[j].Name)
+	})
+	for _, it := range scored {
+		if len(*results) >= 10 {
+			break
+		}
+		*results = append(*results, it)
 	}
-	return results
+}
+
+// appendFileMatches agrega archivos (solo si hay espacio y query >= 2).
+func appendFileMatches(query, queryLow string, results *[]spotlightItem) {
+	if queryLow == "" || len([]rune(queryLow)) < 2 || len(*results) >= 12 {
+		return
+	}
+	for _, it := range fileCandidates(query) {
+		if len(*results) >= 12 {
+			break
+		}
+		*results = append(*results, it)
+	}
+}
+
+// appendWindowMatches agrega ventanas de hyprctl.
+func appendWindowMatches(query, queryLow string, results *[]spotlightItem) {
+	if queryLow == "" {
+		return
+	}
+	for _, it := range hyprWindows(query) {
+		*results = append(*results, it)
+	}
+}
+
+// appendShellCommand agrega el comando de shell al final (si no es calc).
+func appendShellCommand(query string, results *[]spotlightItem) {
+	if query == "" || calcRe.MatchString(query) {
+		return
+	}
+	cmdArgs := []string{"kitty", "-e", "bash", "-i", "-c",
+		fmt.Sprintf("history -s -- %s; exec bash", pythonRepr(query))}
+	*results = append(*results, spotlightItem{
+		Type:     "cmd",
+		Name:     query,
+		Detail:   "Ejecutar en terminal",
+		ExecArgs: cmdArgs,
+		Icon:     "󰆍",
+		IconPath: "",
+	})
 }
 
 // ── Entry point del subcomando spotlight ─────────────────────────────────

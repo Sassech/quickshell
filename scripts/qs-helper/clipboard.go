@@ -14,7 +14,13 @@ import (
 	"time"
 )
 
-const clipboardLogFile = "/tmp/qs-clipboard.log"
+var clipboardLogFile = filepath.Join(os.TempDir(), "qs-clipboard.log")
+
+const (
+	clipBinaryPrefix = "[[ binary"
+	copyOKPrefix     = "[copy] OK: "
+	copyErrPrefix    = "[copy] Error: "
+)
 
 func clipboardLog(msg string) {
 	f, err := os.OpenFile(clipboardLogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
@@ -39,11 +45,11 @@ type clipEntry struct {
 
 // generateThumbnail replica generate_thumbnail del Python.
 func generateThumbnail(entryID, preview string) string {
-	thumbPath := filepath.Join("/tmp", "qs-clip-"+entryID+".png")
+	thumbPath := filepath.Join(os.TempDir(), "qs-clip-"+entryID+".png")
 	if _, err := os.Stat(thumbPath); err == nil {
 		return thumbPath
 	}
-	rawPath := filepath.Join("/tmp", "qs-raw-"+entryID)
+	rawPath := filepath.Join(os.TempDir(), "qs-raw-"+entryID)
 	line := []byte(entryID + "\t" + preview)
 
 	ctx, cancel := contextTimeout(10 * time.Second)
@@ -105,7 +111,7 @@ func runClipboard() int {
 		}
 		entryID := line[:idx]
 		preview := line[idx+1:]
-		isBinary := strings.HasPrefix(preview, "[[ binary")
+		isBinary := strings.HasPrefix(preview, clipBinaryPrefix)
 		entries = append(entries, clipEntry{
 			ID:       entryID,
 			Preview:  preview,
@@ -167,7 +173,7 @@ func clipboardList() []clipEntry {
 		entries = append(entries, clipEntry{
 			ID:       line[:idx],
 			Preview:  line[idx+1:],
-			IsBinary: strings.HasPrefix(line[idx+1:], "[[ binary"),
+			IsBinary: strings.HasPrefix(line[idx+1:], clipBinaryPrefix),
 			Thumb:    "",
 		})
 	}
@@ -193,25 +199,8 @@ func binaryMIME(preview string) string {
 	}
 }
 
-// runClipboardCopy implementa el subcomando clipboard-copy <id>.
-// Exit codes replican clipboard-copy.sh: 1 ID vacío, 2 cliphist list falló,
-// 3 ID no encontrado, 4 decode/fallo de copia.
-func runClipboardCopy(id string) int {
-	if id == "" {
-		clipboardLog("[copy] Error: ID vacío")
-		return 1
-	}
-
-	ctx, cancel := contextTimeout(5 * time.Second)
-	defer cancel()
-	list, err := exec.CommandContext(ctx, "cliphist", "list").Output()
-	if err != nil {
-		clipboardLog("[copy] Error: cliphist list falló: " + err.Error())
-		return 2
-	}
-
-	entry := ""
-	preview := ""
+// findClipEntry busca en la salida de cliphist list la entrada con el ID dado.
+func findClipEntry(id string, list []byte) (entry, preview string) {
 	scanner := bufio.NewScanner(bytes.NewReader(list))
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -219,12 +208,51 @@ func runClipboardCopy(id string) int {
 		if idx < 0 || line[:idx] != id {
 			continue
 		}
-		entry = line
-		preview = line[idx+1:]
-		break
+		return line, line[idx+1:]
 	}
+	return "", ""
+}
+
+// lanzarWlCopy ejecuta wl-copy sin esperar su salida. wl-copy forkea al
+// background para mantener viva la selección y el hijo hereda el pipe de
+// stdout: esperar con Output()/CombinedOutput() cuelga hasta el EOF del
+// pipe. Solo Start() + liberar el handle replica el comportamiento bash.
+func lanzarWlCopy(mime string, payload []byte) bool {
+	cmd := exec.Command("wl-copy")
+	if mime != "" {
+		cmd = exec.Command("wl-copy", "--type", mime)
+	}
+	cmd.Stdin = bytes.NewReader(payload)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	if err := cmd.Start(); err != nil {
+		clipboardLog(copyErrPrefix + "wl-copy Start falló (" + mime + "): " + err.Error())
+		return false
+	}
+	cmd.Process.Release()
+	return true
+}
+
+// runClipboardCopy implementa el subcomando clipboard-copy <id>.
+// Exit codes replican clipboard-copy.sh: 1 ID vacío, 2 cliphist list falló,
+// 3 ID no encontrado, 4 decode/fallo de copia.
+func runClipboardCopy(id string) int {
+	if id == "" {
+		clipboardLog(copyErrPrefix + "ID vacío")
+		return 1
+	}
+
+	ctx, cancel := contextTimeout(5 * time.Second)
+	defer cancel()
+	list, err := exec.CommandContext(ctx, "cliphist", "list").Output()
+	if err != nil {
+		clipboardLog(copyErrPrefix + "cliphist list falló: " + err.Error())
+		return 2
+	}
+
+	entry, preview := findClipEntry(id, list)
 	if entry == "" {
-		clipboardLog("[copy] Error: ID '" + id + "' no encontrado en cliphist")
+		clipboardLog(copyErrPrefix + "ID '" + id + "' no encontrado en cliphist")
 		return 3
 	}
 
@@ -234,36 +262,16 @@ func runClipboardCopy(id string) int {
 	decCmd.Stdin = bytes.NewReader([]byte(entry + "\n"))
 	decoded, err := decCmd.Output()
 	if err != nil {
-		clipboardLog("[copy] Error: cliphist decode falló: " + err.Error())
+		clipboardLog(copyErrPrefix + "cliphist decode falló: " + err.Error())
 		return 4
 	}
 
-	// lanzarWlCopy ejecuta wl-copy sin esperar su salida. wl-copy forkea al
-	// background para mantener viva la selección y el hijo hereda el pipe de
-	// stdout: esperar con Output()/CombinedOutput() cuelga hasta el EOF del
-	// pipe. Solo Start() + liberar el handle replica el comportamiento bash.
-	lanzarWlCopy := func(mime string, payload []byte) bool {
-		cmd := exec.Command("wl-copy")
-		if mime != "" {
-			cmd = exec.Command("wl-copy", "--type", mime)
-		}
-		cmd.Stdin = bytes.NewReader(payload)
-		cmd.Stdout = nil
-		cmd.Stderr = nil
-		if err := cmd.Start(); err != nil {
-			clipboardLog("[copy] Error: wl-copy Start falló (" + mime + "): " + err.Error())
-			return false
-		}
-		cmd.Process.Release()
-		return true
-	}
-
-	if strings.HasPrefix(preview, "[[ binary") {
+	if strings.HasPrefix(preview, clipBinaryPrefix) {
 		mime := binaryMIME(preview)
 		if !lanzarWlCopy(mime, decoded) {
 			return 4
 		}
-		clipboardLog("[copy] OK: " + id + " (" + mime + ")")
+		clipboardLog(copyOKPrefix + id + " (" + mime + ")")
 		return 0
 	}
 
@@ -273,13 +281,13 @@ func runClipboardCopy(id string) int {
 		if !lanzarWlCopy(mimeType, decoded) {
 			return 4
 		}
-		clipboardLog("[copy] OK: " + id + " (" + mimeType + " - auto-detected)")
+		clipboardLog(copyOKPrefix + id + " (" + mimeType + " - auto-detected)")
 		return 0
 	}
 
 	if !lanzarWlCopy("", decoded) {
 		return 4
 	}
-	clipboardLog("[copy] OK: " + id + " (text)")
+	clipboardLog(copyOKPrefix + id + " (text)")
 	return 0
 }

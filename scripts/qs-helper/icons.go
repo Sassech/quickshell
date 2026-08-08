@@ -18,13 +18,53 @@ var (
 	iconThemes = []string{}
 )
 
-// homeDir cachea el home para evitar errores repetidos.
+// homeDir se resuelve una vez al arrancar.
 var homeDir = func() string {
 	h, err := os.UserHomeDir()
 	if err != nil {
-		return "/tmp"
+		return os.TempDir()
 	}
 	return h
+}()
+
+var (
+	iconRoots = []string{
+		"/usr/share/icons",
+		filepath.Join(homeDir, ".local", "share", "icons"),
+	}
+	pixRoots = []string{
+		filepath.Join(homeDir, ".local", "share", "pixmaps"),
+		"/usr/share/pixmaps",
+	}
+	iconExts    = []string{"png", "svg"}
+	iconPixExts = []string{"png", "svg", "xpm"}
+)
+
+// iconSlots precomputa las combinaciones (size, cat, ext, root) de la
+// búsqueda por temas, para aplanar los loops anidados de findInThemes.
+var iconSlots = func() [][4]string {
+	slots := [][4]string{}
+	for _, size := range iconSizes {
+		for _, cat := range iconCats {
+			for _, ext := range iconExts {
+				for _, root := range iconRoots {
+					slots = append(slots, [4]string{size, cat, ext, root})
+				}
+			}
+		}
+	}
+	return slots
+}()
+
+// pixSlots precomputa las combinaciones (ext, root) del fallback pixmaps.
+var pixSlots = func() [][2]string {
+	slots := [][2]string{}
+	for _, ext := range iconPixExts {
+		for _, root := range pixRoots {
+			slots = append(slots, [2]string{ext, root})
+		}
+	}
+	return slots
 }()
 
 func iconCacheFile() string {
@@ -118,41 +158,42 @@ func findIconPath(iconName string) string {
 		return p
 	}
 	if strings.HasPrefix(iconName, "/") && exists(iconName) {
-		iconCache[iconName] = iconName
-		iconCacheDirty = true
-		return iconName
+		return cacheIcon(iconName, iconName)
 	}
 	initTheme()
-	roots := []string{"/usr/share/icons", filepath.Join(homeDir, ".local", "share", "icons")}
-	for _, theme := range iconThemes {
-		for _, size := range iconSizes {
-			for _, cat := range iconCats {
-				for _, ext := range []string{"png", "svg"} {
-					for _, root := range roots {
-						p := filepath.Join(root, theme, size, cat, iconName+"."+ext)
-						if exists(p) {
-							iconCache[iconName] = p
-							iconCacheDirty = true
-							return p
-						}
-					}
-				}
-			}
-		}
+	if p := findInThemes(iconName); p != "" {
+		return cacheIcon(iconName, p)
 	}
-	// Fallback pixmaps (local primero, como el tema)
-	pixRoots := []string{filepath.Join(homeDir, ".local", "share", "pixmaps"), "/usr/share/pixmaps"}
-	for _, ext := range []string{"png", "svg", "xpm"} {
-		for _, root := range pixRoots {
-			p := filepath.Join(root, iconName+"."+ext)
+	if p := findInPixmaps(iconName); p != "" {
+		return cacheIcon(iconName, p)
+	}
+	return cacheIcon(iconName, "")
+}
+
+func findInThemes(iconName string) string {
+	for _, theme := range iconThemes {
+		for _, slot := range iconSlots {
+			p := filepath.Join(slot[3], theme, slot[0], slot[1], iconName+"."+slot[2])
 			if exists(p) {
-				iconCache[iconName] = p
-				iconCacheDirty = true
 				return p
 			}
 		}
 	}
-	iconCache[iconName] = ""
-	iconCacheDirty = true
 	return ""
+}
+
+func findInPixmaps(iconName string) string {
+	for _, slot := range pixSlots {
+		p := filepath.Join(slot[1], iconName+"."+slot[0])
+		if exists(p) {
+			return p
+		}
+	}
+	return ""
+}
+
+func cacheIcon(iconName, path string) string {
+	iconCache[iconName] = path
+	iconCacheDirty = true
+	return path
 }

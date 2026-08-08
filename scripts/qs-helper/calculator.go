@@ -27,7 +27,11 @@ func evalCalc(expr string) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return evalRPN(tokens)
+	rpn, err := toRPN(tokens)
+	if err != nil {
+		return 0, err
+	}
+	return evalRPN(rpn)
 }
 
 func tokenizeCalc(expr string) ([]calcToken, error) {
@@ -35,53 +39,22 @@ func tokenizeCalc(expr string) ([]calcToken, error) {
 	for i := 0; i < len(expr); {
 		c := expr[i]
 		switch {
-		case c == ' ' || c == '\t':
+		case isSpace(c):
 			i++
-		case c >= '0' && c <= '9' || c == '.':
-			j := i
-			for j < len(expr) && (expr[j] >= '0' && expr[j] <= '9' || expr[j] == '.') {
-				j++
-			}
-			v, err := strconv.ParseFloat(expr[i:j], 64)
+		case isNumberStart(c):
+			v, next, err := scanNumber(expr, i)
 			if err != nil {
 				return nil, err
 			}
 			tokens = append(tokens, calcToken{kind: "num", value: v})
-			i = j
-		case c == '+' || c == '-':
-			// Unario si es el primer token o el previo es un operador/lparen
-			prev := byte(0)
-			if len(tokens) > 0 {
-				if tokens[len(tokens)-1].kind == "num" {
-					prev = 'n'
-				} else if tokens[len(tokens)-1].kind == "rparen" {
-					prev = 'n'
-				}
-			}
-			isUnary := len(tokens) == 0 || (prev == 0 && tokens[len(tokens)-1].kind != "rparen" && tokens[len(tokens)-1].kind != "num")
-			if isUnary {
-				op := "neg"
-				if c == '+' {
-					op = "pos"
-				}
-				tokens = append(tokens, calcToken{kind: "op", op: op})
-			} else {
-				tokens = append(tokens, calcToken{kind: "op", op: string(c)})
-			}
+			i = next
+		case isSign(c):
+			tokens = append(tokens, calcToken{kind: "op", op: classifySign(tokens, c)})
 			i++
-		case c == '*' || c == '/' || c == '%':
-			op := string(c)
-			// Detectar ** y //
-			if c == '*' && i+1 < len(expr) && expr[i+1] == '*' {
-				op = "**"
-				i++
-			}
-			if c == '/' && i+1 < len(expr) && expr[i+1] == '/' {
-				op = "//"
-				i++
-			}
+		case isOpStart(c):
+			op, next := scanOp(expr, i)
 			tokens = append(tokens, calcToken{kind: "op", op: op})
-			i++
+			i = next
 		case c == '(':
 			tokens = append(tokens, calcToken{kind: "lparen"})
 			i++
@@ -93,6 +66,60 @@ func tokenizeCalc(expr string) ([]calcToken, error) {
 		}
 	}
 	return tokens, nil
+}
+
+func isSpace(c byte) bool {
+	return c == ' ' || c == '\t'
+}
+
+func isNumberStart(c byte) bool {
+	return c >= '0' && c <= '9' || c == '.'
+}
+
+func isSign(c byte) bool {
+	return c == '+' || c == '-'
+}
+
+func isOpStart(c byte) bool {
+	return c == '*' || c == '/' || c == '%'
+}
+
+// classifySign clasifica +/− como binario o unario según el contexto:
+// unario si es el primer token o el previo es operador/lparen.
+func classifySign(tokens []calcToken, c byte) string {
+	if len(tokens) > 0 {
+		last := tokens[len(tokens)-1].kind
+		if last == "num" || last == "rparen" {
+			return string(c)
+		}
+	}
+	if c == '+' {
+		return "pos"
+	}
+	return "neg"
+}
+
+func scanNumber(expr string, i int) (float64, int, error) {
+	j := i
+	for j < len(expr) && isNumberStart(expr[j]) {
+		j++
+	}
+	v, err := strconv.ParseFloat(expr[i:j], 64)
+	if err != nil {
+		return 0, i, err
+	}
+	return v, j, nil
+}
+
+func scanOp(expr string, i int) (string, int) {
+	c := expr[i]
+	if c == '*' && i+1 < len(expr) && expr[i+1] == '*' {
+		return "**", i + 2
+	}
+	if c == '/' && i+1 < len(expr) && expr[i+1] == '/' {
+		return "//", i + 2
+	}
+	return string(c), i + 1
 }
 
 func opPrecedence(op string) int {
@@ -110,55 +137,86 @@ func opPrecedence(op string) int {
 }
 
 func opRightAssoc(op string) bool {
-	return op == "**"
+	return op == "**" || op == "neg" || op == "pos"
 }
 
-// evalRPN evalúa la expresión con shunting-yard.
-func evalRPN(tokens []calcToken) (float64, error) {
+func toRPN(tokens []calcToken) ([]calcToken, error) {
 	output := []calcToken{}
 	ops := []calcToken{}
-
 	for _, t := range tokens {
+		var err error
 		switch t.kind {
 		case "num":
 			output = append(output, t)
 		case "op":
-			for len(ops) > 0 {
-				top := ops[len(ops)-1]
-				if top.kind == "lparen" {
-					break
-				}
-				topPrec := opPrecedence(top.op)
-				curPrec := opPrecedence(t.op)
-				if topPrec > curPrec || (topPrec == curPrec && !opRightAssoc(t.op)) {
-					output = append(output, top)
-					ops = ops[:len(ops)-1]
-				} else {
-					break
-				}
-			}
-			ops = append(ops, t)
+			output, ops = pushOperator(t, output, ops)
 		case "lparen":
 			ops = append(ops, t)
 		case "rparen":
-			for len(ops) > 0 && ops[len(ops)-1].kind != "lparen" {
-				output = append(output, ops[len(ops)-1])
-				ops = ops[:len(ops)-1]
-			}
-			if len(ops) == 0 {
-				return 0, strconv.ErrSyntax // paréntesis desbalanceado
-			}
-			ops = ops[:len(ops)-1] // pop lparen
+			output, ops, err = popUntilLParen(output, ops)
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
+	return flushOps(output, ops)
+}
+
+// pushOperator apila un operador, drenando antes los de mayor precedencia.
+func pushOperator(t calcToken, output, ops []calcToken) ([]calcToken, []calcToken) {
+	for len(ops) > 0 {
+		top := ops[len(ops)-1]
+		if top.kind == "lparen" {
+			break
+		}
+		if !shouldPop(top.op, t.op) {
+			break
+		}
+		output = append(output, top)
+		ops = ops[:len(ops)-1]
+	}
+	return output, append(ops, t)
+}
+
+func flushOps(output, ops []calcToken) ([]calcToken, error) {
 	for len(ops) > 0 {
 		if ops[len(ops)-1].kind == "lparen" {
-			return 0, strconv.ErrSyntax
+			return nil, strconv.ErrSyntax
 		}
 		output = append(output, ops[len(ops)-1])
 		ops = ops[:len(ops)-1]
 	}
+	return output, nil
+}
 
+// shouldPop indica si el operador en el tope debe salir antes que cur.
+func shouldPop(top, cur string) bool {
+	// Python: 2**-2 = 2 ** (-2). Un unario a la derecha de ** es parte del
+	// exponente y NO saca el **; a la izquierda (-2**2 = -(2**2)) sí lo saca.
+	if (cur == "neg" || cur == "pos") && top == "**" {
+		return false
+	}
+	topPrec := opPrecedence(top)
+	curPrec := opPrecedence(cur)
+	if topPrec > curPrec {
+		return true
+	}
+	return topPrec == curPrec && !opRightAssoc(cur)
+}
+
+func popUntilLParen(output, ops []calcToken) ([]calcToken, []calcToken, error) {
+	for len(ops) > 0 {
+		top := ops[len(ops)-1]
+		if top.kind == "lparen" {
+			return output, ops[:len(ops)-1], nil
+		}
+		output = append(output, top)
+		ops = ops[:len(ops)-1]
+	}
+	return output, ops, strconv.ErrSyntax // paréntesis desbalanceado
+}
+
+func evalRPN(output []calcToken) (float64, error) {
 	stack := []float64{}
 	for _, t := range output {
 		if t.kind == "num" {
@@ -173,73 +231,64 @@ func evalRPN(tokens []calcToken) (float64, error) {
 			stack[len(stack)-1] = -stack[len(stack)-1]
 		case "pos":
 			// no-op
-		case "+":
-			if len(stack) < 2 {
+		default:
+			a, b, rest, ok := popBinary(stack)
+			if !ok {
 				return 0, strconv.ErrSyntax
 			}
-			b, a := stack[len(stack)-1], stack[len(stack)-2]
-			stack = stack[:len(stack)-2]
-			stack = append(stack, a+b)
-		case "-":
-			if len(stack) < 2 {
-				return 0, strconv.ErrSyntax
+			res, err := applyBinary(t.op, a, b)
+			if err != nil {
+				return 0, err
 			}
-			b, a := stack[len(stack)-1], stack[len(stack)-2]
-			stack = stack[:len(stack)-2]
-			stack = append(stack, a-b)
-		case "*":
-			if len(stack) < 2 {
-				return 0, strconv.ErrSyntax
-			}
-			b, a := stack[len(stack)-1], stack[len(stack)-2]
-			stack = stack[:len(stack)-2]
-			stack = append(stack, a*b)
-		case "/":
-			if len(stack) < 2 {
-				return 0, strconv.ErrSyntax
-			}
-			b, a := stack[len(stack)-1], stack[len(stack)-2]
-			if b == 0 {
-				return 0, strconv.ErrSyntax // div por cero
-			}
-			stack = stack[:len(stack)-2]
-			stack = append(stack, a/b)
-		case "//":
-			if len(stack) < 2 {
-				return 0, strconv.ErrSyntax
-			}
-			b, a := stack[len(stack)-1], stack[len(stack)-2]
-			if b == 0 {
-				return 0, strconv.ErrSyntax
-			}
-			stack = stack[:len(stack)-2]
-			// floor division de Python
-			stack = append(stack, math.Floor(a/b))
-		case "%":
-			if len(stack) < 2 {
-				return 0, strconv.ErrSyntax
-			}
-			b, a := stack[len(stack)-1], stack[len(stack)-2]
-			if b == 0 {
-				return 0, strconv.ErrSyntax
-			}
-			stack = stack[:len(stack)-2]
-			// Floored modulo de Python: a % b = a - b*floor(a/b).
-			// (math.Mod de Go trunca y rompe el signo: -7 % 3 = -1, Python da 2)
-			stack = append(stack, a-b*math.Floor(a/b))
-		case "**":
-			if len(stack) < 2 {
-				return 0, strconv.ErrSyntax
-			}
-			b, a := stack[len(stack)-1], stack[len(stack)-2]
-			stack = stack[:len(stack)-2]
-			stack = append(stack, math.Pow(a, b))
+			stack = append(rest, res)
 		}
 	}
 	if len(stack) != 1 {
 		return 0, strconv.ErrSyntax
 	}
 	return stack[0], nil
+}
+
+// popBinary saca los dos topes de la pila como (a, b), con a el operando izquierdo.
+func popBinary(stack []float64) (a, b float64, rest []float64, ok bool) {
+	if len(stack) < 2 {
+		return 0, 0, stack, false
+	}
+	b, a = stack[len(stack)-1], stack[len(stack)-2]
+	return a, b, stack[:len(stack)-2], true
+}
+
+// applyBinary aplica un operador binario con semántica Python
+// (floor division y floored modulo).
+func applyBinary(op string, a, b float64) (float64, error) {
+	switch op {
+	case "+":
+		return a + b, nil
+	case "-":
+		return a - b, nil
+	case "*":
+		return a * b, nil
+	case "/":
+		if b == 0 {
+			return 0, strconv.ErrSyntax
+		}
+		return a / b, nil
+	case "//":
+		if b == 0 {
+			return 0, strconv.ErrSyntax
+		}
+		return math.Floor(a / b), nil
+	case "%":
+		if b == 0 {
+			return 0, strconv.ErrSyntax
+		}
+		// Floored modulo de Python: a % b = a - b*floor(a/b).
+		// (math.Mod de Go trunca y rompe el signo: -7 % 3 = -1, Python da 2)
+		return a - b*math.Floor(a/b), nil
+	case "**":
+		return math.Pow(a, b), nil
+	}
+	return 0, strconv.ErrSyntax
 }
 
 // formatCalcResult normaliza como Python: 4.0 -> 4, y formatea floats.

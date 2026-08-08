@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const thumbDir = "/tmp/qs-wallpaper-thumbs"
+var thumbDir = filepath.Join(os.TempDir(), "qs-wallpaper-thumbs")
 
 var wallpaperExts = map[string]bool{
 	".jpg": true, ".jpeg": true, ".png": true, ".webp": true,
@@ -68,6 +68,54 @@ func makeWallpaperThumb(path string) string {
 	return ""
 }
 
+// collectWallpaperFiles lista el directorio, ordena por nombre (case-insensitive)
+// y filtra por extensiones de imagen/video (solo video si mpvpaper está disponible).
+func collectWallpaperFiles(dir string, mpv bool) []string {
+	items, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return strings.ToLower(items[i].Name()) < strings.ToLower(items[j].Name())
+	})
+	var images []string
+	for _, e := range items {
+		if e.IsDir() {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(e.Name()))
+		if wallpaperExts[ext] || (videoExts[ext] && mpv) {
+			images = append(images, filepath.Join(dir, e.Name()))
+		}
+	}
+	return images
+}
+
+// buildWallpaperItems construye los items JSON, cortando a 60 y generando el
+// thumb solo para los que entran (mismo comportamiento que el Python).
+func buildWallpaperItems(images []string) []wallpaperItem {
+	out := []wallpaperItem{}
+	for _, p := range images {
+		if len(out) >= 60 {
+			break
+		}
+		out = append(out, wallpaperItem{
+			Path:  p,
+			Thumb: makeWallpaperThumb(p),
+			Name:  filepath.Base(p),
+			Type:  wallpaperItemType(p),
+		})
+	}
+	return out
+}
+
+func wallpaperItemType(p string) string {
+	if videoExts[strings.ToLower(filepath.Ext(p))] {
+		return "video"
+	}
+	return "image"
+}
+
 // runWallpaper implementa el subcomando wallpaper (port de wallpaper-list.py).
 func runWallpaper(folder string) int {
 	expanded := expandTilde(folder)
@@ -76,41 +124,8 @@ func runWallpaper(folder string) int {
 	}
 	_ = os.MkdirAll(thumbDir, 0o755)
 
-	mpv := hasMpvpaper()
-	var images []string
-	if items, err := os.ReadDir(expanded); err == nil {
-		// sorted por name.lower()
-		sort.Slice(items, func(i, j int) bool {
-			return strings.ToLower(items[i].Name()) < strings.ToLower(items[j].Name())
-		})
-		for _, e := range items {
-			if e.IsDir() {
-				continue
-			}
-			ext := strings.ToLower(filepath.Ext(e.Name()))
-			if wallpaperExts[ext] || (videoExts[ext] && mpv) {
-				images = append(images, filepath.Join(expanded, e.Name()))
-			}
-		}
-	}
-
-	out := []wallpaperItem{}
-	for _, p := range images {
-		if len(out) >= 60 {
-			break
-		}
-		ext := strings.ToLower(filepath.Ext(p))
-		itemType := "image"
-		if videoExts[ext] {
-			itemType = "video"
-		}
-		out = append(out, wallpaperItem{
-			Path:  p,
-			Thumb: makeWallpaperThumb(p),
-			Name:  filepath.Base(p),
-			Type:  itemType,
-		})
-	}
+	images := collectWallpaperFiles(expanded, hasMpvpaper())
+	out := buildWallpaperItems(images)
 	data, _ := json.Marshal(out)
 	fmt.Println(string(data))
 	return 0
