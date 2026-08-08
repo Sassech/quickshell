@@ -238,45 +238,48 @@ func runClipboardCopy(id string) int {
 		return 4
 	}
 
-	runWlCopy := func(mime string, payload []byte) int {
-		wctx, wcancel := contextTimeout(10 * time.Second)
-		defer wcancel()
-		var cmd *exec.Cmd
-		if mime == "" {
-			cmd = exec.CommandContext(wctx, "wl-copy")
-		} else {
-			cmd = exec.CommandContext(wctx, "wl-copy", "--type", mime)
+	// lanzarWlCopy ejecuta wl-copy sin esperar su salida. wl-copy forkea al
+	// background para mantener viva la selección y el hijo hereda el pipe de
+	// stdout: esperar con Output()/CombinedOutput() cuelga hasta el EOF del
+	// pipe. Solo Start() + liberar el handle replica el comportamiento bash.
+	lanzarWlCopy := func(mime string, payload []byte) bool {
+		cmd := exec.Command("wl-copy")
+		if mime != "" {
+			cmd = exec.Command("wl-copy", "--type", mime)
 		}
 		cmd.Stdin = bytes.NewReader(payload)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			clipboardLog("[copy] Error: wl-copy falló (" + mime + "): " + err.Error() + " " + string(out))
-			return 4
+		cmd.Stdout = nil
+		cmd.Stderr = nil
+		if err := cmd.Start(); err != nil {
+			clipboardLog("[copy] Error: wl-copy Start falló (" + mime + "): " + err.Error())
+			return false
 		}
-		return 0
+		cmd.Process.Release()
+		return true
 	}
 
 	if strings.HasPrefix(preview, "[[ binary") {
 		mime := binaryMIME(preview)
-		code := runWlCopy(mime, decoded)
-		if code == 0 {
-			clipboardLog("[copy] OK: " + id + " (" + mime + ")")
+		if !lanzarWlCopy(mime, decoded) {
+			return 4
 		}
-		return code
+		clipboardLog("[copy] OK: " + id + " (" + mime + ")")
+		return 0
 	}
 
 	// Rama no-binaria: detecta MIME real; si es imagen usa --type, si no texto plano.
 	mimeType := http.DetectContentType(decoded)
 	if strings.HasPrefix(mimeType, "image/") {
-		code := runWlCopy(mimeType, decoded)
-		if code == 0 {
-			clipboardLog("[copy] OK: " + id + " (" + mimeType + " - auto-detected)")
+		if !lanzarWlCopy(mimeType, decoded) {
+			return 4
 		}
-		return code
+		clipboardLog("[copy] OK: " + id + " (" + mimeType + " - auto-detected)")
+		return 0
 	}
 
-	code := runWlCopy("", decoded)
-	if code == 0 {
-		clipboardLog("[copy] OK: " + id + " (text)")
+	if !lanzarWlCopy("", decoded) {
+		return 4
 	}
-	return code
+	clipboardLog("[copy] OK: " + id + " (text)")
+	return 0
 }
