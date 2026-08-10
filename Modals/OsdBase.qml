@@ -88,7 +88,9 @@ PanelWindow {
         target: osdCard; property: "opacity"
         from: 1; to: 0
         duration: root.animOutMs; easing.type: Easing.InCubic
-        onFinished: root.visible = false
+        onFinished: {
+            root.visible = false
+        }
     }
 
     // ── OSD Card ────────────────────────────────────────────────────────────

@@ -34,6 +34,11 @@ PanelWindow {
 
     // ── Abrir / cerrar ────────────────────────────────────────────────────
     function open() {
+        // Limpia cualquier estado previo: si veníamos de un fade-out a medias,
+        // matamos animación y timer de seguridad para no pelear por opacity
+        fadeOut.stop()
+        fadeIn.stop()
+        closeSafetyTimer.stop()
         root.visible = true
         root._running = false
         fadeIn.start()
@@ -42,7 +47,20 @@ PanelWindow {
     }
 
     function close() {
+        fadeIn.stop()
         fadeOut.start()
+        closeSafetyTimer.restart()
+    }
+
+    // Safety net: garantiza que la ventana SIEMPRE se desmapea aunque el
+    // fadeOut se interrumpa o no complete (p. ej. si open() llega a la mitad)
+    Timer {
+        id: closeSafetyTimer
+        interval: 250
+        onTriggered: {
+            fadeOut.stop()
+            root.visible = false
+        }
     }
 
     // ── Proceso de captura ────────────────────────────────────────────────
@@ -105,7 +123,9 @@ PanelWindow {
         from: 1; to: 0
         duration: 100
         easing.type: Easing.InCubic
-        onFinished: root.visible = false
+        onFinished: {
+            root.visible = false
+        }
     }
 
     NumberAnimation {

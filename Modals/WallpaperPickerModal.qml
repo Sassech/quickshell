@@ -79,11 +79,14 @@ QmModalBase {
         saveConfigProc.running = false
     }
 
-    // Safety net: si el listado de wallpapers cuelga, desbloquea _loading
+    // Safety net: si el listado de wallpapers cuelga, mata el proceso y desbloquea
     Timer {
         id: loadSafetyTimer
         interval: 10000
-        onTriggered: root._loading = false
+        onTriggered: {
+            listProc.running = false
+            root._loading = false
+        }
     }
 
     // Limpia el mensaje de error transcurridos 4s
@@ -118,7 +121,7 @@ QmModalBase {
             onRead: d => root._listBuf += d + "\n"
         }
         // qmllint disable signal-handler-parameters
-        onExited: {
+        onExited: function(exitCode) {
             loadSafetyTimer.stop()
             root._loading = false
             var items = []

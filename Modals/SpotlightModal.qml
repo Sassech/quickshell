@@ -104,7 +104,7 @@ PanelWindow {
             onRead: data => root._searchBuf += data + "\n"
         }
         // qmllint disable signal-handler-parameters
-        onExited: {
+        onExited: function(exitCode) {
             root._searching = false
             var items = []
             try { items = JSON.parse(root._searchBuf) } catch(e) {}
@@ -311,16 +311,6 @@ PanelWindow {
                             selectionColor: Theme.accent
                             selectedTextColor: Theme.text
                             clip: true
-
-                            Text {
-                                anchors.fill: parent
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: "Buscar aplicaciones, archivos, comandos..."
-                                font.pixelSize: 18
-                                color: Theme.surface2
-                                visible: !parent.text && !parent.activeFocus
-                                verticalAlignment: Text.AlignVCenter
-                            }
 
                             onTextChanged: {
                                 root.selectedIndex = 0

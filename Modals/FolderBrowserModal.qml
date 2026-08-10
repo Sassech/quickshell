@@ -65,7 +65,8 @@ QmModalBase {
             onRead: d => root._buf += d
         }
         // qmllint disable signal-handler-parameters
-        onExited: {
+        onExited: function(exitCode) {
+            listWatchdog.stop()
             root._loading = false
             try {
                 var res = JSON.parse(root._buf)
@@ -84,8 +85,20 @@ QmModalBase {
         if (_loading) return
         _loading = true
         _buf = ""
+        listWatchdog.restart()
         listProc.targetPath = p
         listProc.running = true
+    }
+
+    // Watchdog: si qs-helper folder cuelga sin onExited, lo mata y desbloquea
+    Timer {
+        id: listWatchdog
+        interval: 15000
+        onTriggered: {
+            listProc.running = false
+            root._loading = false
+            root._buf = ""
+        }
     }
 
     // ── UI ────────────────────────────────────────────────────

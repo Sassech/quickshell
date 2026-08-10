@@ -185,7 +185,9 @@ PanelWindow {
             duration: root.animOutMs
             easing.type: Easing.InCubic
         }
-        onFinished: root.visible = false
+        onFinished: {
+            root.visible = false
+        }
     }
 
     // ── Tarjeta ───────────────────────────────────────────────────────────

@@ -28,6 +28,7 @@ QmModalBase {
             searchField.text = ""
             updateDisplay()
             loadEntries()
+            searchField.forceActiveFocus()
         }
     }
 
@@ -40,6 +41,7 @@ QmModalBase {
         if (isLoading) return
         isLoading = true
         _listBuf = ""
+        listWatchdog.restart()
         listProc.running = true
     }
 
@@ -69,20 +71,16 @@ QmModalBase {
         }
         // qmllint disable signal-handler-parameters
         onExited: function(exitCode) {
-            if (exitCode !== 0) {
-                console.log("[ClipboardModal] listProc failed with code:", exitCode)
-            }
+            listWatchdog.stop()
 
             try {
                 var parsed = JSON.parse(root._listBuf)
                 if (Array.isArray(parsed)) {
                     root.allEntries = parsed
                 } else {
-                    console.log("[ClipboardModal] JSON invalid - expected array")
                     root.allEntries = []
                 }
             } catch(e) {
-                console.log("[ClipboardModal] JSON parse error:", e)
                 root.allEntries = []
             }
 
@@ -103,15 +101,16 @@ QmModalBase {
         function copyEntry(id) {
             if (_isCopying) return
             _isCopying = true
+            copyWatchdog.restart()
             copyProc.command = [Paths.scripts + "/qs-helper/qs-helper", "clipboard-copy", id]
             copyProc.running = true
         }
 
         // qmllint disable signal-handler-parameters
         onExited: function(exitCode) {
+            copyWatchdog.stop()
             _isCopying = false
             if (exitCode !== 0) {
-                console.log("[ClipboardModal] copyProc failed with code:", exitCode)
                 root.close()
                 return
             }
@@ -130,15 +129,34 @@ QmModalBase {
         onTriggered: root.close()
     }
 
+    // Watchdog: si qs-helper clipboard cuelga sin onExited, lo mata y desbloquea
+    Timer {
+        id: listWatchdog
+        interval: 15000
+        onTriggered: {
+            listProc.running = false
+            root.isLoading = false
+            root._listBuf = ""
+            root.updateDisplay()
+        }
+    }
+
+    // Watchdog: si qs-helper clipboard-copy cuelga, lo mata y desbloquea
+    Timer {
+        id: copyWatchdog
+        interval: 15000
+        onTriggered: {
+            copyProc.running = false
+            copyProc._isCopying = false
+        }
+    }
+
     // ── Limpia todo ─────────────────────────────────────────────────────
     Process {
         id: wipeProc
         command: ["bash", "-c", "cliphist wipe 2>>/tmp/qs-clipboard.log"]
         // qmllint disable signal-handler-parameters
-        onExited: function(exitCode) {
-            if (exitCode !== 0) {
-                console.log("[ClipboardModal] wipeProc failed with code:", exitCode)
-            }
+        onExited: {
             root.loadEntries()
         }
         // qmllint enable signal-handler-parameters
@@ -237,15 +255,6 @@ QmModalBase {
                 selectedTextColor: Theme.text
                 clip: true
                 verticalAlignment: TextInput.AlignVCenter
-
-                Text {
-                    anchors.fill: parent
-                    text: "Buscar en portapapeles..."
-                    font.pixelSize: 15
-                    color: Theme.muted3
-                    visible: !parent.text && !parent.activeFocus
-                    verticalAlignment: Text.AlignVCenter
-                }
 
                 onTextChanged: searchDebounce.restart()
                 Keys.onEscapePressed: root.close()
