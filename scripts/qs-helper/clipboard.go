@@ -77,6 +77,34 @@ func generateThumbnail(entryID, preview string) string {
 	return ""
 }
 
+// generateFileThumbnail crea un thumb 72x72 del archivo referenciado.
+func generateFileThumbnail(entryID, path string) string {
+	thumbPath := filepath.Join(os.TempDir(), "qs-fthumb-"+entryID+".png")
+	if _, err := os.Stat(thumbPath); err == nil {
+		return thumbPath
+	}
+	ctx, cancel := contextTimeout(10 * time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "magick", path+"[0]",
+		"-thumbnail", "72x72^", "-gravity", "center", "-extent", "72x72", thumbPath)
+	_ = cmd.Run()
+	if _, err := os.Stat(thumbPath); err == nil {
+		return thumbPath
+	}
+	return ""
+}
+
+// fileRefPath devuelve el path si la preview es una ruta absoluta existente.
+func fileRefPath(preview string) string {
+	if strings.Contains(preview, "\n") || !strings.HasPrefix(preview, "/") {
+		return ""
+	}
+	if _, err := os.Stat(preview); err == nil {
+		return preview
+	}
+	return ""
+}
+
 // runClipboard implementa el subcomando clipboard.
 func runClipboard() int {
 	if !hasMagick() {
@@ -96,11 +124,13 @@ func runClipboard() int {
 	}
 
 	entries := []clipEntry{}
-	thumbTasks := []struct {
+	type thumbTask struct {
 		idx     int
 		id      string
 		preview string
-	}{}
+		path    string
+	}
+	thumbTasks := []thumbTask{}
 
 	scanner := bufio.NewScanner(bytes.NewReader(result))
 	for scanner.Scan() {
@@ -119,11 +149,9 @@ func runClipboard() int {
 			Thumb:    "",
 		})
 		if isBinary && strings.Contains(strings.ToLower(preview), "png") {
-			thumbTasks = append(thumbTasks, struct {
-				idx     int
-				id      string
-				preview string
-			}{len(entries) - 1, entryID, preview})
+			thumbTasks = append(thumbTasks, thumbTask{len(entries) - 1, entryID, preview, ""})
+		} else if p := fileRefPath(preview); p != "" {
+			thumbTasks = append(thumbTasks, thumbTask{len(entries) - 1, entryID, preview, p})
 		}
 	}
 
@@ -133,16 +161,15 @@ func runClipboard() int {
 		sem := make(chan struct{}, 4)
 		for _, t := range thumbTasks {
 			wg.Add(1)
-			go func(t struct {
-				idx     int
-				id      string
-				preview string
-			}) {
+			go func(t thumbTask) {
 				defer wg.Done()
 				sem <- struct{}{}
 				defer func() { <-sem }()
-				thumb := generateThumbnail(t.id, t.preview)
-				entries[t.idx].Thumb = thumb
+				if t.path != "" {
+					entries[t.idx].Thumb = generateFileThumbnail(t.id, t.path)
+				} else {
+					entries[t.idx].Thumb = generateThumbnail(t.id, t.preview)
+				}
 			}(t)
 		}
 		wg.Wait()
@@ -233,6 +260,31 @@ func lanzarWlCopy(mime string, payload []byte) bool {
 	return true
 }
 
+// clipboardFileRef detecta referencias a archivo (gestor de archivos) y
+// devuelve MIME + payload para re-copiar: file:// → text/uri-list, formato
+// Nautilus → x-special/gnome-copied-files, ruta absoluta existente → file://.
+func clipboardFileRef(decoded []byte) (string, []byte, bool) {
+	text := strings.TrimSpace(string(decoded))
+
+	for _, line := range strings.Split(text, "\n") {
+		if strings.HasPrefix(line, "file://") {
+			return "text/uri-list", decoded, true
+		}
+	}
+
+	if strings.HasPrefix(text, "x-special/gnome-copied-files") {
+		return "x-special/gnome-copied-files", decoded, true
+	}
+
+	if !strings.Contains(text, "\n") && strings.HasPrefix(text, "/") {
+		if _, err := os.Stat(text); err == nil {
+			return "text/uri-list", []byte("file://" + text), true
+		}
+	}
+
+	return "", nil, false
+}
+
 // runClipboardCopy implementa el subcomando clipboard-copy <id>.
 // Exit codes replican clipboard-copy.sh: 1 ID vacío, 2 cliphist list falló,
 // 3 ID no encontrado, 4 decode/fallo de copia.
@@ -275,7 +327,15 @@ func runClipboardCopy(id string) int {
 		return 0
 	}
 
-	// Rama no-binaria: detecta MIME real; si es imagen usa --type, si no texto plano.
+	// Rama no-binaria: archivo → MIME real → imagen → texto.
+	if mime, payload, ok := clipboardFileRef(decoded); ok {
+		if !lanzarWlCopy(mime, payload) {
+			return 4
+		}
+		clipboardLog(copyOKPrefix + id + " (" + mime + " - file ref)")
+		return 0
+	}
+
 	mimeType := http.DetectContentType(decoded)
 	if strings.HasPrefix(mimeType, "image/") {
 		if !lanzarWlCopy(mimeType, decoded) {
