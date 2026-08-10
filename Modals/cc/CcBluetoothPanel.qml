@@ -243,7 +243,7 @@ Rectangle {
 
                             IconImage {
                                 Layout.preferredWidth: 16; Layout.preferredHeight: 16
-                                source: Quickshell.iconPath(btPairedEntry.modelData.icon, "bluetooth")
+                                source: Quickshell.iconPath(btPairedEntry.modelData.icon)
                                 implicitSize: 16
                                 opacity: btPairedEntry.modelData.connected ? 1.0 : 0.45
                                 Behavior on opacity { NumberAnimation { duration: 150 } }
@@ -459,7 +459,7 @@ Rectangle {
 
                         IconImage {
                             Layout.preferredWidth: 16; Layout.preferredHeight: 16
-                            source: Quickshell.iconPath(btNearbyRow.modelData.icon, "bluetooth")
+                            source: Quickshell.iconPath(btNearbyRow.modelData.icon)
                             implicitSize: 16
                             opacity: 0.55
                         }
