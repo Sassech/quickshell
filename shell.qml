@@ -531,6 +531,7 @@ ShellRoot {
             onFolderSelected: path => root.broadcastFolderResult(modelData, path)
             Connections {
                 target: root
+                function onBroadcastCloseAll(screen) { root.closeModalOnScreen(folderBrowserInst, screen) }
                 function onBroadcastOpenFolderBrowser(screen, initialPath) {
                     if (folderBrowserInst.modelData !== screen) return
                     folderBrowserInst.open(initialPath)
