@@ -231,17 +231,27 @@ PanelWindow {
     function wifiIsOpen(sec)               { return wifiCtrl.wifiIsOpen(sec) }
 
     // ── MPRIS — reproductor ───────────────────────────────────────────────
-    property var mprisPlayer: {
-        var players = Mpris.players.values
-        for (var i = 0; i < players.length; i++) {
-            if (players[i].playbackState === MprisPlaybackState.Playing)
-                return players[i]
-        }
-        return players.length > 0 ? players[0] : null
-    }
+    property var mprisPlayer: null
 
     property real playerPos: 0
     property int  _posSync: 0
+
+    function _pickPlayer() {
+        var players = Mpris.players.values
+        for (var i = 0; i < players.length; i++) {
+            if (players[i].playbackState === MprisPlaybackState.Playing) {
+                root.mprisPlayer = players[i]
+                return
+            }
+        }
+        root.mprisPlayer = players.length > 0 ? players[0] : null
+    }
+
+    Connections {
+        target: Mpris.players
+        function onObjectInsertedPost() { root._pickPlayer() }
+        function onObjectRemovedPost() { root._pickPlayer() }
+    }
 
     function _syncPlayerPos() {
         if (root.mprisPlayer && root.mprisPlayer.positionSupported)
@@ -267,6 +277,7 @@ PanelWindow {
     // ── Startup / teardown ────────────────────────────────────────────────
     onVisibleChanged: {
         if (visible) {
+            root._pickPlayer()
             root._gpuLoaded = false
             brightnessCtrl.refresh()
             Qt.callLater(root._syncPlayerPos)
