@@ -5,6 +5,7 @@ import QtQuick
 import QtQuick.Controls
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Io
 import "../Components"
 
 PanelWindow {
@@ -14,7 +15,7 @@ PanelWindow {
     color:   "transparent"
 
     WlrLayershell.layer:         WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: root._searchMode ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     anchors.top:    true
     anchors.bottom: true
@@ -48,23 +49,32 @@ PanelWindow {
     function wmoDescription(code) { return weatherHelpers.wmoDescription(code) }
 
     // ── UI State ─────────────────────────────────────────────────────────
-    property int selectedHourIndex: 0
-    property int selectedDayIndex: 0
+    property int  selectedHourIndex: 0
+    property int  selectedDayIndex: 0
+    property bool _searchMode: false
 
     readonly property color accent: isDay ? Theme.sky : Theme.accent2
 
     onVisibleChanged: {
-        if (visible && !WeatherProvider.hasData && !loading) {
-            // Trigger refresh if no data
+        // Activa/desactiva el timer de refresh del provider según visibilidad.
+        WeatherProvider._anyConsumerVisible = visible
+
+        if (visible && !WeatherProvider.hasData && !WeatherProvider.loading) {
+            // Si no hay datos (primer arranque o fetch fallido), re-intentar.
+            WeatherProvider.fetchWeather()
+        }
+        if (!visible) {
+            // al cerrar, volvemos al modo clima
+            root._searchMode = false
+            root._searchQuery = ""
+            root._searchResults = []
+            root._searching = false
+            root._searchStack = []
         }
     }
 
     function refresh() {
-        if (WeatherProvider.latitude === 0) {
-            WeatherProvider.fallbackToIpGeo()
-        } else {
-            WeatherProvider.fetchWeather()
-        }
+        WeatherProvider.fetchWeather()
     }
 
     function _selectDay(idx) {
@@ -92,6 +102,103 @@ PanelWindow {
         return (nowMin - riseMin) / (setMin - riseMin)
     }
 
+    // ── Búsqueda de ciudad ───────────────────────────────────────────────
+    property string _searchQuery: ""
+    property var    _searchResults: []
+    property bool   _searching: false
+    property string _searchBuf: ""
+    property var    _searchStack: []   // historial de queries para breadcrumb/back
+
+    Process {
+        id: searchProc
+        running: false
+        stdout: SplitParser {
+            splitMarker: ""
+            onRead: data => { root._searchBuf += data }
+        }
+        // qmllint disable signal-handler-parameters
+        onExited: function(exitCode) {
+            root._searching = false
+            if (exitCode !== 0 || !root._searchBuf.trim()) {
+                root._searchResults = []
+                return
+            }
+            try {
+                var arr = JSON.parse(root._searchBuf.trim())
+                root._searchResults = Array.isArray(arr) ? arr : []
+            } catch(e) {
+                root._searchResults = []
+            }
+        }
+        // qmllint enable signal-handler-parameters
+    }
+
+    function doSearch(query) {
+        var q = query.trim()
+        if (q === "") { root._searchResults = []; return }
+        root._searchBuf = ""
+        root._searching = true
+        root._searchResults = []
+        searchProc.command = [Paths.scripts + "/qs-helper/qs-helper", "weather-search", q]
+        searchProc.running = true
+    }
+
+    // Drill-down: guarda la query actual en el stack y lanza nueva búsqueda refinada
+    function drillDown(refinedQuery) {
+        var stack = root._searchStack.slice()
+        stack.push(root._searchQuery)
+        root._searchStack = stack
+        root._searchQuery = refinedQuery
+        root.doSearch(refinedQuery)
+    }
+
+    // Volver al nivel anterior del stack de búsqueda
+    function searchBack() {
+        var stack = root._searchStack.slice()
+        if (stack.length === 0) return
+        var prev = stack.pop()
+        root._searchStack = stack
+        root._searchQuery = prev
+        root.doSearch(prev)
+    }
+
+    // Persistencia de preferencias (mismo patrón que OverlaysManager)
+    Process {
+        id: writePrefsProc
+        running: false
+    }
+
+    function _savePrefs(lat, lon, cityName, countryName, auto_) {
+        // Merge atómico vía qs-helper (lee prefs existentes, actualiza solo
+        // la sección weather y escribe de vuelta — preserva wallpaper.folder).
+        writePrefsProc.command = [
+            Paths.scripts + "/qs-helper/qs-helper",
+            "prefs-weather-set",
+            String(lat), String(lon),
+            cityName, countryName,
+            auto_ ? "true" : "false"
+        ]
+        writePrefsProc.running = true
+    }
+
+    function selectCity(lat, lon, cityName, countryName) {
+        root._searchResults = []
+        root._searchMode = false
+        root._searchQuery = ""
+        root._searchStack = []
+        root._savePrefs(lat, lon, cityName, countryName, false)
+        WeatherProvider.fetchWeather()
+    }
+
+    function useAutoLocation() {
+        root._searchResults = []
+        root._searchMode = false
+        root._searchQuery = ""
+        root._searchStack = []
+        root._savePrefs(0, 0, "", "", true)
+        WeatherProvider.fetchWeather()
+    }
+
     // ── Background dismiss ───────────────────────────────────────────────
     MouseArea {
         anchors.fill: parent
@@ -116,7 +223,10 @@ PanelWindow {
         color:  Theme.cardBg3
         border.color: Theme.surface2
         border.width: 1
-        height: mainCol.implicitHeight + 44
+        height: root._searchMode ? searchCol.implicitHeight + 44
+                                 : mainCol.implicitHeight  + 44
+
+        Behavior on height { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
 
         Rectangle {
             anchors.top:              parent.top
@@ -137,6 +247,7 @@ PanelWindow {
             Text { anchors.centerIn: parent; text: "✕"; color: Theme.muted3; font.pixelSize: 12 }
         }
 
+        // ── Vista principal del clima ─────────────────────────────────────
         Column {
             id: mainCol
             anchors.left:    parent.left
@@ -144,8 +255,11 @@ PanelWindow {
             anchors.top:     parent.top
             anchors.margins: 20
             spacing: 14
+            visible: !root._searchMode
+            opacity: root._searchMode ? 0 : 1
+            Behavior on opacity { NumberAnimation { duration: 120 } }
 
-            // ── Row 1: period label + refresh ─────────────────────────────
+            // ── Row 1: period label + edit city + refresh ─────────────────
             Item {
                 width: parent.width; height: 18
 
@@ -155,6 +269,30 @@ PanelWindow {
                     text: root._periodLabel(); color: Theme.muted1; font.pixelSize: 12
                 }
 
+                // botón editar ciudad (lápiz)
+                MouseArea {
+                    id: editCityBtn
+                    anchors.right:          parent.right
+                    anchors.rightMargin:    52
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 22; height: 22
+                    cursorShape: Qt.PointingHandCursor
+                    hoverEnabled: true
+                    onClicked: {
+                        root._searchMode = true
+                        root._searchResults = []
+                        root._searchQuery = ""
+                    }
+                    Text {
+                        anchors.centerIn: parent
+                        text: "󰏫"
+                        color: editCityBtn.containsMouse ? root.accent : Theme.muted3
+                        font.pixelSize: 14
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                    }
+                }
+
+                // botón refresh
                 MouseArea {
                     anchors.right:          parent.right
                     anchors.rightMargin:    26
@@ -318,11 +456,12 @@ PanelWindow {
                     Text {
                         id: clockText
                         anchors.right: parent.right
-                        text:  Qt.formatDateTime(new Date(), "yyyy-MM-dd  HH:mm")
+                        property string _now: Qt.formatDateTime(new Date(), "yyyy-MM-dd  HH:mm")
+                        text:  _now
                         color: Theme.muted3; font.pixelSize: 11
                         Timer {
-                            interval: 30000; running: true; repeat: true
-                            onTriggered: clockText.text = Qt.formatDateTime(new Date(), "yyyy-MM-dd  HH:mm")
+                            interval: 30000; running: root.visible; repeat: true
+                            onTriggered: clockText._now = Qt.formatDateTime(new Date(), "yyyy-MM-dd  HH:mm")
                         }
                     }
                 }
@@ -508,6 +647,281 @@ PanelWindow {
                         }
                     }
                 }
+            }
+
+            Item { width: 1; height: 4 }
+        }
+
+        // ── Vista de búsqueda de ciudad ───────────────────────────────────
+        Column {
+            id: searchCol
+            anchors.left:    parent.left
+            anchors.right:   parent.right
+            anchors.top:     parent.top
+            anchors.margins: 20
+            spacing: 14
+            visible: root._searchMode
+            opacity: root._searchMode ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: 120 } }
+
+            // Header de búsqueda
+            Item {
+                width: parent.width; height: 22
+
+                // botón volver: si hay stack → nivel anterior; si no → cerrar búsqueda
+                MouseArea {
+                    id: backBtn
+                    anchors.left:           parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 26; height: 26
+                    cursorShape: Qt.PointingHandCursor
+                    hoverEnabled: true
+                    onClicked: {
+                        if (root._searchStack.length > 0) {
+                            root.searchBack()
+                        } else {
+                            root._searchMode = false
+                            root._searchResults = []
+                            root._searchQuery = ""
+                            root._searchStack = []
+                        }
+                    }
+                    Text {
+                        anchors.centerIn: parent
+                        text: "←"
+                        color: backBtn.containsMouse ? root.accent : Theme.muted2
+                        font.pixelSize: 16
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                    }
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: root._searchStack.length > 0
+                        ? "Explorando: " + root._searchStack[root._searchStack.length - 1]
+                        : "Cambiar ciudad"
+                    font.pixelSize: 14
+                    font.bold: root._searchStack.length === 0
+                    color: root._searchStack.length > 0 ? Theme.muted1 : Theme.text
+                    Behavior on color { ColorAnimation { duration: 100 } }
+                }
+            }
+
+            // Campo de búsqueda
+            Rectangle {
+                id: searchFieldRect
+                width: parent.width
+                height: 36
+                radius: 10
+                color: Theme.surface2
+                border.color: searchInput.activeFocus ? root.accent : Theme.surface3
+                border.width: 1
+
+                Row {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 4
+                    spacing: 6
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "󰍋"
+                        font.pixelSize: 14
+                        color: Theme.muted3
+                    }
+
+                    TextInput {
+                        id: searchInput
+                        width: parent.width - 50
+                        anchors.verticalCenter: parent.verticalCenter
+                        font.pixelSize: 13
+                        color: Theme.text
+                        clip: true
+                        text: root._searchQuery
+                        onTextChanged: root._searchQuery = text
+                        onAccepted: root.doSearch(text)
+                        enabled: !root._searching
+
+                        Text {
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: parent.text === "" && !parent.activeFocus
+                            text: "Buscar ciudad..."
+                            font.pixelSize: 13
+                            color: Theme.muted3
+                        }
+                    }
+                }
+
+                // foco automático al entrar al modo búsqueda
+                Connections {
+                    target: root
+                    function on_SearchModeChanged() {
+                        if (root._searchMode) {
+                            searchInput.forceActiveFocus()
+                        }
+                    }
+                }
+            }
+
+            // Botones de acción
+            Row {
+                width: parent.width
+                spacing: 8
+
+                // Buscar
+                Rectangle {
+                    id: searchActionBtn
+                    width: (parent.width - 8) / 2
+                    height: 32
+                    radius: 8
+                    color: searchBtnArea.containsMouse && !root._searching
+                        ? Theme.surface4 : Theme.surface2
+                    opacity: root._searching ? 0.5 : 1
+                    Behavior on color { ColorAnimation { duration: 100 } }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: root._searching ? "Buscando..." : "Buscar"
+                        font.pixelSize: 12
+                        color: Theme.text
+                    }
+                    MouseArea {
+                        id: searchBtnArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: root._searching ? Qt.ArrowCursor : Qt.PointingHandCursor
+                        enabled: !root._searching
+                        onClicked: root.doSearch(root._searchQuery)
+                    }
+                }
+
+                // Usar geo-IP
+                Rectangle {
+                    id: autoLocBtn
+                    width: (parent.width - 8) / 2
+                    height: 32
+                    radius: 8
+                    color: autoLocArea.containsMouse ? Theme.surface4 : Theme.surface2
+                    Behavior on color { ColorAnimation { duration: 100 } }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Usar geo-IP"
+                        font.pixelSize: 12
+                        color: Theme.muted1
+                    }
+                    MouseArea {
+                        id: autoLocArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.useAutoLocation()
+                    }
+                }
+            }
+
+            // Lista de resultados
+            ListView {
+                id: searchResultsList
+                width: parent.width
+                height: Math.min(root._searchResults.length, 6) * 40
+                visible: root._searchResults.length > 0
+                clip: true
+                model: root._searchResults
+                spacing: 3
+
+                delegate: Rectangle {
+                    id: resRow
+                    required property var modelData
+                    required property int index
+
+                    // Un resultado SIN region (vacío/undefined) es un país/área grande:
+                    // no se selecciona directamente, se hace drill-down con name + country.
+                    readonly property bool isConcrete: resRow.modelData.region !== undefined
+                                                    && resRow.modelData.region !== ""
+
+                    width: searchResultsList.width
+                    height: 36
+                    radius: 8
+                    color: resArea.containsMouse ? Theme.surface3 : Theme.surface2
+                    Behavior on color { ColorAnimation { duration: 80 } }
+
+                    Row {
+                        anchors.fill: parent
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 12
+                        spacing: 6
+
+                        // Ícono: ciudad seleccionable vs área para explorar
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: resRow.isConcrete ? "󰍉" : "󰍋"
+                            font.pixelSize: 13
+                            color: resRow.isConcrete ? root.accent : Theme.muted2
+                        }
+
+                        // Etiqueta principal
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width - 60
+                            text: {
+                                if (resRow.isConcrete) {
+                                    // "Nombre · Región · País"
+                                    return resRow.modelData.name + " · "
+                                         + resRow.modelData.region + " · "
+                                         + (resRow.modelData.country || "")
+                                } else {
+                                    // "Nombre · País" — país/centroide
+                                    return resRow.modelData.name + " · "
+                                         + (resRow.modelData.country || "")
+                                }
+                            }
+                            font.pixelSize: 12
+                            color: Theme.text
+                            elide: Text.ElideRight
+                        }
+
+                        // Hint de drill-down para resultados sin region
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: !resRow.isConcrete
+                            text: "Explorar →"
+                            font.pixelSize: 10
+                            color: Theme.muted3
+                        }
+                    }
+
+                    MouseArea {
+                        id: resArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (resRow.isConcrete) {
+                                root.selectCity(
+                                    resRow.modelData.lat,
+                                    resRow.modelData.lon,
+                                    resRow.modelData.name,
+                                    resRow.modelData.country || ""
+                                )
+                            } else {
+                                // Drill-down: refinar con "nombre país"
+                                root.drillDown(resRow.modelData.name + " " + (resRow.modelData.country || ""))
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Estado vacío (sin resultados después de buscar)
+            Text {
+                width: parent.width
+                visible: !root._searching && root._searchQuery !== "" && root._searchResults.length === 0
+                text: "Sin resultados. Probá con otra búsqueda."
+                font.pixelSize: 11
+                color: Theme.muted3
+                horizontalAlignment: Text.AlignHCenter
             }
 
             Item { width: 1; height: 4 }
