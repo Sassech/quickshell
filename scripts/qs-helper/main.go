@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -22,6 +24,10 @@ func main() {
 	case "spotlight":
 		code = runSpotlight(args)
 	case "clipboard":
+		if len(args) > 0 && args[0] == "--daemon" {
+			code = runClipboardDaemon()
+			break
+		}
 		code = runClipboard()
 	case "clipboard-copy":
 		id := ""
@@ -41,6 +47,12 @@ func main() {
 			folder = args[0]
 		}
 		code = runWallpaper(folder)
+	case "wallpaper-multi":
+		if len(args) > 0 && args[0] == "--daemon" {
+			code = runWallpaperMultiDaemon()
+			break
+		}
+		code = runWallpaperMulti(args)
 	case "wallpaper-save":
 		if len(args) == 0 {
 			fmt.Fprintln(os.Stderr, "Usage: qs-helper wallpaper-save <folder>")
@@ -48,6 +60,18 @@ func main() {
 			break
 		}
 		code = runWallpaperSave(args[0])
+	case "weather":
+		code = runWeather(args)
+	case "weather-search":
+		code = runWeatherSearch(args)
+	case "prefs-weather-set":
+		code = runPrefsWeatherSet(args)
+	case "image-search":
+		code = runImageSearch(args)
+	case "image-download":
+		code = runImageDownload(args)
+	case "updates-check":
+		code = runUpdatesCheck()
 	default:
 		fmt.Fprintf(os.Stderr, "qs-helper: subcomando desconocido %q\n", cmd)
 		usage()
@@ -60,12 +84,19 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `qs-helper — utilidades para la shell quickshell
 
 Uso:
-  qs-helper spotlight [--list-apps | --record <exec> | <query>]
-  qs-helper clipboard
+  qs-helper spotlight [--daemon | --list-apps | --record <exec> | <query>]
+  qs-helper clipboard [--daemon]
   qs-helper clipboard-copy <id>
   qs-helper folder <path>
   qs-helper wallpaper <folder>
-  qs-helper wallpaper-save <folder>`)
+  qs-helper wallpaper-multi [--daemon] <folder1> [folder2] ...
+  qs-helper wallpaper-save <folder>
+  qs-helper weather [<lat> <lon>]
+  qs-helper weather-search "<query>"
+  qs-helper prefs-weather-set <lat> <lon> <ciudad> <pais> <auto>
+  qs-helper image-search "<query>" [first]
+  qs-helper image-download <id> <url> [<folder>]
+  qs-helper updates-check`)
 }
 
 // ── Helpers compartidos ───────────────────────────────────────────────────
@@ -92,4 +123,18 @@ func expandTilde(p string) string {
 func isDir(p string) bool {
 	fi, err := os.Stat(p)
 	return err == nil && fi.IsDir()
+}
+
+// writeJSONLine serializa v como una línea JSON y la escribe en el buffer.
+// Los daemons JSON-lines la usan para responder por stdout; un error de
+// marshal solo se loguea a stderr sin matar el daemon.
+func writeJSONLine(out *bufio.Writer, v any) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "qs-helper: marshalling reply: %v\n", err)
+		return
+	}
+	out.Write(data)
+	out.WriteByte('\n')
+	out.Flush()
 }

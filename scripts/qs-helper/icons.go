@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -12,8 +13,10 @@ var (
 	iconCache      = map[string]string{}
 	iconCacheDirty = false
 
-	iconSizes = []string{"256x256", "128x128", "96x96", "64x64", "48x48", "32x32"}
-	iconCats  = []string{"apps", "categories", "devices", "mimetypes"}
+	// iconSizes: 48x48 y scalable primero — combinación más frecuente en temas hicolor/apps.
+	iconSizes = []string{"48x48", "scalable", "32x32", "256x256", "128x128", "96x96", "64x64", "24x24", "22x22", "16x16"}
+	// iconCats: apps primero — categoría más común en lookups de lanzador.
+	iconCats = []string{"apps", "categories", "devices", "mimetypes", "status"}
 	// iconThemes se completa en initTheme (detección de tema).
 	iconThemes = []string{}
 )
@@ -109,19 +112,18 @@ func saveIconCache() {
 }
 
 // detectTheme lee ~/.config/gtk-3.0/settings.ini buscando el tema de íconos.
+// Usa bufio.Scanner con early exit para evitar cargar el archivo completo en memoria.
 func detectTheme() string {
-	p := filepath.Join(homeDir, ".config", "gtk-3.0", "settings.ini")
-	data, err := os.ReadFile(p)
+	f, err := os.Open(filepath.Join(homeDir, ".config", "gtk-3.0", "settings.ini"))
 	if err != nil {
 		return ""
 	}
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
 		if strings.HasPrefix(line, "gtk-icon-theme-name=") {
-			v := strings.TrimSpace(strings.TrimPrefix(line, "gtk-icon-theme-name="))
-			if v != "" {
-				return v
-			}
+			return strings.TrimSpace(strings.TrimPrefix(line, "gtk-icon-theme-name="))
 		}
 	}
 	return ""
@@ -155,7 +157,14 @@ func findIconPath(iconName string) string {
 		return ""
 	}
 	if p, ok := iconCache[iconName]; ok {
-		return p
+		// Verificar que la entrada siga apuntando a un archivo existente:
+		// puede haber quedado stale (el ícono se desinstaló) y devolverla
+		// rompe el Image del QML con un glyph oculto.
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+		delete(iconCache, iconName)
+		iconCacheDirty = true // persistir la limpieza en el archivo de cache
 	}
 	if strings.HasPrefix(iconName, "/") && exists(iconName) {
 		return cacheIcon(iconName, iconName)

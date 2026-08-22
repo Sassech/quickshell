@@ -15,7 +15,6 @@ import (
 )
 
 // ── Tipos de resultado ────────────────────────────────────────────────────
-// Usamos map[string]any para no inventar campos y dar libertad de shape.
 type spotlightItem struct {
 	Type     string   `json:"type"`
 	Name     string   `json:"name"`
@@ -24,7 +23,7 @@ type spotlightItem struct {
 	ExecArgs []string `json:"execArgs,omitempty"`
 	Icon     string   `json:"icon"`
 	IconPath string   `json:"iconPath"`
-	score    int      // ranking interno, nunca se emite
+	score    int      `json:"-"` // ranking interno, nunca se emite (verificado: QML no consume score)
 }
 
 // ── Recencia (frecency) ───────────────────────────────────────────────────
@@ -64,6 +63,10 @@ func saveFrecency(m frecencyMap) {
 }
 
 // recordFrecency implementa `spotlight --record <exec>`.
+// No se invoca desde QML hoy; es el mecanismo que un caller usaría para
+// registrar un lanzamiento. El daemon (spotlight --daemon) NO necesita
+// invocarlo: refresca frecency por mtime del archivo en cada request
+// (refreshFrecency), así que un `--record` externo se ve sin reiniciar.
 func recordFrecency(execStr string) {
 	m := loadFrecency()
 	m[execStr]++
@@ -93,19 +96,19 @@ func shortPath(p string) string {
 }
 
 // ── Modo lista de apps (sin query) ────────────────────────────────────────
-func spotlightListApps() []spotlightItem {
-	apps := scanApps()
-	rec := loadFrecency()
+func spotlightListApps(s *spotlightState) []spotlightItem {
+	apps := s.appList()
+	rec := s.frec
 	items := make([]spotlightItem, 0, len(apps))
 	for _, a := range apps {
 		items = append(items, spotlightItem{
 			Type:     "app",
-			Name:     a.name,
-			Detail:   a.exec,
-			Exec:     a.exec,
+			Name:     a.Name,
+			Detail:   a.Exec,
+			Exec:     a.Exec,
 			Icon:     "󰣆",
-			IconPath: findIconPath(a.icon),
-			score:    rec[a.exec],
+			IconPath: findIconPath(a.Icon),
+			score:    rec[a.Exec],
 		})
 	}
 	// Orden: recencia desc, luego name.lower() (estable).
@@ -189,6 +192,7 @@ type fileCand struct {
 // bfsDir es un directorio pendiente de procesar en la BFS.
 type bfsDir struct {
 	dir   string
+	rel   string // relativo a homeDir, precomputado al encolar
 	depth int
 }
 
@@ -208,7 +212,7 @@ type fileWalker struct {
 func newFileWalker(q string) *fileWalker {
 	w := &fileWalker{
 		q:        q,
-		queue:    []bfsDir{{dir: homeDir, depth: 0}},
+		queue:    []bfsDir{{dir: homeDir, rel: "", depth: 0}},
 		deadline: time.Now().Add(2 * time.Second),
 	}
 	w.cond = sync.NewCond(&w.mu)
@@ -228,6 +232,8 @@ func (w *fileWalker) addDirect(c fileCand) {
 // pop saca el próximo dir a procesar, bloqueando mientras la cola esté vacía.
 // El pop y el incremento de inflight ocurren bajo EL MISMO lock: el goroutine
 // de terminación nunca observa "cola vacía + inflight 0" en el medio.
+// Pop desde el final (LIFO, O(1)) — el orden DFS es aceptable para búsqueda
+// con deadline de 2s; evita el shift O(n) del pop frontal.
 func (w *fileWalker) pop() (bfsDir, bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -237,8 +243,9 @@ func (w *fileWalker) pop() (bfsDir, bool) {
 	if w.stop.Load() || len(w.queue) == 0 {
 		return bfsDir{}, false
 	}
-	it := w.queue[0]
-	w.queue = w.queue[1:]
+	n := len(w.queue) - 1
+	it := w.queue[n]
+	w.queue = w.queue[:n]
 	w.inflight.Add(1)
 	if len(w.queue) == 0 {
 		w.cond.Broadcast()
@@ -268,29 +275,30 @@ func (w *fileWalker) scanDir(it bfsDir) {
 			return
 		}
 		name := e.Name()
-		rel, _ := filepath.Rel(homeDir, it.dir)
-		if rel == "." {
-			rel = ""
-		}
-		if isExcluded(rel, name) {
+		if isExcluded(it.rel, name) {
 			continue
 		}
 		full := filepath.Join(it.dir, name)
 		if e.IsDir() {
-			w.enqueueDir(full, it.depth)
+			w.enqueueDir(it, name)
 			continue
 		}
 		w.rankFile(full, name)
 	}
 }
 
-func (w *fileWalker) enqueueDir(full string, depth int) {
-	if depth+1 < 6 {
-		w.mu.Lock()
-		w.queue = append(w.queue, bfsDir{dir: full, depth: depth + 1})
-		w.cond.Signal()
-		w.mu.Unlock()
+func (w *fileWalker) enqueueDir(it bfsDir, name string) {
+	if it.depth+1 >= 6 {
+		return
 	}
+	childRel := name
+	if it.rel != "" {
+		childRel = it.rel + "/" + name
+	}
+	w.mu.Lock()
+	w.queue = append(w.queue, bfsDir{dir: filepath.Join(it.dir, name), rel: childRel, depth: it.depth + 1})
+	w.cond.Signal()
+	w.mu.Unlock()
 }
 
 // rankFile clasifica un archivo como match directo o subsecuencia.
@@ -385,12 +393,12 @@ func fileCandidates(query string) []spotlightItem {
 }
 
 // ── Modo query ────────────────────────────────────────────────────────────
-func spotlightSearch(query string) []spotlightItem {
+func spotlightSearch(query string, s *spotlightState) []spotlightItem {
 	queryLow := strings.ToLower(strings.TrimSpace(query))
 	results := []spotlightItem{}
 
 	appendCalcResult(query, &results)
-	appendAppMatches(queryLow, &results)
+	appendAppMatches(queryLow, &results, s)
 	appendFileMatches(query, queryLow, &results)
 	appendWindowMatches(query, queryLow, &results)
 	appendShellCommand(query, &results)
@@ -417,32 +425,32 @@ func appendCalcResult(query string, results *[]spotlightItem) {
 }
 
 // appendAppMatches agrega apps (top 10 por score, boost de recencia).
-func appendAppMatches(queryLow string, results *[]spotlightItem) {
+func appendAppMatches(queryLow string, results *[]spotlightItem, s *spotlightState) {
 	if queryLow == "" {
 		return
 	}
-	apps := scanApps()
-	rec := loadFrecency()
+	apps := s.appList()
+	rec := s.frec
 	seen := map[string]bool{}
 	scored := []spotlightItem{}
 	for _, a := range apps {
-		if seen[a.name] {
+		if seen[a.Name] {
 			continue
 		}
-		seen[a.name] = true
-		extra := strings.TrimSpace(a.generic + " " + a.keywords)
-		s := fuzzyScore(queryLow, a.name, extra)
+		seen[a.Name] = true
+		extra := strings.TrimSpace(a.Generic + " " + a.Keywords)
+		s := fuzzyScore(queryLow, a.Name, extra)
 		if s == 0 {
 			continue
 		}
 		scored = append(scored, spotlightItem{
 			Type:     "app",
-			Name:     a.name,
-			Detail:   a.exec,
-			Exec:     a.exec,
+			Name:     a.Name,
+			Detail:   a.Exec,
+			Exec:     a.Exec,
 			Icon:     "󰣆",
-			IconPath: findIconPath(a.icon),
-			score:    s + rec[a.exec]*5,
+			IconPath: findIconPath(a.Icon),
+			score:    s + rec[a.Exec]*5,
 		})
 	}
 	sort.SliceStable(scored, func(i, j int) bool {
@@ -504,8 +512,11 @@ func runSpotlight(args []string) int {
 	loadIconCache()
 	defer saveIconCache()
 
+	if len(args) > 0 && args[0] == "--daemon" {
+		return runSpotlightDaemon()
+	}
 	if len(args) > 0 && args[0] == "--list-apps" {
-		items := spotlightListApps()
+		items := spotlightListApps(newSpotlightState())
 		out, _ := json.Marshal(items)
 		fmt.Println(string(out))
 		return 0
@@ -518,7 +529,7 @@ func runSpotlight(args []string) int {
 	if len(args) > 0 {
 		query = args[0]
 	}
-	items := spotlightSearch(query)
+	items := spotlightSearch(query, newSpotlightState())
 	out, _ := json.Marshal(items)
 	fmt.Println(string(out))
 	return 0

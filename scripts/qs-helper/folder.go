@@ -16,9 +16,10 @@ type folderEntry struct {
 }
 
 type folderResponse struct {
-	Path    string       `json:"path"`
-	Parent  string       `json:"parent"`
+	Path    string        `json:"path"`
+	Parent  string        `json:"parent"`
 	Entries []folderEntry `json:"entries"`
+	Error   string        `json:"error,omitempty"`
 }
 
 // runFolder implementa el subcomando folder (port de folder-list.py).
@@ -45,8 +46,11 @@ func runFolder(rawPath string) int {
 	}
 
 	entries := []folderEntry{}
+	var readErr string
 	items, err := os.ReadDir(resolved)
-	if err == nil {
+	if err != nil {
+		readErr = err.Error()
+	} else {
 		// sorted: dirs first, luego name.lower() — igual que Python
 		sort.Slice(items, func(i, j int) bool {
 			di, dj := items[i].IsDir(), items[j].IsDir()
@@ -69,7 +73,7 @@ func runFolder(rawPath string) int {
 		}
 	}
 
-	resp := folderResponse{Path: resolved, Parent: parent, Entries: entries}
+	resp := folderResponse{Path: resolved, Parent: parent, Entries: entries, Error: readErr}
 	out, _ := json.Marshal(resp)
 	fmt.Println(string(out))
 	return 0

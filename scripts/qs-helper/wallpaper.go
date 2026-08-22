@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -36,9 +38,8 @@ type wallpaperItem struct {
 }
 
 func makeWallpaperThumb(path string) string {
-	safe := strings.ReplaceAll(path, "/", "_")
-	safe = strings.ReplaceAll(safe, " ", "_")
-	thumb := filepath.Join(thumbDir, safe+".jpg")
+	h := sha1.Sum([]byte(path))
+	thumb := filepath.Join(thumbDir, hex.EncodeToString(h[:])+".jpg")
 	if _, err := os.Stat(thumb); err == nil {
 		return thumb
 	}
@@ -91,21 +92,24 @@ func collectWallpaperFiles(dir string, mpv bool) []string {
 	return images
 }
 
-// buildWallpaperItems construye los items JSON, cortando a 60 y generando el
-// thumb solo para los que entran (mismo comportamiento que el Python).
+// buildWallpaperItems construye los items JSON en paralelo, cortando a 60
+// (mismo comportamiento que el Python, pero con thumbs concurrentes).
 func buildWallpaperItems(images []string) []wallpaperItem {
-	out := []wallpaperItem{}
-	for _, p := range images {
-		if len(out) >= 60 {
-			break
-		}
-		out = append(out, wallpaperItem{
-			Path:  p,
-			Thumb: makeWallpaperThumb(p),
-			Name:  filepath.Base(p),
-			Type:  wallpaperItemType(p),
-		})
+	if len(images) > 60 {
+		images = images[:60]
 	}
+	out := make([]wallpaperItem, len(images))
+	for i, p := range images {
+		out[i] = wallpaperItem{
+			Path: p,
+			Name: filepath.Base(p),
+			Type: wallpaperItemType(p),
+		}
+	}
+
+	parallelRun(len(out), func(i int) {
+		out[i].Thumb = makeWallpaperThumb(out[i].Path)
+	})
 	return out
 }
 
@@ -120,7 +124,7 @@ func wallpaperItemType(p string) string {
 func runWallpaper(folder string) int {
 	expanded := expandTilde(folder)
 	if expanded == "" {
-		expanded = filepath.Join(homeDir, "Imágenes")
+		expanded = filepath.Join(homeDir, "Pictures")
 	}
 	_ = os.MkdirAll(thumbDir, 0o755)
 
