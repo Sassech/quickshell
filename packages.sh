@@ -15,7 +15,7 @@ LOG_FILE="${LOG_FILE:-/tmp/quickshell-install.log}"
 
 # ── Packages where binary name == dnf package name ────────────────────────────
 # swww=wallpaper daemon, matugen=Material You colors, cava=audio visualizer,
-# grim/slurp=screenshot, mako=notifications, brightnessctl=backlight,
+# grim/slurp=screenshot, brightnessctl=backlight,
 # curl=HTTP client, kitty=terminal, jq=JSON parsing in helper scripts
 SIMPLE_PKGS=(
   swww
@@ -25,7 +25,6 @@ SIMPLE_PKGS=(
   grimblast
   grim
   slurp
-  mako
   brightnessctl
   curl
   jq

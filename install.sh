@@ -56,6 +56,26 @@ QS_HELPER_INSTALL_LOG="$LOG_FILE" bash "$SCRIPT_DIR/scripts/qs-helper-install.sh
 chown "$CURRENT_USER:$CURRENT_USER" "$QS_BIN_DIR/qs-helper" 2>/dev/null || true
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 0.6 QML tooling — import path artificial para qmllint (esquema qs:)
+# ─────────────────────────────────────────────────────────────────────────────
+echo ""
+info "▶ Configurando tooling QML (qmllint import path)..."
+QMLINT_TOOLING_DIR="$SCRIPT_DIR/.qmllint"
+
+# Como install.sh corre como root, los directorios quedarían de root y el
+# usuario no podría recrear el symlink. Se crea el árbol con runuser para que
+# quede del usuario real; el script scripts/qmllint.sh lo repara solo en cada
+# uso (self-healing), esto solo cubre el bootstrap inicial.
+runuser -u "$CURRENT_USER" -- bash -c '
+    set -euo pipefail
+    mkdir -p "$1/qs/Modals"
+    ln -sfn ../../../Modals/cc "$1/qs/Modals/cc"
+    echo "ok"
+' _ "$QMLINT_TOOLING_DIR" >> "$LOG_FILE" 2>&1 \
+    && ok "Tooling QML listo (.qmllint -> Modals/cc)." \
+    || warn "No se pudo crear el tooling QML (ver $LOG_FILE)."
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 1. sudoers rules for quickshell scripts
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
@@ -76,6 +96,38 @@ else
     echo "sudoers syntax error in quickshell files."
     exit 1
 fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1.5 Backlight permissions — allow user to write brightness without root
+# ─────────────────────────────────────────────────────────────────────────────
+echo ""
+echo "▶ Configurando permisos de brillo (backlight)..."
+
+# Regla udev — aplica inmediatamente en cada boot para cualquier backlight
+UDEV_RULES_FILE="/etc/udev/rules.d/90-quickshell-backlight.rules"
+cat > "$UDEV_RULES_FILE" <<'EOF'
+# QuickShell — permite escritura directa al backlight sin root
+ACTION=="add", SUBSYSTEM=="backlight", RUN+="/bin/chmod a+w /sys/class/backlight/%k/brightness"
+EOF
+ok "Regla udev creada: $UDEV_RULES_FILE"
+
+# Recargar udev y aplicar al backlight actual (sin reboot)
+udevadm control --reload-rules 2>/dev/null || true
+# Aplicar chmod inmediatamente a todos los backlight ya presentes
+for bl in /sys/class/backlight/*/brightness; do
+    [ -f "$bl" ] && chmod a+w "$bl" 2>/dev/null && ok "Permisos aplicados: $bl"
+done
+
+# Agregar al grupo video (fallback y compatibilidad)
+if id -nG "$CURRENT_USER" | grep -qw video; then
+    ok "Usuario $CURRENT_USER ya está en el grupo video."
+else
+    usermod -aG video "$CURRENT_USER"
+    ok "Usuario $CURRENT_USER agregado al grupo video (requiere re-login para tomar efecto)."
+fi
+
+# Para probar sin re-ejecutar install.sh:
+# info "pkexec chmod a+w /sys/class/backlight/\$(ls /sys/class/backlight/ | head -1)/brightness"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 2. mpDris2 — bridge MPD → MPRIS2
@@ -122,6 +174,12 @@ cat > "$DROPIN_DIR/restart.conf" <<'EOF'
 Restart=always
 RestartSec=2
 EOF
+
+# mkdir -p as root creates every missing parent (~/.config/systemd,
+# ~/.config/systemd/user) owned by root too, which then blocks the user's
+# own `systemctl --user enable/mask/...` for anything with "Access denied".
+# Reclaim the whole tree for the real user right after writing to it.
+chown -R "$CURRENT_USER:$CURRENT_USER" "$USER_HOME/.config/systemd"
 
 user_systemctl daemon-reload || true
 user_systemctl enable mpDris2.service || true

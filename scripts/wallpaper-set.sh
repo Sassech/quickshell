@@ -2,7 +2,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # wallpaper-set.sh — Cambia el fondo de pantalla (por monitor o global) y
 #                    regenera el tema de colores (Material You via matugen)
-#                    para quickshell, hyprlock y mako.
+#                    para quickshell e hyprlock.
 #
 # Uso:
 #   wallpaper-set.sh                       → solo aplica tema desde el fondo actual
@@ -21,7 +21,6 @@ QS_DIR="$HOME/.config/quickshell"
 THEME_FILE="$QS_DIR/Components/Theme.qml"
 PARSE_SCRIPT="$QS_DIR/scripts/parse-matugen.py"
 HYPRLOCK="$HOME/.config/hypr/hyprlock.conf"
-MAKO_CONFIG="$HOME/.config/mako/config"
 CURRENT_FILE="$QS_DIR/config/current-wallpaper"
 MONITORS_FILE="$QS_DIR/config/wallpaper-monitors.json"
 
@@ -149,39 +148,6 @@ regenerate_theme() {
     python3 "$PARSE_SCRIPT" "$ref" "$THEME_FILE" "$HYPRLOCK"
 }
 
-update_mako() {
-    local base accent text
-    base=$(grep   'readonly property color _bg:'    "$THEME_FILE" | awk -F'"' '{print $2}')
-    accent=$(grep 'readonly property color accent:' "$THEME_FILE" | awk -F'"' '{print $2}')
-    text=$(grep   'readonly property color text:'   "$THEME_FILE" | awk -F'"' '{print $2}')
-
-    mkdir -p "$(dirname "$MAKO_CONFIG")"
-    cat > "$MAKO_CONFIG" <<EOF
-background-color=$base
-border-color=$accent
-text-color=$text
-border-radius=8
-border-size=2
-padding=16
-margin=24
-font=JetBrains Mono 12
-max-icon-size=64
-width=400
-height=120
-anchor=top-right
-progress-color=$accent
-
-default-timeout=5000
-
-[urgency=critical]
-border-color=#e53e3e
-progress-color=#e53e3e
-EOF
-
-    pkill mako 2>/dev/null || true
-    nohup mako > /dev/null 2>&1 &
-}
-
 # ── Modo --restore: llamado una vez al arrancar Hyprland ────────────────────
 # Restaura el wallpaper de CADA monitor conectado desde wallpaper-monitors.json.
 # No reinicia quickshell (todavía no arrancó en esta etapa del startup).
@@ -214,7 +180,6 @@ if [[ "${1:-}" == "--restore" ]]; then
 
     if [[ -n "$ref" ]]; then
         regenerate_theme "$ref"
-        update_mako
     fi
     exit 0
 fi
@@ -289,8 +254,5 @@ fi
 regenerate_theme "$WALLPAPER"
 # quickshell 0.3.0 recarga Theme.qml automáticamente (hot-reload),
 # no hace falta reiniciar el shell — evita huérfanos de los readers FIFO.
-
-# ── 4. Actualizar mako con los nuevos colores ─────────────────────────────
-update_mako
 
 echo "Listo — tema aplicado."
