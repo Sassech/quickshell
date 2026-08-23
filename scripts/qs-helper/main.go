@@ -16,68 +16,84 @@ func main() {
 		usage()
 		os.Exit(1)
 	}
-	cmd := os.Args[1]
-	args := os.Args[2:]
+	code := dispatchCommand(os.Args[1], os.Args[2:])
+	os.Exit(code)
+}
 
-	code := 0
+func dispatchCommand(cmd string, args []string) int {
 	switch cmd {
 	case "spotlight":
-		code = runSpotlight(args)
+		return runSpotlight(args)
 	case "clipboard":
-		if len(args) > 0 && args[0] == "--daemon" {
-			code = runClipboardDaemon()
-			break
-		}
-		code = runClipboard()
+		return handleClipboardCmd(args)
 	case "clipboard-copy":
-		id := ""
-		if len(args) > 0 {
-			id = args[0]
-		}
-		code = runClipboardCopy(id)
+		return handleClipboardCopyCmd(args)
 	case "folder":
-		path := ""
-		if len(args) > 0 {
-			path = args[0]
-		}
-		code = runFolder(path)
+		return handleFolderCmd(args)
 	case "wallpaper":
-		folder := ""
-		if len(args) > 0 {
-			folder = args[0]
-		}
-		code = runWallpaper(folder)
+		return handleWallpaperCmd(args)
 	case "wallpaper-multi":
-		if len(args) > 0 && args[0] == "--daemon" {
-			code = runWallpaperMultiDaemon()
-			break
-		}
-		code = runWallpaperMulti(args)
+		return handleWallpaperMultiCmd(args)
 	case "wallpaper-save":
-		if len(args) == 0 {
-			fmt.Fprintln(os.Stderr, "Usage: qs-helper wallpaper-save <folder>")
-			code = 1
-			break
-		}
-		code = runWallpaperSave(args[0])
+		return handleWallpaperSaveCmd(args)
 	case "weather":
-		code = runWeather(args)
+		return runWeather(args)
 	case "weather-search":
-		code = runWeatherSearch(args)
+		return runWeatherSearch(args)
 	case "prefs-weather-set":
-		code = runPrefsWeatherSet(args)
+		return runPrefsWeatherSet(args)
 	case "image-search":
-		code = runImageSearch(args)
+		return runImageSearch(args)
 	case "image-download":
-		code = runImageDownload(args)
+		return runImageDownload(args)
 	case "updates-check":
-		code = runUpdatesCheck()
+		return runUpdatesCheck()
 	default:
 		fmt.Fprintf(os.Stderr, "qs-helper: subcomando desconocido %q\n", cmd)
 		usage()
-		code = 1
+		return 1
 	}
-	os.Exit(code)
+}
+
+func firstArg(args []string) string {
+	if len(args) > 0 {
+		return args[0]
+	}
+	return ""
+}
+
+func handleClipboardCmd(args []string) int {
+	if len(args) > 0 && args[0] == "--daemon" {
+		return runClipboardDaemon()
+	}
+	return runClipboard()
+}
+
+func handleClipboardCopyCmd(args []string) int {
+	return runClipboardCopy(firstArg(args))
+}
+
+func handleFolderCmd(args []string) int {
+	return runFolder(firstArg(args))
+}
+
+func handleWallpaperCmd(args []string) int {
+	return runWallpaper(firstArg(args))
+}
+
+func handleWallpaperMultiCmd(args []string) int {
+	if len(args) > 0 && args[0] == "--daemon" {
+		return runWallpaperMultiDaemon()
+	}
+	return runWallpaperMulti(args)
+}
+
+func handleWallpaperSaveCmd(args []string) int {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "Usage: qs-helper wallpaper-save <folder>")
+		return 1
+	}
+	return runWallpaperSave(args[0])
 }
 
 func usage() {

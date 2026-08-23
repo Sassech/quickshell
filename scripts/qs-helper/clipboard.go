@@ -27,6 +27,8 @@ const (
 	// maxClipPayloadBytes es el tope para analizar y re-copiar clips
 	// binarios completos en memoria (50 MB).
 	maxClipPayloadBytes = 50 * 1024 * 1024
+	mimeHTML            = "text/html"
+	mimeOctetStream     = "application/octet-stream"
 )
 
 func clipboardLog(msg string) {
@@ -48,6 +50,13 @@ type clipEntry struct {
 	Preview  string `json:"preview"`
 	IsBinary bool   `json:"isBinary"`
 	Thumb    string `json:"thumb"`
+}
+
+type thumbTask struct {
+	idx     int
+	id      string
+	preview string
+	path    string
 }
 
 // generateThumbnail replica generate_thumbnail del Python.
@@ -147,16 +156,16 @@ func clipboardEntries() []clipEntry {
 		clipboardLog("[list] cliphist error: " + err.Error())
 		return []clipEntry{}
 	}
-
-	entries := []clipEntry{}
-	type thumbTask struct {
-		idx     int
-		id      string
-		preview string
-		path    string
+	entries, thumbTasks := parseClipEntries(result)
+	if len(thumbTasks) > 0 {
+		attachThumbnails(entries, thumbTasks)
 	}
-	thumbTasks := []thumbTask{}
+	return entries
+}
 
+func parseClipEntries(result []byte) ([]clipEntry, []thumbTask) {
+	entries := []clipEntry{}
+	thumbTasks := []thumbTask{}
 	scanner := bufio.NewScanner(bytes.NewReader(result))
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -173,39 +182,45 @@ func clipboardEntries() []clipEntry {
 			IsBinary: isBinary,
 			Thumb:    "",
 		})
-		if isBinary && strings.Contains(strings.ToLower(preview), "png") {
-			thumbTasks = append(thumbTasks, thumbTask{len(entries) - 1, entryID, preview, ""})
-		} else if p := fileRefPath(preview); p != "" {
-			thumbTasks = append(thumbTasks, thumbTask{len(entries) - 1, entryID, preview, p})
-		}
+		collectThumbTask(&thumbTasks, len(entries)-1, entryID, preview, isBinary)
 	}
+	return entries, thumbTasks
+}
 
-	// Thumbnails en paralelo, 4 workers.
-	// Usamos un slice separado para evitar escrituras concurrentes sobre entries.
-	if len(thumbTasks) > 0 {
-		thumbs := make([]string, len(thumbTasks))
-		var wg sync.WaitGroup
-		sem := make(chan struct{}, 4)
-		for i, t := range thumbTasks {
-			wg.Add(1)
-			sem <- struct{}{}
-			go func(i int, t thumbTask) {
-				defer wg.Done()
-				defer func() { <-sem }()
-				if t.path != "" {
-					thumbs[i] = generateFileThumbnail(t.id, t.path)
-				} else {
-					thumbs[i] = generateThumbnail(t.id, t.preview)
-				}
-			}(i, t)
-		}
-		wg.Wait()
-		for i, t := range thumbTasks {
-			entries[t.idx].Thumb = thumbs[i]
-		}
+func collectThumbTask(tasks *[]thumbTask, idx int, entryID, preview string, isBinary bool) {
+	if isBinary && strings.Contains(strings.ToLower(preview), "png") {
+		*tasks = append(*tasks, thumbTask{idx: idx, id: entryID, preview: preview})
+		return
 	}
+	if p := fileRefPath(preview); p != "" {
+		*tasks = append(*tasks, thumbTask{idx: idx, id: entryID, preview: preview, path: p})
+	}
+}
 
-	return entries
+func attachThumbnails(entries []clipEntry, thumbTasks []thumbTask) {
+	thumbs := make([]string, len(thumbTasks))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 4)
+	for i, t := range thumbTasks {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(i int, t thumbTask) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			thumbs[i] = thumbnailForTask(t)
+		}(i, t)
+	}
+	wg.Wait()
+	for i, t := range thumbTasks {
+		entries[t.idx].Thumb = thumbs[i]
+	}
+}
+
+func thumbnailForTask(t thumbTask) string {
+	if t.path != "" {
+		return generateFileThumbnail(t.id, t.path)
+	}
+	return generateThumbnail(t.id, t.preview)
 }
 
 // clipboardList sin magick: solo lista.
@@ -268,9 +283,9 @@ func binaryMIME(preview string) string {
 	case "pdf":
 		return "application/pdf"
 	case "html":
-		return "text/html"
+		return mimeHTML
 	default:
-		return "application/octet-stream"
+		return mimeOctetStream
 	}
 }
 
@@ -373,7 +388,6 @@ func runClipboardCopy(id string) int {
 		clipboardLog(copyErrPrefix + "ID vacío")
 		return 1
 	}
-
 	ctx, cancel := contextTimeout(5 * time.Second)
 	defer cancel()
 	list, err := exec.CommandContext(ctx, "cliphist", "list").Output()
@@ -381,13 +395,28 @@ func runClipboardCopy(id string) int {
 		clipboardLog(copyErrPrefix + "cliphist list falló: " + err.Error())
 		return 2
 	}
-
 	entry, preview := findClipEntry(id, list)
 	if entry == "" {
 		clipboardLog(copyErrPrefix + "ID '" + id + "' no encontrado en cliphist")
 		return 3
 	}
+	decoded, err := decodeClipEntry(entry)
+	if err != nil {
+		return 4
+	}
+	if handled, code := handleOversizedClip(id, decoded); handled {
+		return code
+	}
+	if handled, code := handleBinaryClip(id, preview, decoded); handled {
+		return code
+	}
+	if handled, code := handleFileRefClip(id, decoded); handled {
+		return code
+	}
+	return handleDetectedMIME(id, decoded)
+}
 
+func decodeClipEntry(entry string) ([]byte, error) {
 	dctx, dcancel := contextTimeout(10 * time.Second)
 	defer dcancel()
 	decCmd := exec.CommandContext(dctx, "cliphist", "decode")
@@ -395,69 +424,91 @@ func runClipboardCopy(id string) int {
 	decoded, err := decCmd.Output()
 	if err != nil {
 		clipboardLog(copyErrPrefix + "cliphist decode falló: " + err.Error())
-		return 4
 	}
+	return decoded, err
+}
 
-	// Límite de tamaño: por encima se copia como octet-stream sin analizar,
-	// evitando picos de RAM con clips gigantes (cliphist store suele cortar
-	// en 5MB, pero max-store-size puede ser mayor).
-	if len(decoded) > maxClipPayloadBytes {
-		if !lanzarWlCopy("application/octet-stream", decoded) {
-			return 4
-		}
-		clipboardLog(copyOKPrefix + id + " (application/octet-stream - oversize)")
-		return 0
+func handleOversizedClip(id string, decoded []byte) (bool, int) {
+	if len(decoded) <= maxClipPayloadBytes {
+		return false, 0
 	}
-
-	if strings.HasPrefix(preview, clipBinaryPrefix) {
-		mime := binaryMIME(preview)
-		if !lanzarWlCopy(mime, decoded) {
-			return 4
-		}
-		clipboardLog(copyOKPrefix + id + " (" + mime + ")")
-		return 0
+	if !lanzarWlCopy(mimeOctetStream, decoded) {
+		return true, 4
 	}
+	clipboardLog(copyOKPrefix + id + " (" + mimeOctetStream + " - oversize)")
+	return true, 0
+}
 
-	// Rama no-binaria: archivo → MIME real → imagen → Office → texto.
-	if mime, payload, ok := clipboardFileRef(decoded); ok {
-		if !lanzarWlCopy(mime, payload) {
-			return 4
-		}
-		clipboardLog(copyOKPrefix + id + " (" + mime + " - file ref)")
-		return 0
+func handleBinaryClip(id, preview string, decoded []byte) (bool, int) {
+	if !strings.HasPrefix(preview, clipBinaryPrefix) {
+		return false, 0
 	}
+	mime := binaryMIME(preview)
+	if !lanzarWlCopy(mime, decoded) {
+		return true, 4
+	}
+	clipboardLog(copyOKPrefix + id + " (" + mime + ")")
+	return true, 0
+}
 
+func handleFileRefClip(id string, decoded []byte) (bool, int) {
+	mime, payload, ok := clipboardFileRef(decoded)
+	if !ok {
+		return false, 0
+	}
+	if !lanzarWlCopy(mime, payload) {
+		return true, 4
+	}
+	clipboardLog(copyOKPrefix + id + " (" + mime + " - file ref)")
+	return true, 0
+}
+
+func handleDetectedMIME(id string, decoded []byte) int {
 	mimeType := http.DetectContentType(decoded)
-	if mimeType == "application/zip" {
-		if office := officeMIME(decoded); office != "" {
-			mimeType = office
-		}
+	mimeType = resolveOfficeMIME(mimeType, decoded)
+	if handled, code := handleNonTextMime(id, decoded, mimeType); handled {
+		return code
 	}
-	if !strings.HasPrefix(mimeType, "text/") && mimeType != "application/octet-stream" {
-		if !lanzarWlCopy(mimeType, decoded) {
-			return 4
-		}
-		clipboardLog(copyOKPrefix + id + " (" + mimeType + " - auto-detected)")
-		return 0
+	if handled, code := handleHTMLMime(id, decoded, mimeType); handled {
+		return code
 	}
-
-	// text/html re-copia con su tipo (decisión del roadmap): así las páginas
-	// copiadas como HTML conservan el formato al pegarlas en editores ricos.
-	// DetectContentType devuelve "text/html; charset=utf-8", por eso se
-	// compara con prefijo y se copia como "text/html" a secas.
-	if strings.HasPrefix(mimeType, "text/html") {
-		if !lanzarWlCopy("text/html", decoded) {
-			return 4
-		}
-		clipboardLog(copyOKPrefix + id + " (text/html)")
-		return 0
-	}
-
 	if !lanzarWlCopy("", decoded) {
 		return 4
 	}
 	clipboardLog(copyOKPrefix + id + " (text)")
 	return 0
+}
+
+func resolveOfficeMIME(mimeType string, decoded []byte) string {
+	if mimeType != "application/zip" {
+		return mimeType
+	}
+	if office := officeMIME(decoded); office != "" {
+		return office
+	}
+	return mimeType
+}
+
+func handleNonTextMime(id string, decoded []byte, mimeType string) (bool, int) {
+	if strings.HasPrefix(mimeType, "text/") || mimeType == mimeOctetStream {
+		return false, 0
+	}
+	if !lanzarWlCopy(mimeType, decoded) {
+		return true, 4
+	}
+	clipboardLog(copyOKPrefix + id + " (" + mimeType + " - auto-detected)")
+	return true, 0
+}
+
+func handleHTMLMime(id string, decoded []byte, mimeType string) (bool, int) {
+	if !strings.HasPrefix(mimeType, mimeHTML) {
+		return false, 0
+	}
+	if !lanzarWlCopy(mimeHTML, decoded) {
+		return true, 4
+	}
+	clipboardLog(copyOKPrefix + id + " (" + mimeHTML + ")")
+	return true, 0
 }
 
 // ── Daemon clipboard (JSON-lines, cache en memoria) ─────────────────────
