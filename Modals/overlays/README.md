@@ -136,8 +136,8 @@ function hideOverlay() { root.hide() }
 
 ```qml
 // En shell.qml, desde cualquier componente: overlayInst.showOverlay()
-// o el patrón FIFO + broadcast* existente si se quiere disparar desde un
-// script/keybind (ver el mecanismo usado por clipboard/overview con FifoChannel).
+// o IPC nativo si se quiere disparar desde un script/keybind:
+//   qs ipc call shell <fn> [arg]   (ver el IpcHandler "shell" en shell.qml).
 ```
 
 ## Gestión de overlays (OverlaysManager + OverlaysControl)

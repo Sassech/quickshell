@@ -4,6 +4,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Networking
 import Quickshell.Services.Notifications
 import Quickshell.Services.UPower
 import "Components"
@@ -13,18 +14,7 @@ import "Modals/overlays"
 ShellRoot {
     id: root
 
-    // ── Shared paths (resolved via Paths singleton) ──────────────────────
-    property string _scriptsPath: Paths.scripts
-    property string _configPath:  Paths.config
-
-    // ════════════════════════════════════════════════════════════════════════
-    // ── System Data Discovery — one-time startup chain (Phase 1 foundation) ──
-    // Resolves hwmon/device paths that vary across boots and caches them on
-    // SysData. Runs once at startup; each stage fires the next via onExited.
-    // Gates SysData.pollersReady, consumed by the native QML pollers (Phase 2)
-    // and ControlCenter (Phase 3). The Python backend has been fully removed —
-    // these native pollers are now the sole source of system data.
-    // ════════════════════════════════════════════════════════════════════════
+    // ── System Data Discovery — one-time startup chain ──
 
     // Stage 1 — hwmon names → SysData._hwmonSmm/_hwmonAwcc/_hwmonCpu/_hwmonNvme
     Process {
@@ -104,7 +94,23 @@ ShellRoot {
         // qmllint enable signal-handler-parameters
     }
 
+    // Watchdog: si el discovery chain falla silenciosamente (GPU no presente,
+    // permisos, etc.) y pollersReady nunca llega a true, los pollers quedan
+    // congelados para siempre. Este timer garantiza que se activan a los 8s.
+    Timer {
+        interval: 8000
+        running: !SysData.pollersReady
+        repeat: false
+        onTriggered: {
+            if (!SysData.pollersReady) {
+                console.warn("[shell] Discovery watchdog: forcing pollersReady=true")
+                SysData.pollersReady = true
+            }
+        }
+    }
+
     // Default network interface — pure FileView read, no subprocess needed.
+    // Reloads when the network device list changes so _netIface stays current.
     FileView {
         id: netRouteFile
         path: "/proc/net/route"
@@ -118,6 +124,11 @@ ShellRoot {
                 }
             }
         }
+    }
+
+    Connections {
+        target: Networking.devices
+        function onValuesChanged() { netRouteFile.reload() }
     }
 
     // ── Notification policy config ─────────────────────────────────────────
@@ -296,7 +307,7 @@ ShellRoot {
     function loadNotificationConfig() {
         notifConfigProc.command = [
             "bash", "-c",
-            "cat \"" + root._configPath + "/notifications.json\" 2>/dev/null || echo '{\"categoryModes\":{},\"showMediaPopups\":false,\"mediaApps\":[],\"mediaPhrases\":[],\"messageApps\":[],\"networkApps\":[],\"networkPhrases\":[],\"popup\":{},\"battery\":{}}'"
+            "cat \"" + Paths.config + "/notifications.json\" 2>/dev/null || echo '{\"categoryModes\":{},\"showMediaPopups\":false,\"mediaApps\":[],\"mediaPhrases\":[],\"messageApps\":[],\"networkApps\":[],\"networkPhrases\":[],\"popup\":{},\"battery\":{}}'"
         ]
         notifConfigProc.running = true
     }
@@ -316,7 +327,7 @@ ShellRoot {
 
                     if (cfg.showMediaPopups === true
                             && (!cfg.categoryModes || cfg.categoryModes.media === undefined)) {
-                        root._categoryModes.media = "popup"
+                        root._categoryModes = Object.assign({}, root._categoryModes, { media: "popup" })
                     }
 
                     const mediaApps = root._normalizeStringArray(cfg.mediaApps)
@@ -334,7 +345,6 @@ ShellRoot {
                     const networkPhrases = root._normalizeStringArray(cfg.networkPhrases)
                     if (networkPhrases.length > 0) root._networkPhrases = networkPhrases
 
-                    // Popup config
                     if (cfg.popup) {
                         const p = cfg.popup
                         if (typeof p.dismissMs   === "number") root._notifDismissMs   = p.dismissMs
@@ -346,7 +356,6 @@ ShellRoot {
                         if (typeof p.position    === "string") root._notifPosition    = p.position
                     }
 
-                    // Battery config
                     if (cfg.battery) {
                         const b = cfg.battery
                         if (typeof b.criticalThreshold === "number") root._batCritical    = b.criticalThreshold
@@ -365,7 +374,7 @@ ShellRoot {
     }
 
     // ── Signals ───────────────────────────────────────────────
-    signal broadcastNotify(string title, string body, string icon, bool active, bool isMedia)
+    signal broadcastNotify(string title, string body, string icon, bool active, bool isMedia, var actions)
     signal broadcastCloseAll(var screen)
     signal broadcastWeather(var screen)
     signal broadcastClipboard(var screen)
@@ -387,9 +396,7 @@ ShellRoot {
     signal broadcastClipboardCount(int n)
 
     // ── Modal helpers ────────────────────────────────────────────────────
-    // Centraliza el patrón anti-bug de toggle: guard por screen +
-    // broadcastCloseAll + abrir/cerrar. Cada modal solo declara la señal
-    // broadcast que le corresponde (una línea por conexión).
+    // Patrón anti-bug de toggle: guard por screen + broadcastCloseAll + abrir/cerrar.
     function closeModalOnScreen(inst, screen) {
         if (inst.modelData !== screen) return
         inst.visible = false
@@ -490,16 +497,21 @@ ShellRoot {
         }
     }
 
-    // ── CLIPBOARD FIFO (SUPER+V) ──────────────────────────────────────────
-    FifoChannel {
-        path: "/tmp/qs-clipboard"
-        onLine: monName => root.fifoScreenReader(monName, root.broadcastClipboard)
-    }
-
-    // ── WALLPAPER PICKER FIFO (SUPER+Y) ───────────────────────────────────
-    FifoChannel {
-        path: "/tmp/qs-wallpaper"
-        onLine: monName => root.fifoScreenReader(monName, root.broadcastWallpaperPicker)
+    // ── IPC NATIVO (SUPER+V / SUPER+Y / SUPER+TAB / SUPER+A / SUPER+O / SUPER+SHIFT+S) ──
+    // hyprland llama `qs ipc call shell <fn> [mon]` — sin FIFOs.
+    IpcHandler {
+        target: "shell"
+        // cada función debe tipar sus argumentos explícitamente o no se registra
+        function clipboard(mon: string): void { root.fifoScreenReader(mon, root.broadcastClipboard) }
+        function wallpaper(mon: string): void { root.fifoScreenReader(mon, root.broadcastWallpaperPicker) }
+        function overview(): void { root.broadcastOverview(root._getFocusedScreen()) }
+        function spotlight(mon: string): void { root.fifoScreenReader(mon, root.broadcastSpotlight) }
+        function overlays(mon: string): void { root.fifoScreenReader(mon, root.broadcastOverlaysControl) }
+        function screenshot(mon: string): void { root.fifoScreenReader(mon, root.broadcastScreenshot) }
+        // volume/brightness: ejecuta wpctl/brightnessctl vía Process (reemplaza los
+        // scripts FIFO persistentes; el OSD lee el estado reactivamente).
+        function volume(cmd: string): void { root._volumeCmd(cmd) }
+        function brightness(cmd: string): void { root._brightnessCmd(cmd) }
     }
 
     Variants {
@@ -540,17 +552,7 @@ ShellRoot {
         }
     }
 
-    // ── OVERVIEW FIFO ─────────────────────────────────────────────────────
-    FifoChannel {
-        path: "/tmp/qs-overview"
-        onLine: monName => root.fifoScreenReader(monName, root.broadcastOverview)
-    }
-
-    // ── SPOTLIGHT FIFO ────────────────────────────────────────────────────
-    FifoChannel {
-        path: "/tmp/qs-spotlight"
-        onLine: monName => root.fifoScreenReader(monName, root.broadcastSpotlight)
-    }
+    // ── SCREENSHOT MODAL ──────────────────────────────────────────────────
 
     Variants {
         model: Quickshell.screens
@@ -585,6 +587,7 @@ ShellRoot {
         id: notifServer
         keepOnReload: true
         imageSupported: true
+        actionsSupported: true   // sin esto los clientes ni mandan las actions
 
         onNotification: notification => {
             notification.tracked = true   // MUST be first — prevents discard
@@ -603,10 +606,13 @@ ShellRoot {
                 notifUrgent:  urgent
             })
 
-            // Popup solo si aplica por política
             const mode = urgent ? "popup" : root.getCategoryMode(category, "popup")
             if (mode !== "popup") return
-            root.broadcastNotify(notification.summary, notification.body, icon, urgent, category === "media")
+            // notification.actions es QList<NotificationAction*> — tipo válido en runtime;
+            // el linter no resuelve genéricos QList<T*> expuestos así (no QQmlListProperty).
+            // qmllint disable unresolved-type
+            root.broadcastNotify(notification.summary, notification.body, icon, urgent, category === "media", notification.actions)
+            // qmllint enable unresolved-type
         }
     }
 
@@ -626,8 +632,8 @@ ShellRoot {
             corner:       root._notifPosition
             Connections {
                 target: root
-                function onBroadcastNotify(title, body, icon, active, isMedia) {
-                    notifPopup.show(title, body, icon, active, isMedia)
+                function onBroadcastNotify(title, body, icon, active, isMedia, actions) {
+                    notifPopup.show(title, body, icon, active, isMedia, actions)
                 }
             }
         }
@@ -675,9 +681,7 @@ ShellRoot {
     }
 
     // ── WATERMARK OVERLAY ─────────────────────────────────────────────────
-    // Visibilidad y capa gobernadas por su OverlayEntry en OverlaysManager:
-    // arranca oculto y se muestra en onCompleted si está habilitado; los toggles
-    // en vivo del manager lo muestran/ocultan.
+    // Visibilidad gobernada por su OverlayEntry en OverlaysManager.
     Variants {
         model: Quickshell.screens
         Watermark {
@@ -698,10 +702,15 @@ ShellRoot {
         }
     }
 
-    // ── OVERLAYS CONTROL FIFO (SUPER+O) ──────────────────────────────────
-    FifoChannel {
-        path: "/tmp/qs-overlays"
-        onLine: monName => root.fifoScreenReader(monName, root.broadcastOverlaysControl)
+    // ── MUSIC PLAYER OVERLAY (MPRIS) ─────────────────────────────────────
+    // Visibilidad gobernada por su OverlayEntry en OverlaysManager.
+    Variants {
+        model: Quickshell.screens
+        MusicPlayerOverlay {
+            id: musicPlayerInst
+            property var modelData
+            screen: modelData
+        }
     }
 
     // ── OVERLAYS CONTROL MODAL ───────────────────────────────────────────
@@ -722,11 +731,6 @@ ShellRoot {
     }
 
     // ── SCREENSHOT MODAL ──────────────────────────────────────────────────
-    FifoChannel {
-        command: ["bash", root._scriptsPath + "/screenshot-fifo.sh"]
-        onLine: monName => root.fifoScreenReader(monName, root.broadcastScreenshot)
-    }
-
     Variants {
         model: Quickshell.screens
         ScreenshotModal {
@@ -742,16 +746,37 @@ ShellRoot {
     }
 
     // ── VOLUME OSD ────────────────────────────────────────────────────────
-    FifoChannel {
-        command: ["bash", root._scriptsPath + "/qs-volume-fifo.sh"]
-        onLine: line => {
-            var parts = line.trim().split(":")
-            var pct   = parseInt(parts[0]) || 0
-            var muted = (parts[1] === "1")
+    // Comando vía IPC (qs ipc call shell volume "increment 5" / "decrement 5" / "mute").
+    // El OSD lee el estado reactivamente de Pipewire; aquí solo se ejecuta wpctl
+    // y se dispara broadcastVolume() al terminar.
+    function _volumeCmd(cmd) {
+        const parts = (cmd ?? "").trim().split(/\s+/)
+        const op = parts[0]
+        const n  = parts[1] ?? "5"
+        let args = []
+        if (op === "mute") {
+            args = ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]
+        } else if (op === "increment") {
+            args = ["wpctl", "set-volume", "--limit", "1.5", "@DEFAULT_AUDIO_SINK@", n + "%+"]
+        } else if (op === "decrement") {
+            args = ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", n + "%-"]
+        } else {
+            return
+        }
+        volumeCmdProc.command = args
+        volumeCmdProc.running = true
+    }
+
+    Process {
+        id: volumeCmdProc
+        running: false
+        // qmllint disable signal-handler-parameters
+        onExited: {
             if (root.shouldEmitInternal("volume", "osd", "osd")) {
                 root.broadcastVolume()
             }
         }
+        // qmllint enable signal-handler-parameters
     }
 
     Variants {
@@ -770,11 +795,30 @@ ShellRoot {
     }
 
     // ── BRIGHTNESS OSD ────────────────────────────────────────────────────
-    FifoChannel {
-        command: ["bash", root._scriptsPath + "/qs-brightness-fifo.sh"]
-        onLine: pct => {
-            if (root.shouldEmitInternal("brightness", "osd", "osd")) {
-                root.broadcastBrightness(parseInt(pct.trim()))
+    // Comando vía IPC (qs ipc call shell brightness "increment 5" / "decrement 5").
+    // Ejecuta brightnessctl y devuelve el pct resultante al OSD (BrightnessOsd
+    // no es reactivo, necesita el valor exacto).
+    function _brightnessCmd(cmd) {
+        const parts = (cmd ?? "").trim().split(/\s+/)
+        const op = parts[0]
+        const n  = parts[1] ?? "5"
+        if (op !== "increment" && op !== "decrement") return
+        const sign = op === "increment" ? "+" : "-"
+        brightnessCmdProc.command = ["bash", "-c",
+            "brightnessctl set '" + n + "%" + sign + "' >/dev/null 2>&1; " +
+            "echo $(( $(brightnessctl get) * 100 / $(brightnessctl max) ))"]
+        brightnessCmdProc.running = true
+    }
+
+    Process {
+        id: brightnessCmdProc
+        running: false
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: line => {
+                if (root.shouldEmitInternal("brightness", "osd", "osd")) {
+                    root.broadcastBrightness(parseInt(line.trim()))
+                }
             }
         }
     }
@@ -824,19 +868,19 @@ ShellRoot {
             root.broadcastNotify(
                 "󰂄 Cargando",
                 "Cargador conectado — " + pct + "%",
-                "battery-good", false, false
+                "battery-good", false, false, []
             )
         } else if (s === UPowerDeviceState.Discharging || s === UPowerDeviceState.PendingDischarge) {
             root.broadcastNotify(
                 "󰂃 Desconectado",
                 "Cargador desconectado — " + pct + "%",
-                "battery", false, false
+                "battery", false, false, []
             )
         } else if (s === UPowerDeviceState.FullyCharged) {
             root.broadcastNotify(
                 "󰁹 Carga completa",
                 "Batería al " + pct + "%",
-                "battery-full", false, false
+                "battery-full", false, false, []
             )
         }
     }
@@ -865,14 +909,12 @@ ShellRoot {
             const pct = Math.round(dev.percentage * 100)
 
             // Notify once per threshold crossing, reset when charging
-            // Each threshold fires only once until the battery recharges past it
-            // Critical threshold
             if (pct <= root._batCritical && root._upBatLastLow < root._batCritical) {
                 root._upBatLastLow = root._batCritical
                 root.broadcastNotify(
                     "󰂃 Batería crítica",
                     "Solo queda " + pct + "% — conectá el cargador",
-                    "battery-caution", true, false
+                    "battery-caution", true, false, []
                 )
             } else {
                 // Warn thresholds (sorted descending, e.g. [40, 30])
@@ -885,13 +927,12 @@ ShellRoot {
                         root.broadcastNotify(
                             "󰁽 Batería baja",
                             "Queda " + pct + "% de batería",
-                            icon, false, false
+                            icon, false, false, []
                         )
                         break
                     }
                 }
             }
-            // Reset threshold tracker when battery recovers above reset threshold
             if (pct > root._batReset && root._upBatLastLow > 0) {
                 root._upBatLastLow = 0
             }

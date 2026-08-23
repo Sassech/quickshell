@@ -32,17 +32,45 @@ QmModalBase {
         }
     }
 
-    // Pre-carga al inicio para que la primera apertura sea instantánea
-    Component.onCompleted: loadEntries()
+    // ── Daemon JSON-lines (clipboard --daemon) ────────────────────────────
+    // Responde {"id","items"} con el MISMO id del request; _activeReqId
+    // descarta respuestas stale. El daemon cachea el listado de cliphist y
+    // reutiliza los thumbnails en disco, evitando re-ejecutar cliphist en
+    // cada apertura del modal.
+    property int    _reqSeq: 0
+    property string _activeReqId: ""
+    property bool   _daemonReady: false
+    property bool   _destroying: false
 
-    property string _listBuf: ""
+    function _nextReqId() {
+        root._reqSeq++
+        return "req-" + root._reqSeq
+    }
+
+    function _handleDaemonLine(data) {
+        var line = (data || "").trim()
+        if (line === "") return
+        var msg = null
+        try { msg = JSON.parse(line) } catch (e) { return }
+        if (msg === null || msg.id !== root._activeReqId) return
+        listWatchdog.stop()
+        root.isLoading = false
+        root.allEntries = msg.error ? [] : (Array.isArray(msg.items) ? msg.items : [])
+        root.entryCount = root.allEntries.length
+        root.countChanged(root.entryCount)
+        root.updateDisplay()
+    }
 
     function loadEntries() {
         if (isLoading) return
         isLoading = true
-        _listBuf = ""
+        root._activeReqId = root._nextReqId()
         listWatchdog.restart()
-        listProc.running = true
+        if (!listProc.running || !root._daemonReady) {
+            listProc.running = true
+            return
+        }
+        listProc.write(JSON.stringify({ id: root._activeReqId, cmd: "refresh" }) + "\n")
     }
 
     function updateDisplay() {
@@ -61,33 +89,25 @@ QmModalBase {
         onTriggered: root.updateDisplay()
     }
 
-    // ── Carga la lista ──────────────────────────────────────────────────
+    // ── Daemon persistente (clipboard --daemon) ─────────────────────────
     Process {
         id: listProc
-        command: [Paths.scripts + "/qs-helper/qs-helper", "clipboard"]
+        running: true
+        command: [Paths.scripts + "/qs-helper/qs-helper", "clipboard", "--daemon"]
         stdout: SplitParser {
-            splitMarker: ""
-            onRead: data => root._listBuf += data
+            splitMarker: "\n"
+            onRead: data => root._handleDaemonLine(data)
+        }
+        onStarted: {
+            root._daemonReady = true
+            if (root.isLoading) root.loadEntries()
         }
         // qmllint disable signal-handler-parameters
-        onExited: function(exitCode) {
-            listWatchdog.stop()
-
-            try {
-                var parsed = JSON.parse(root._listBuf)
-                if (Array.isArray(parsed)) {
-                    root.allEntries = parsed
-                } else {
-                    root.allEntries = []
-                }
-            } catch(e) {
-                root.allEntries = []
-            }
-
+        onExited: function() {
+            root._daemonReady = false
             root.isLoading = false
-            root.entryCount = root.allEntries.length
-            root.countChanged(root.entryCount)
-            root.updateDisplay()
+            listWatchdog.stop()
+            if (!root._destroying) listProc.running = true
         }
         // qmllint enable signal-handler-parameters
     }
@@ -129,14 +149,14 @@ QmModalBase {
         onTriggered: root.close()
     }
 
-    // Watchdog: si qs-helper clipboard cuelga sin onExited, lo mata y desbloquea
+    // Watchdog: si el daemon cuelga sin responder, lo reinicia y desbloquea
     Timer {
         id: listWatchdog
         interval: 15000
         onTriggered: {
             listProc.running = false
             root.isLoading = false
-            root._listBuf = ""
+            root._activeReqId = ""
             root.updateDisplay()
         }
     }
@@ -160,6 +180,13 @@ QmModalBase {
             root.loadEntries()
         }
         // qmllint enable signal-handler-parameters
+    }
+
+    Component.onDestruction: {
+        root._destroying = true
+        listProc.running = false
+        listWatchdog.stop()
+        copyWatchdog.stop()
     }
 
     ListModel { id: displayModel }

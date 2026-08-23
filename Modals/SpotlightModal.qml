@@ -24,10 +24,18 @@ PanelWindow {
     anchors.right: true
 
     // ── Estado ────────────────────────────────────────────────
-    property string _searchBuf: ""
     property bool   _searching: false
     property int    selectedIndex: 0
     property string activeTab: "all"
+
+    // Daemon JSON-lines (spotlight --daemon): las respuestas llegan con el id
+    // del request que las originó; _activeReqId descarta respuestas stale.
+    // _pendingQuery retiene la búsqueda si el daemon aún no está listo.
+    property int    _reqSeq: 0
+    property string _activeReqId: ""
+    property var    _pendingQuery: null
+    property bool   _daemonReady: false
+    property bool   _destroying: false
 
     // Dimensiones de la grilla
     readonly property int _cellSize:   88   // ancho de cada celda
@@ -89,29 +97,64 @@ PanelWindow {
     onActiveTabChanged: rebuildFiltered()
 
     // ── Búsqueda ──────────────────────────────────────────────
+    // Daemon persistente (spotlight --daemon): mantiene scanApps + icon cache
+    // calientes en memoria para eliminar el overhead por invocación de
+    // ~100-200ms. Protocolo JSON-lines por request id: stdin manda {"id",
+    // "query"} y stdout responde {"id","items"} con el MISMO id.
     Process {
-        id: searchProc
-        property string query: ""
-        command: searchProc.query === "--list-apps"
-            ? [Paths.scripts + "/qs-helper/qs-helper",
-               "spotlight",
-               "--list-apps"]
-            : [Paths.scripts + "/qs-helper/qs-helper",
-               "spotlight",
-               searchProc.query]
+        id: daemon
+        running: true
+        command: [Paths.scripts + "/qs-helper/qs-helper",
+                  "spotlight",
+                  "--daemon"]
         stdout: SplitParser {
             splitMarker: "\n"
-            onRead: data => root._searchBuf += data + "\n"
+            onRead: data => root._handleDaemonLine(data)
+        }
+        onStarted: {
+            root._daemonReady = true
+            if (root._pendingQuery !== null) {
+                var q = root._pendingQuery
+                root._pendingQuery = null
+                root._dispatchSearch(q)
+            }
         }
         // qmllint disable signal-handler-parameters
-        onExited: function(exitCode) {
+        onExited: function() {
+            root._daemonReady = false
             root._searching = false
-            var items = []
-            try { items = JSON.parse(root._searchBuf) } catch(e) {}
-            root._results = items
-            root.rebuildFiltered()
+            // Auto-restart solo si el modal sigue vivo (evita huérfanos al
+            // destruirse el componente).
+            if (!root._destroying && root.visible) daemon.running = true
         }
         // qmllint enable signal-handler-parameters
+    }
+
+    function _nextReqId() {
+        root._reqSeq++
+        return "req-" + root._reqSeq
+    }
+
+    function _handleDaemonLine(data) {
+        var line = (data || "").trim()
+        if (line === "") return
+        var msg = null
+        try { msg = JSON.parse(line) } catch (e) { return }
+        if (msg === null || msg.id !== root._activeReqId) return
+        root._searching = false
+        if (msg.error) {
+            root._results = []
+            root.rebuildFiltered()
+            return
+        }
+        root._results = Array.isArray(msg.items) ? msg.items : []
+        root.rebuildFiltered()
+    }
+
+    function _dispatchSearch(q) {
+        root._activeReqId = root._nextReqId()
+        root._searching = true
+        daemon.write(JSON.stringify({ id: root._activeReqId, query: q }) + "\n")
     }
 
     // Debounce 150ms
@@ -122,20 +165,16 @@ PanelWindow {
     }
 
     function runSearch(q) {
-        if (searchProc.running) {
-            searchProc.running = false
+        if (!daemon.running || !root._daemonReady) {
+            root._pendingQuery = q
+            if (!daemon.running) daemon.running = true
+            return
         }
-        _searchBuf = ""
-        _searching = true
-        searchProc.query = q
-        searchProc.running = true
+        root._dispatchSearch(q)
     }
 
     function loadDefaultApps() {
-        _searchBuf = ""
-        _searching = true
-        searchProc.query = "--list-apps"
-        searchProc.running = true
+        root.runSearch("")
     }
 
     function openSpotlight() {
@@ -151,7 +190,6 @@ PanelWindow {
 
     function closeSpotlight(keepLauncherAlive) {
         visible = false
-        searchProc.running = false
         debounce.stop()
         if (keepLauncherAlive !== true) {
             launcher.running = false
@@ -159,7 +197,8 @@ PanelWindow {
     }
 
     Component.onDestruction: {
-        searchProc.running = false
+        root._destroying = true
+        daemon.running = false
         debounce.stop()
     }
 
@@ -167,6 +206,16 @@ PanelWindow {
         if (filteredModel.count === 0) return
         const idx = Math.min(selectedIndex, filteredModel.count - 1)
         const item = filteredModel.get(idx)
+
+        // Registrar frecencia del lanzamiento (solo apps): el daemon la
+        // consume por mtime en el próximo request (refreshFrecency).
+        // startDetached: el --record es un spawn rápido y no debe morir
+        // con una recarga de Quickshell entre el lanzamiento y la escritura.
+        if (item.type === "app" && item.exec) {
+            recordProc.command = [Paths.scripts + "/qs-helper/qs-helper",
+                                  "spotlight", "--record", item.exec]
+            recordProc.startDetached()
+        }
 
         if (item.execArgs && item.execArgs.length > 0) {
             // startDetached: el proceso no muere si Quickshell recarga o se cierra
@@ -178,7 +227,6 @@ PanelWindow {
 
         if (!item || !item.exec) return
 
-        // exec legacy: lanzar desatado del proceso principal
         launcher.command = ["bash", "-c", item.exec]
         launcher.startDetached()
         closeSpotlight(true)
@@ -186,6 +234,11 @@ PanelWindow {
 
     Process {
         id: launcher
+        running: false
+    }
+
+    Process {
+        id: recordProc
         running: false
     }
 
@@ -316,7 +369,6 @@ PanelWindow {
                                 root.selectedIndex = 0
                                 if (text.trim() === "") {
                                     debounce.stop()
-                                    searchProc.running = false
                                     root.loadDefaultApps()
                                 } else {
                                     debounce.restart()

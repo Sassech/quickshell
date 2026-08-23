@@ -1,4 +1,5 @@
 // qmllint disable uncreatable-type
+pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell.Widgets
 import "../Components"
@@ -21,7 +22,8 @@ OverlayWindow {
     // ── Mapeo al template ────────────────────────────────────────────────
     corner:         root.position
     overlayWidth:   root.popupWidth
-    overlayHeight:  100
+    // +32px cuando hay botones de acción (fila extra abajo).
+    overlayHeight:  root.notifActions.length > 0 ? 132 : 100
     autoHideMs:     root.dismissMs
     borderColor:    root.notifIsMedia ? Theme.accent
                   : root.notifActive  ? Theme.warning
@@ -35,14 +37,25 @@ OverlayWindow {
     property string notifIcon:    "☕"
     property bool   notifActive:  false
     property bool   notifIsMedia: false
+    property var    notifActions: []   // NotificationAction[] (id, text, invoke())
 
-    function show(title, body, icon, active, isMedia) {
+    function show(title, body, icon, active, isMedia, actions) {
         notifTitle   = title
         notifBody    = body
         notifIcon    = icon
         notifActive  = active
         notifIsMedia = isMedia ?? false
+        notifActions = actions ?? []
+        // Crítica/urgente → no se autocierra, el usuario la cierra a mano.
+        root.autoHideSuppressed = active
         root._animateIn()
+    }
+
+    // Acción "default" del spec freedesktop: click en el cuerpo la invoca en
+    // vez de mostrarse como botón aparte.
+    function _invokeDefaultAction() {
+        const def = root.notifActions.find(a => a.identifier === "default")
+        if (def) def.invoke()
     }
 
     // ── Franja de acento izquierda (4px, condicional) ───────────────────
@@ -76,7 +89,10 @@ OverlayWindow {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: root.hide()
+        onClicked: {
+            root._invokeDefaultAction()
+            root.hide()
+        }
 
         Rectangle {
             anchors.fill: parent
@@ -87,11 +103,16 @@ OverlayWindow {
     }
 
     // ── Contenido principal (ícono + texto) ─────────────────────────────
+    // Con botones de acción el contenido se ancla arriba para dejar libre el
+    // fondo (evita que el texto y los botones se superpongan); sin acciones
+    // queda centrado verticalmente como antes.
     Row {
         anchors {
             left: parent.left
             leftMargin: 16
-            verticalCenter: parent.verticalCenter
+            verticalCenter: root.notifActions.length > 0 ? undefined : parent.verticalCenter
+            top: root.notifActions.length > 0 ? parent.top : undefined
+            topMargin: 16
         }
         spacing: 14
 
@@ -149,6 +170,53 @@ OverlayWindow {
                 font.pixelSize: 18
                 width: parent._textWidth
                 wrapMode: Text.WordWrap
+            }
+        }
+    }
+
+    // ── Botones de acción (NotificationAction[], excluye "default") ────
+    Row {
+        visible: notifActionsRepeater.count > 0
+        anchors {
+            bottom: parent.bottom
+            right:  parent.right
+            bottomMargin: 10
+            rightMargin: 14
+        }
+        spacing: 8
+
+        Repeater {
+            id: notifActionsRepeater
+            model: root.notifActions.filter(a => a.identifier !== "default")
+
+            Rectangle {
+                id: actionBtn
+                required property var modelData
+                radius: 6
+                color: actionMouse.containsMouse ? Theme.hover : Theme.cardBg3
+                border.color: Theme.muted3
+                border.width: 1
+                implicitWidth:  actionLabel.implicitWidth + 20
+                implicitHeight: 26
+
+                Text {
+                    id: actionLabel
+                    anchors.centerIn: parent
+                    text: actionBtn.modelData.text
+                    color: Theme.text
+                    font.pixelSize: 13
+                }
+
+                MouseArea {
+                    id: actionMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        actionBtn.modelData.invoke()
+                        root.hide()
+                    }
+                }
             }
         }
     }
