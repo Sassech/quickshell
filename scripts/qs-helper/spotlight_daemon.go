@@ -77,16 +77,12 @@ func (s *spotlightState) refreshFrecency() {
 	s.frecMod = fi.ModTime().Unix()
 }
 
-// runSpotlightDaemon atiende requests JSON-lines desde stdin hasta que se
-// cierra. stdout lleva SOLO líneas de respuesta; todo diagnóstico va a stderr.
 func runSpotlightDaemon() int {
 	loadIconCache()
 
 	st := newSpotlightState()
 	lines := make(chan string, 1)
 
-	// El goroutine lector solo alimenta líneas; el loop principal es dueño de
-	// todo el estado.
 	go func() {
 		defer close(lines)
 		scanner := bufio.NewScanner(os.Stdin)
