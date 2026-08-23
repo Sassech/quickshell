@@ -304,73 +304,69 @@ ShellRoot {
         root._categoryModes = next
     }
 
-    function loadNotificationConfig() {
-        notifConfigProc.command = [
-            "bash", "-c",
-            "cat \"" + Paths.config + "/notifications.json\" 2>/dev/null || echo '{\"categoryModes\":{},\"showMediaPopups\":false,\"mediaApps\":[],\"mediaPhrases\":[],\"messageApps\":[],\"networkApps\":[],\"networkPhrases\":[],\"popup\":{},\"battery\":{}}'"
-        ]
-        notifConfigProc.running = true
-    }
+    // ── notifications.json via FileView (reactive, no bash cat) ──────────────
+    FileView {
+        id: notifConfigFile
+        path: Paths.config + "/notifications.json"
+        onLoaded: {
+            const raw = text().trim()
+            if (raw.length === 0) return
+            try {
+                const cfg = JSON.parse(raw)
+                root._mergeCategoryModes(cfg.categoryModes)
 
-    Process {
-        id: notifConfigProc
-        running: false
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => {
-                const payload = data.trim()
-                if (payload.length === 0) return
-
-                try {
-                    const cfg = JSON.parse(payload)
-                    root._mergeCategoryModes(cfg.categoryModes)
-
-                    if (cfg.showMediaPopups === true
-                            && (!cfg.categoryModes || cfg.categoryModes.media === undefined)) {
-                        root._categoryModes = Object.assign({}, root._categoryModes, { media: "popup" })
-                    }
-
-                    const mediaApps = root._normalizeStringArray(cfg.mediaApps)
-                    if (mediaApps.length > 0) root._mediaApps = mediaApps
-
-                    const mediaPhrases = root._normalizeStringArray(cfg.mediaPhrases)
-                    if (mediaPhrases.length > 0) root._mediaPhrases = mediaPhrases
-
-                    const messageApps = root._normalizeStringArray(cfg.messageApps)
-                    if (messageApps.length > 0) root._messageApps = messageApps
-
-                    const networkApps = root._normalizeStringArray(cfg.networkApps)
-                    if (networkApps.length > 0) root._networkApps = networkApps
-
-                    const networkPhrases = root._normalizeStringArray(cfg.networkPhrases)
-                    if (networkPhrases.length > 0) root._networkPhrases = networkPhrases
-
-                    if (cfg.popup) {
-                        const p = cfg.popup
-                        if (typeof p.dismissMs   === "number") root._notifDismissMs   = p.dismissMs
-                        if (typeof p.animInMs    === "number") root._notifAnimInMs    = p.animInMs
-                        if (typeof p.animOutMs   === "number") root._notifAnimOutMs   = p.animOutMs
-                        if (typeof p.marginTop   === "number") root._notifMarginTop   = p.marginTop
-                        if (typeof p.marginRight === "number") root._notifMarginRight = p.marginRight
-                        if (typeof p.width       === "number") root._notifWidth       = p.width
-                        if (typeof p.position    === "string") root._notifPosition    = p.position
-                    }
-
-                    if (cfg.battery) {
-                        const b = cfg.battery
-                        if (typeof b.criticalThreshold === "number") root._batCritical    = b.criticalThreshold
-                        if (Array.isArray(b.warnThresholds))          root._batWarnThresholds = b.warnThresholds
-                        if (typeof b.resetThreshold    === "number") root._batReset       = b.resetThreshold
-                        if (typeof b.debounceMs        === "number") {
-                            root._batDebounceMs  = b.debounceMs
-                            _batStateDebounce.interval = b.debounceMs
-                        }
-                    }
-                } catch (e) {
-                    console.log("[Notifications] Config inválida, usando defaults")
+                if (cfg.showMediaPopups === true
+                        && (!cfg.categoryModes || cfg.categoryModes.media === undefined)) {
+                    root._categoryModes = Object.assign({}, root._categoryModes, { media: "popup" })
                 }
+
+                const mediaApps = root._normalizeStringArray(cfg.mediaApps)
+                if (mediaApps.length > 0) root._mediaApps = mediaApps
+
+                const mediaPhrases = root._normalizeStringArray(cfg.mediaPhrases)
+                if (mediaPhrases.length > 0) root._mediaPhrases = mediaPhrases
+
+                const messageApps = root._normalizeStringArray(cfg.messageApps)
+                if (messageApps.length > 0) root._messageApps = messageApps
+
+                const networkApps = root._normalizeStringArray(cfg.networkApps)
+                if (networkApps.length > 0) root._networkApps = networkApps
+
+                const networkPhrases = root._normalizeStringArray(cfg.networkPhrases)
+                if (networkPhrases.length > 0) root._networkPhrases = networkPhrases
+
+                if (cfg.popup) {
+                    const p = cfg.popup
+                    if (typeof p.dismissMs   === "number") root._notifDismissMs   = p.dismissMs
+                    if (typeof p.animInMs    === "number") root._notifAnimInMs    = p.animInMs
+                    if (typeof p.animOutMs   === "number") root._notifAnimOutMs   = p.animOutMs
+                    if (typeof p.marginTop   === "number") root._notifMarginTop   = p.marginTop
+                    if (typeof p.marginRight === "number") root._notifMarginRight = p.marginRight
+                    if (typeof p.width       === "number") root._notifWidth       = p.width
+                    if (typeof p.position    === "string") root._notifPosition    = p.position
+                }
+
+                if (cfg.battery) {
+                    const b = cfg.battery
+                    if (typeof b.criticalThreshold === "number") root._batCritical    = b.criticalThreshold
+                    if (Array.isArray(b.warnThresholds))          root._batWarnThresholds = b.warnThresholds
+                    if (typeof b.resetThreshold    === "number") root._batReset       = b.resetThreshold
+                    if (typeof b.debounceMs        === "number") {
+                        root._batDebounceMs  = b.debounceMs
+                        _batStateDebounce.interval = b.debounceMs
+                    }
+                }
+            } catch (e) {
+                console.log("[Notifications] Config inválida, usando defaults")
             }
         }
+        onLoadFailed: {
+            console.log("[Notifications] notifications.json no encontrado, usando defaults")
+        }
+    }
+
+    function loadNotificationConfig() {
+        notifConfigFile.reload()
     }
 
     // ── Signals ───────────────────────────────────────────────
@@ -940,7 +936,6 @@ ShellRoot {
     }
 
     Component.onCompleted: {
-        loadNotificationConfig()
         console.log("Quickshell loaded")
         console.log("✅ SysData | Workspaces | Power Menu | Weather | Notifications | UPower")
     }
