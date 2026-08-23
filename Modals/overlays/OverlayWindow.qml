@@ -59,8 +59,32 @@ PanelWindow {
         ? root._ownEntry.onTop
         : root.onTop
 
+    // ── Fix capa: el binding WlrLayershell.layer por sí solo no re-mapea la
+    // surface en zwlr_layer_shell (el compositor fija la capa al mapear).
+    // Se fuerza hide→show cuando _effectiveOnTop cambia estando visible.
+    // Además se defiere el show inicial hasta OverlaysManager._loaded para
+    // evitar el fogonazo Overlay→Bottom en el primer frame.
+    function _restackForLayer() {
+        if (!root.visible) return
+        hideOutAnim.stop()
+        showInAnim.stop()
+        root.visible = false
+        Qt.callLater(function() {
+            // Re-mostrar solo si sigue debiendo estar visible (respeta enabled y _managed)
+            if (root._managed) {
+                if (root._ownEntry && root._ownEntry.enabled) root._animateIn()
+            } else {
+                // Overlay no manejado: respeta su estado visible previo (antes del restack estaba visible)
+                root._animateIn()
+            }
+        })
+    }
+
     Component.onCompleted: {
-        if (root._managed && root._ownEntry && root._ownEntry.enabled) root.show()
+        if (!root._managed) return
+        // Defer hasta que OverlaysManager haya volcado el JSON persistido
+        if (!OverlaysManager._loaded) return
+        if (root._ownEntry && root._ownEntry.enabled) root.show()
     }
 
     Connections {
@@ -70,6 +94,25 @@ PanelWindow {
             else root.hide()
         }
     }
+
+    Connections {
+        target: OverlaysManager
+        function on_LoadedChanged() {
+            if (!OverlaysManager._loaded) return
+            if (!root._managed || !root._ownEntry) return
+            if (root._ownEntry.enabled) {
+                if (!root.visible) root.show()
+                else root._restackForLayer()
+            } else {
+                if (root.visible) root.hide()
+            }
+        }
+    }
+
+    // Unico punto de reaplicado de capa: _effectiveOnTop ya observa
+    // _ownEntry.onTop (manejados) y root.onTop (no manejados). Evita
+    // duplicar onOnTopChanged que dispararia doble restack.
+    on_EffectiveOnTopChanged: root._restackForLayer()
     // qmllint enable missing-property
 
     // ── Computed layout ───────────────────────────────────────────────────
