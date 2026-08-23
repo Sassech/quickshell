@@ -20,11 +20,11 @@ Item {
 
         Repeater {
             model: [
-                { icon: "⏻",  label: "Shut down",  cmd: ["systemctl", "poweroff"],        color: "#ff7b72", critical: true  },
-                { icon: "󰜉",  label: "Reboot",     cmd: ["systemctl", "reboot"],          color: "#e3b341", critical: true  },
-                { icon: "󰌾",  label: "Lock",       cmd: ["hyprlock"],                     color: "#79c0ff", critical: false },
-                { icon: "󰍃",  label: "Log out",    cmd: ["hyprctl", "dispatch", "exit"],  color: "#d2a8ff", critical: false },
-                { icon: "󰒲",  label: "Sleep",      cmd: ["systemctl", "suspend"],         color: "#7ee787", critical: false }
+                { icon: "⏻",  label: "Shut down",  cmd: ["systemctl", "poweroff"],        color: Theme.error,   critical: true  },
+                { icon: "󰜉",  label: "Reboot",     cmd: ["systemctl", "reboot"],          color: Theme.warning, critical: true  },
+                { icon: "󰌾",  label: "Lock",       cmd: ["hyprlock"],                     color: Theme.blue,    critical: false },
+                { icon: "󰍃",  label: "Log out",    cmd: ["hyprctl", "dispatch", "exit"],  color: Theme.purple,  critical: false },
+                { icon: "󰒲",  label: "Sleep",      cmd: ["systemctl", "suspend"],         color: Theme.success, critical: false }
             ]
 
             Rectangle {

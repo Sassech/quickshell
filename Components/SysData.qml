@@ -1,18 +1,18 @@
 pragma Singleton
 import QtQuick
 import Quickshell.Io
+import Quickshell.Networking
 import Quickshell.Services.UPower
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SysData — Centralized system data provider
-// CPU/RAM/GPU/Disk/Net/Fan populated by Python backend via shell.qml.
-// Battery populated reactively from UPower (no polling).
+// SysData — Centralized system data provider.
+// CPU/RAM/GPU/Disk/Net/Fan via native QML pollers; Battery reactivo via UPower.
 // ─────────────────────────────────────────────────────────────────────────────
 QtObject {
     id: data
 
-    // ── UPower battery (reactive, replaces backend polling) ────────────────
-    property var _upDev: UPower.displayDevice
+    // ── UPower battery (reactive) ─────────────────────────────────────────
+    readonly property var _upDev: UPower.displayDevice
 
     // ── CPU ────────────────────────────────────────────────────────────────
     property int cpuPercent: 0
@@ -46,11 +46,37 @@ QtObject {
     property bool diskAvailable: false
 
     // ── Network ────────────────────────────────────────────────────────────
-    property bool netRadioOn: true
-    property bool netConnected: false
-    property string netConnectionType: "none"
-    property string netSsid: ""
-    property int netSignal: 0
+    // Radio / connection state — reactive via Quickshell.Networking
+    readonly property var _wifiDev: {
+        var devs = Networking.devices.values
+        for (var i = 0; i < devs.length; i++)
+            if (devs[i].type === DeviceType.Wifi) return devs[i]
+        return null
+    }
+    readonly property var _wifiConnectedNet: {
+        if (!_wifiDev) return null
+        var nets = _wifiDev.networks.values
+        for (var i = 0; i < nets.length; i++)
+            if (nets[i].connected) return nets[i]
+        return null
+    }
+    readonly property var _ethDev: {
+        var devs = Networking.devices.values
+        for (var i = 0; i < devs.length; i++)
+            if (devs[i].type === DeviceType.Wired) return devs[i]
+        return null
+    }
+
+    readonly property bool   netRadioOn:        Networking.wifiEnabled
+    readonly property bool   netConnected:       (_ethDev && _ethDev.connected) || (_wifiDev && _wifiDev.connected) || false
+    readonly property string netConnectionType:  {
+        if (_ethDev && _ethDev.connected) return "ethernet"
+        if (_wifiDev && _wifiDev.connected) return "wifi"
+        return "none"
+    }
+    readonly property string netSsid:   _wifiConnectedNet ? _wifiConnectedNet.name : ""
+    readonly property int    netSignal: _wifiConnectedNet ? Math.round(_wifiConnectedNet.signalStrength * 100) : 0
+    // Speed — still from /proc/net/dev (Networking API has no byte counters)
     property real netDownSpeed: 0.0
     property real netUpSpeed: 0.0
 
@@ -81,72 +107,6 @@ QtObject {
         return "Unknown"
     }
 
-    // ── Dispatch — called from shell.qml backend parser ───────────────────
-    function dispatch(msg) {
-        if (!msg) return
-        switch (msg.t) {
-        case "cpu":
-            data.cpuPercent = msg.u
-            data.cpuTemp = msg.tmp
-            data.cpuAvailable = true
-            break
-        case "ram":
-            data.ramPercent  = msg.p
-            data.ramUsedGb   = msg.ug
-            data.ramTotalGb  = msg.tg
-            data.ramAvailGb  = msg.ag
-            data.swapPercent = msg.sp
-            data.ramCacheGb  = msg.cg  || 0.0
-            data.ramAppsGb   = msg.xg  || 0.0
-            data.swapTotalGb = msg.stg || 0.0
-            data.swapFreeGb  = msg.sfg || 0.0
-            data.ramAvailable = true
-            break
-        case "gpu":
-            data.gpuPercent = msg.u
-            data.gpuTemp = msg.tmp
-            data.gpuName = msg.n
-            data.gpuAvailable = msg.u >= 0
-            data.gpuVramUsedMb  = msg.vu || 0
-            data.gpuVramTotalMb = msg.vt || 0
-            break
-        case "disk":
-            data.diskUsedGb = msg.ug
-            data.diskAvailGb = msg.ag
-            data.diskPercent = msg.p
-            data.diskAvailable = true
-            break
-        case "net":
-            data.netRadioOn = msg.r
-            data.netConnected = msg.c
-            data.netConnectionType = msg.ct
-            data.netSsid = msg.s
-            data.netSignal = msg.sg
-            data.netDownSpeed = msg.ds
-            data.netUpSpeed = msg.us
-            break
-        case "fan":
-            data.fan1Rpm = msg.r1
-            data.fan2Rpm = msg.r2
-            data.fan1Percent = msg.p1
-            data.fan2Percent = msg.p2
-            data.fanCpuTemp = msg.t1
-            data.fanGpuTemp = msg.t2
-            data.fanProfile = msg.pr
-            data.fanAvailable = msg.a
-            break
-        }
-        // Note: "bat" case removed — battery is now reactive via UPower in SysData directly
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // Phase 1 (backend-migration) — Foundation: discovery cache + detail data
-    // Purely additive. The Python backend above still owns cpuPercent/
-    // ramPercent/etc via dispatch() until Phase 3 cutover. Nothing below is
-    // consumed by any widget yet — pollers land in Phase 2, ControlCenter
-    // rewiring lands in Phase 3.
-    // ═══════════════════════════════════════════════════════════════════════
-
     // ── Discovery cache (set once at startup by shell.qml) ─────────────────
     property string _hwmonSmm:      ""   // dell_smm path
     property string _hwmonAwcc:     ""   // awcc/alienware_wmi path
@@ -155,10 +115,16 @@ QtObject {
     property string _gpuCardPath:   ""   // /sys/class/drm/cardX/ path
     property string _rootDevice:    ""   // e.g. "nvme0n1"
     property string _netIface:      ""   // default network interface
-    property var    _coreTempPaths: []   // list of temp*_input paths for per-core temps
+    property list<string> _coreTempPaths: []   // list of temp*_input paths for per-core temps
+    property var    _cpuFreqPaths:  []   // list of scaling_cur_freq paths (one per core)
     property bool   pollersReady:   false
 
-    // ── Extended CPU detail (previously from cpu-detail.sh local vars) ──────
+    // ── CC visibility gate — set by ControlCenter when it opens/closes ─────
+    // Pollers that are only needed while the ControlCenter is visible (fan,
+    // GPU) gate on this flag so they stop when the panel is hidden.
+    property bool anyCcVisible: false
+
+    // ── Extended CPU detail ─────────────────────────────────────────────────
     property string cpuModel:       ""
     property int    cpuNcores:      0
     property var    cpuCorePcts:    []
@@ -168,7 +134,7 @@ QtObject {
     property string cpuEpp:         ""
     property var    cpuCoreTemps:   []
 
-    // ── Extended disk detail (previously from disk-detail.sh local vars) ───
+    // ── Extended disk detail ────────────────────────────────────────────────
     property string diskNvmeModel:  ""
     property string diskNvmeFw:     ""
     property int    diskNvmeTemp:   0
@@ -178,12 +144,12 @@ QtObject {
     property int    homeAvailGb:    0
     property int    homePercent:    0
 
-    // ── Delta state (used by Phase 2 pollers) ───────────────────────────────
+    // ── Delta state (consumido por los pollers) ─────────────────────────────
     property var    _prevCpuStat:   null
     property var    _prevCoreStat:  []
     property real   _prevRxBytes:   -1
     property real   _prevTxBytes:   -1
-    property var    _diskSectors1:  null
+    property var    _prevDiskSectors: null   // previous diskstats sectors for I/O delta
 
     // ── Discovery parsers (called from shell.qml startup chain) ────────────
     function parseHwmonDiscovery(text) {
@@ -217,6 +183,9 @@ QtObject {
             if (/^Core/.test(label) || /^Tccd/.test(label)) paths.push(path)
         }
         data._coreTempPaths = paths
+        // Reset el array a la misma longitud — los FileView del Instantiator
+        // llenan cada índice en su onLoaded (los 0 muestran "—" en el panel).
+        data.cpuCoreTemps   = new Array(paths.length).fill(0)
     }
 
     function parseCpuInfo(text) {
@@ -225,7 +194,7 @@ QtObject {
         data.cpuNcores = parseInt(lines[1]) || 0
     }
 
-    // ── CPU delta helpers (consumed by Phase 2 pollers) ─────────────────────
+    // ── CPU delta helpers ───────────────────────────────────────────────────
     function parseCpuStatLine(parts) {
         // parts: array of strings from splitting a /proc/stat cpu line
         // returns {total, work}
@@ -267,7 +236,6 @@ QtObject {
     //    matching the established WeatherProvider.qml convention) ───────────
 
     // cpuMaxFreqMhz / cpuGovernor / cpuEpp — static sysfs, cpu0 only.
-    // Reloaded once discovery completes; refreshed again on panel open (Phase 3).
     property FileView _cpuMaxFreqFile: FileView {
         id: cpuMaxFreqFile
         path: "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq"
@@ -286,29 +254,36 @@ QtObject {
         onLoaded: data.cpuEpp = text().trim()
     }
 
-    // Per-core temps — one Process refresh (not one fork per core).
-    property Process _coreTempProc: Process {
-        id: coreTempProc
-        command: {
-            if (!data._coreTempPaths || data._coreTempPaths.length === 0) return []
-            const files = data._coreTempPaths.join(" ")
-            return ["sh", "-c", "for f in " + files + "; do cat \"$f\" 2>/dev/null || echo 0; done"]
-        }
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const lines = text.trim().split('\n')
-                data.cpuCoreTemps = lines.map(l => Math.round((parseInt(l.trim()) || 0) / 1000))
+    // Per-core temps — one FileView per path, no shell process per poll.
+    // Each delegate watches its sysfs file; reloads are ALSO driven by the 4s
+    // _cpuTimer as a safety net because hwmon sysfs files don't reliably emit
+    // inotify events (value is computed on read, not pushed by the kernel).
+    property Instantiator _coreTempInstantiator: Instantiator {
+        id: coreTempInstantiator
+        model: data._coreTempPaths
+        delegate: FileView {
+            required property string modelData
+            required property int index
+            path: modelData
+            watchChanges: true
+            onFileChanged: this.reload()
+            onLoaded: {
+                const v = parseInt(text().trim())
+                if (isNaN(v)) return
+                const arr = (data.cpuCoreTemps || []).slice()
+                arr[index] = Math.round(v / 1000)
+                data.cpuCoreTemps = arr
             }
         }
     }
 
-    property Timer _coreTempTimer: Timer {
-        id: coreTempTimer
-        interval: 4000
-        repeat: true
-        triggeredOnStart: true
-        running: data.pollersReady && data._coreTempPaths.length > 0
-        onTriggered: coreTempProc.running = true
+    // Helper: reload all per-core temp FileViews (called by _cpuTimer).
+    function _reloadCoreTemps() {
+        if (data._coreTempPaths.length === 0) return
+        for (let i = 0; i < coreTempInstantiator.count; ++i) {
+            const fv = coreTempInstantiator.objectAt(i)
+            if (fv) fv.reload()
+        }
     }
 
     // NVMe detail.
@@ -349,56 +324,42 @@ QtObject {
         }
     }
 
-    // Disk I/O two-shot sampler.
-    property FileView _diskStatsFile1: FileView {
-        id: diskStatsFile1
+    // Disk I/O sampler — single FileView + periodic reload, delta vs previous
+    // read. Same pattern as the RAM poller: /proc/diskstats is monotonic, so
+    // the delta over the 2s interval gives MB/s. Quickshell v0.3.0 skips
+    // reload() when file content is unchanged, so a two-shot sampler would
+    // stall on idle disks — this variant keeps the last known values instead.
+    property FileView _diskStatsFile: FileView {
+        id: diskStatsFile
         path: "/proc/diskstats"
         preload: false
         onLoaded: {
             if (!data._rootDevice) return
-            data._diskSectors1 = data.parseDiskstats(text(), data._rootDevice)
-            if (data._diskSectors1) diskIoSampler.start()
-        }
-    }
-
-    property Timer _diskIoSampler: Timer {
-        id: diskIoSampler
-        interval: 400
-        repeat: false
-        onTriggered: diskStatsFile2.reload()
-    }
-
-    property FileView _diskStatsFile2: FileView {
-        id: diskStatsFile2
-        path: "/proc/diskstats"
-        preload: false
-        onLoaded: {
-            if (!data._rootDevice || !data._diskSectors1) return
-            const s2 = data.parseDiskstats(text(), data._rootDevice)
-            if (s2) {
-                const dr = (s2.read  - data._diskSectors1.read)  * 512 / 1048576 / 0.4
-                const dw = (s2.write - data._diskSectors1.write) * 512 / 1048576 / 0.4
+            const s = data.parseDiskstats(text(), data._rootDevice)
+            if (!s) return
+            if (data._prevDiskSectors) {
+                const dr = (s.read  - data._prevDiskSectors.read)  * 512 / 1048576 / 2
+                const dw = (s.write - data._prevDiskSectors.write) * 512 / 1048576 / 2
                 data.diskReadMbs  = Math.max(0, parseFloat(dr.toFixed(1)))
                 data.diskWriteMbs = Math.max(0, parseFloat(dw.toFixed(1)))
             }
-            data._diskSectors1 = null
+            data._prevDiskSectors = s
         }
     }
 
-    // Public trigger — called from ControlCenter on disk panel open (Phase 3)
-    function triggerDiskIoSample() {
-        if (data._rootDevice && !diskIoSampler.running) {
-            diskStatsFile1.reload()
-        }
+    // Continuous I/O sampling while CC is visible — single FileView + reload.
+    property Timer _diskIoTimer: Timer {
+        id: diskIoTimer
+        interval: 2000
+        repeat: true
+        triggeredOnStart: true
+        running: data.pollersReady && data.anyCcVisible
+        onTriggered: diskStatsFile.reload()
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // Phase 2 (backend-migration) — Pollers
-    // Native QML pollers computing the SAME properties the Python backend
-    // still writes via dispatch(). Both run concurrently and race on the
-    // same properties until Phase 3 removes the Python backend — that's
-    // intentional and temporary (Phase 3 is the atomic cutover).
-    // All Timers below are gated on pollersReady (Phase 1 discovery chain).
+    // Pollers nativos QML — los Timers de abajo gatean en pollersReady
+    // (chain de descubrimiento de shell.qml).
     // ═══════════════════════════════════════════════════════════════════════
 
     // ── 2.1 RAM poller (FileView /proc/meminfo, 4s) ─────────────────────────
@@ -445,6 +406,10 @@ QtObject {
     property FileView _memInfoFile: FileView {
         id: memInfoFile
         path: "/proc/meminfo"
+        // Carga inicial inmediata — no esperar al timer ni a pollersReady.
+        // /proc/meminfo siempre existe; una lectura temprana no hace daño
+        // y garantiza que el widget de RAM muestra datos desde el arranque.
+        Component.onCompleted: this.reload()
         onLoaded: data.parseMeminfo(text())
     }
 
@@ -488,27 +453,70 @@ QtObject {
         onLoaded: data.parseCpuStat(text())
     }
 
-    // CPU package temperature — hwmon coretemp/k10temp temp1_input ÷ 1000
-    // (REQ-02 "MUST update cpuTemp"). Flagged as a Phase 2 gap, closed here
-    // before Phase 3 removes the Python backend that was the sole source.
+    // CPU package temperature — hwmon coretemp/k10temp temp1_input ÷ 1000.
     property FileView _cpuTempFile: FileView {
         id: cpuTempFile
         path: data._hwmonCpu ? (data._hwmonCpu + "temp1_input") : ""
         onLoaded: data.cpuTemp = Math.round((parseInt(text().trim()) || 0) / 1000)
     }
 
-    // Average scaling_cur_freq across all cores (REQ-02 "MUST average") via a
-    // single Process — same one-fork-not-per-core pattern as coreTempProc.
-    property Process _cpuFreqProc: Process {
-        id: cpuFreqProc
-        command: ["sh", "-c", "for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq; do cat \"$f\" 2>/dev/null; done"]
+    // Average scaling_cur_freq across all cores (REQ-02 "MUST average").
+    // Strategy: one-shot Process at startup discovers all cpu*/cpufreq/scaling_cur_freq
+    // paths and stores them in _cpuFreqPaths; then an Instantiator creates one
+    // FileView per path (no shell process per poll tick).
+    property Process _cpuFreqDiscoveryProc: Process {
+        id: cpuFreqDiscoveryProc
+        command: ["sh", "-c",
+            "for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq; do [ -f \"$f\" ] && echo \"$f\"; done"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const vals = text.trim().split('\n').map(l => parseInt(l.trim()) || 0).filter(v => v > 0)
-                if (vals.length === 0) return
-                const sum = vals.reduce((a, b) => a + b, 0)
-                data.cpuAvgFreqMhz = Math.round((sum / vals.length) / 1000)
+                const lines = text.trim().split('\n').filter(l => l.length > 0)
+                data._cpuFreqPaths = lines
             }
+        }
+    }
+
+    // Trigger discovery once pollersReady fires.
+    property Connections _cpuFreqDiscoveryTrigger: Connections {
+        target: data
+        function onPollersReadyChanged() {
+            if (data.pollersReady && !cpuFreqDiscoveryProc.running)
+                cpuFreqDiscoveryProc.running = true
+        }
+    }
+
+    // Accumulator — reset each poll cycle before the Instantiator reloads all FileViews.
+    property var _cpuFreqRawValues: []
+
+    // One FileView per core path. Each reload() reads the sysfs file with no fork.
+    property Instantiator _cpuFreqInstantiator: Instantiator {
+        id: cpuFreqInstantiator
+        model: data._cpuFreqPaths
+        delegate: FileView {
+            required property string modelData
+            path: modelData
+            onLoaded: {
+                const khz = parseInt(text().trim()) || 0
+                const acc = data._cpuFreqRawValues
+                if (!Array.isArray(acc)) return   // guard: skip if array not yet ready
+                if (khz > 0) acc.push(khz)
+                // Last file loaded → compute average
+                if (acc.length === data._cpuFreqPaths.length) {
+                    const sum = acc.reduce((a, b) => a + b, 0)
+                    data.cpuAvgFreqMhz = Math.round((sum / acc.length) / 1000)
+                    acc.splice(0)   // vaciar sin reasignar — evita undefined en delegates concurrentes
+                }
+            }
+        }
+    }
+
+    // Helper: trigger a full freq refresh (reloads all per-core FileViews).
+    function _reloadCpuFreqs() {
+        if (data._cpuFreqPaths.length === 0) return
+        data._cpuFreqRawValues.splice(0)   // vaciar sin reasignar
+        for (let i = 0; i < cpuFreqInstantiator.count; ++i) {
+            const fv = cpuFreqInstantiator.objectAt(i)
+            if (fv) fv.reload()
         }
     }
 
@@ -521,18 +529,18 @@ QtObject {
         onTriggered: {
             cpuStatFile.reload()
             cpuTempFile.reload()
-            if (!cpuFreqProc.running) cpuFreqProc.running = true
+            data._reloadCpuFreqs()
+            data._reloadCoreTemps()
         }
     }
 
-    // Public trigger — called from ControlCenter's CPU panel (Phase 3) to force
-    // an immediate refresh of every CPU detail property instead of waiting for
-    // the next 4s/5s timer tick. Replaces the old 1500ms cpuDetailProc poll.
+    // Public trigger — refresco inmediato de todos los detalles de CPU
+    // (usado por el panel CPU del ControlCenter).
     function refreshCpuDetail() {
         cpuStatFile.reload()
         cpuTempFile.reload()
-        if (!cpuFreqProc.running) cpuFreqProc.running = true
-        if (data._coreTempPaths.length > 0 && !coreTempProc.running) coreTempProc.running = true
+        data._reloadCpuFreqs()
+        data._reloadCoreTemps()
         cpuGovFile.reload()
         cpuEppFile.reload()
         cpuMaxFreqFile.reload()
@@ -546,7 +554,7 @@ QtObject {
         id: fanTimer
         interval: 5000
         repeat: true
-        running: data.pollersReady
+        running: data.pollersReady && data.anyCcVisible
         triggeredOnStart: true
         onTriggered: {
             if (data._hwmonSmm) {
@@ -644,73 +652,10 @@ QtObject {
         }
     }
 
-    function parseNmcliDev(text) {
-        let ethIface = "", wifiIface = ""
-        const lines = text.split('\n')
-        for (const line of lines) {
-            const parts = line.split(':')
-            if (parts.length < 4) continue
-            const dtype = parts[0], state = parts[1], device = parts[2]
-            if (dtype === "ethernet" && state === "connected") ethIface = device
-            else if (dtype === "wifi" && state === "connected") wifiIface = device
-        }
-        let connType = "none"
-        if (ethIface) {
-            connType = "ethernet"
-        } else if (wifiIface) {
-            connType = "wifi"
-            if (!nmcliWifiProc.running) nmcliWifiProc.running = true
-        }
-        data.netConnectionType = connType
-        data.netConnected = connType !== "none"
-        if (connType !== "wifi") {
-            data.netSsid = ""
-            data.netSignal = 0
-        }
-    }
-
-    function parseNmcliWifi(text) {
-        const lines = text.split('\n')
-        for (const line of lines) {
-            if (line.startsWith("yes:")) {
-                const parts = line.split(':')
-                if (parts.length >= 3) {
-                    data.netSsid = parts[1]
-                    data.netSignal = parseInt(parts[2]) || 0
-                }
-                break
-            }
-        }
-    }
-
     property FileView _netDevFile: FileView {
         id: netDevFile
         path: "/proc/net/dev"
         onLoaded: data.parseNetDev(text())
-    }
-
-    property Process _nmcliRadioProc: Process {
-        id: nmcliRadioProc
-        command: ["env", "LANG=C", "nmcli", "radio", "wifi"]
-        stdout: StdioCollector {
-            onStreamFinished: data.netRadioOn = text.trim().toLowerCase() === "enabled"
-        }
-    }
-
-    property Process _nmcliDevProc: Process {
-        id: nmcliDevProc
-        command: ["env", "LANG=C", "nmcli", "-t", "-f", "TYPE,STATE,DEVICE,CONNECTION", "dev", "status"]
-        stdout: StdioCollector {
-            onStreamFinished: data.parseNmcliDev(text)
-        }
-    }
-
-    property Process _nmcliWifiProc: Process {
-        id: nmcliWifiProc
-        command: ["env", "LANG=C", "nmcli", "-t", "-f", "active,ssid,signal", "dev", "wifi", "list"]
-        stdout: StdioCollector {
-            onStreamFinished: data.parseNmcliWifi(text)
-        }
     }
 
     property Timer _netTimer: Timer {
@@ -719,11 +664,7 @@ QtObject {
         repeat: true
         running: data.pollersReady
         triggeredOnStart: false // first poll only seeds _prevRxBytes, no delta yet
-        onTriggered: {
-            netDevFile.reload()
-            if (!nmcliRadioProc.running) nmcliRadioProc.running = true
-            if (!nmcliDevProc.running) nmcliDevProc.running = true
-        }
+        onTriggered: netDevFile.reload()
     }
 
     // ── 2.5 GPU poller (Process nvidia-smi, 4s, sysfs fallback) ─────────────
@@ -794,14 +735,20 @@ QtObject {
 
     property Process _nvidiaSmiProc: Process {
         id: nvidiaSmiProc
-        command: ["nvidia-smi",
+        running: data.pollersReady && data.anyCcVisible   // paused when CC is not visible
+        command: ["nvidia-smi", "--loop=4",
                   "--query-gpu=utilization.gpu,temperature.gpu,name,memory.used,memory.total",
                   "--format=csv,noheader,nounits"]
-        stdout: StdioCollector {
-            onStreamFinished: data.parseNvidiaSmi(text)
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: function(line) {
+                const t = line.trim()
+                if (t.length > 0) data.parseNvidiaSmi(t)
+            }
         }
         // qmllint disable signal-handler-parameters
         onExited: function(exitCode) {
+            // nvidia-smi --loop only exits if there is no GPU or an error occurs
             if (exitCode !== 0) data.fetchGpuSysfs()
         }
         // qmllint enable signal-handler-parameters
@@ -823,17 +770,6 @@ QtObject {
         }
         stdout: StdioCollector {
             onStreamFinished: data.parseGpuSysfs(text)
-        }
-    }
-
-    property Timer _gpuTimer: Timer {
-        id: gpuTimer
-        interval: 4000
-        repeat: true
-        running: data.pollersReady
-        triggeredOnStart: true
-        onTriggered: {
-            if (!nvidiaSmiProc.running) nvidiaSmiProc.running = true
         }
     }
 

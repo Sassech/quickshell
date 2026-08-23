@@ -1,0 +1,26 @@
+module qs.Modals.cc
+
+CcAudioController 1.0 CcAudioController.qml
+CcAudioPanel 1.0 CcAudioPanel.qml
+CcBatteryController 1.0 CcBatteryController.qml
+CcBatteryPanel 1.0 CcBatteryPanel.qml
+CcBluetoothController 1.0 CcBluetoothController.qml
+CcBluetoothPanel 1.0 CcBluetoothPanel.qml
+CcBrightnessController 1.0 CcBrightnessController.qml
+CcCpuPanel 1.0 CcCpuPanel.qml
+CcGpuController 1.0 CcGpuController.qml
+CcGpuPanel 1.0 CcGpuPanel.qml
+CcLanguageController 1.0 CcLanguageController.qml
+CcLanguagePanel 1.0 CcLanguagePanel.qml
+CcPanelOverlay 1.0 CcPanelOverlay.qml
+CcPowerBar 1.0 CcPowerBar.qml
+CcPowerController 1.0 CcPowerController.qml
+CcPowerPanel 1.0 CcPowerPanel.qml
+CcQuickToggles 1.0 CcQuickToggles.qml
+CcRamPanel 1.0 CcRamPanel.qml
+CcSlider 1.0 CcSlider.qml
+CcSliders 1.0 CcSliders.qml
+CcSystemSection 1.0 CcSystemSection.qml
+CcToggleCard 1.0 CcToggleCard.qml
+CcWifiController 1.0 CcWifiController.qml
+CcWifiPanel 1.0 CcWifiPanel.qml

@@ -75,7 +75,7 @@ Rectangle {
                     width: parent.width; height: 38; radius: 8
                     color: modelData.active
                         ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                        : (hov ? Theme.surface3 : Theme.surface3)
+                        : (hov ? Theme.surface2 : Theme.surface3)
                     border.color: sinkRow.modelData.active ? Theme.accent : "transparent"
                     border.width: 1
                     Behavior on color { ColorAnimation { duration: 100 } }
@@ -140,7 +140,7 @@ Rectangle {
                     width: parent.width; height: 38; radius: 8
                     color: modelData.active
                         ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                        : (hov ? Theme.surface3 : Theme.surface3)
+                        : (hov ? Theme.surface2 : Theme.surface3)
                     border.color: sourceRow.modelData.active ? Theme.accent : "transparent"
                     border.width: 1
                     Behavior on color { ColorAnimation { duration: 100 } }

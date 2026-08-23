@@ -1,3 +1,4 @@
+singleton Formatters 1.0 Formatters.qml
 singleton Theme 1.0 Theme.qml
 singleton SysData 1.0 SysData.qml
 singleton Paths 1.0 Paths.qml
@@ -5,7 +6,6 @@ singleton OverlaysManager 1.0 OverlaysManager.qml
 singleton IconHelpers 1.0 IconHelpers.qml
 OverlayEntry 1.0 OverlayEntry.qml
 WeatherHelpers 1.0 WeatherHelpers.qml
-FifoChannel 1.0 FifoChannel.qml
 JsonProcess 1.0 JsonProcess.qml
 LineProcess 1.0 LineProcess.qml
 singleton WeatherProvider 1.0 WeatherProvider.qml

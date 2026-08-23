@@ -6,9 +6,8 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
-import Quickshell.Services.Mpris
 import "../Components"
-import "./cc"
+import qs.Modals.cc
 
 PanelWindow {
     id: root
@@ -32,6 +31,9 @@ PanelWindow {
     property bool   _audioShowSources: true
 
     // ── Controladores de dominio ──────────────────────────────────────────
+    // DECISIÓN: los controllers se instancian eager, NO dentro de un Loader
+    // (el trabajo pesado ya está gateado internamente; un Loader rompería
+    // ~60 referencias por scope QML). Los one-shot al nacer quedaron lazy.
 
     CcBatteryController {
         id: batCtrl
@@ -182,7 +184,7 @@ PanelWindow {
     function _powerLabel(profile) { return powerCtrl._powerLabel(profile) }
     function _powerIcon(profile)  { return powerCtrl._powerIcon(profile) }
     function setPower(profile)    { powerCtrl.setPower(profile) }
-    function _fmtTime(seconds)    { return powerCtrl._fmtTime(seconds) }
+    function _fmtTime(seconds)    { return Formatters.fmtTime(seconds) }
     function _fmtSpeed(bps)       { return powerCtrl._fmtSpeed(bps) }
     function formatDuration(ms)   { return powerCtrl.formatDuration(ms) }
 
@@ -230,57 +232,13 @@ PanelWindow {
     function wifiSecurityLabel(sec)        { return wifiCtrl.wifiSecurityLabel(sec) }
     function wifiIsOpen(sec)               { return wifiCtrl.wifiIsOpen(sec) }
 
-    // ── MPRIS — reproductor ───────────────────────────────────────────────
-    property var mprisPlayer: null
-
-    property real playerPos: 0
-    property int  _posSync: 0
-
-    function _pickPlayer() {
-        var players = Mpris.players.values
-        for (var i = 0; i < players.length; i++) {
-            if (players[i].playbackState === MprisPlaybackState.Playing) {
-                root.mprisPlayer = players[i]
-                return
-            }
-        }
-        root.mprisPlayer = players.length > 0 ? players[0] : null
-    }
-
-    Connections {
-        target: Mpris.players
-        function onObjectInsertedPost() { root._pickPlayer() }
-        function onObjectRemovedPost() { root._pickPlayer() }
-    }
-
-    function _syncPlayerPos() {
-        if (root.mprisPlayer && root.mprisPlayer.positionSupported)
-            root.playerPos = root.mprisPlayer.position
-    }
-
-    Timer {
-        interval: 1000
-        repeat: true
-        running: root.visible && (root.mprisPlayer?.isPlaying ?? false)
-        onTriggered: {
-            root.playerPos += 1
-            root._posSync++
-            if (root._posSync >= 10) { root._posSync = 0; root._syncPlayerPos() }
-        }
-    }
-
-    Connections {
-        target: root.mprisPlayer ?? null
-        function onTrackChanged() { root._syncPlayerPos(); root._posSync = 0 }
-    }
-
     // ── Startup / teardown ────────────────────────────────────────────────
     onVisibleChanged: {
+        SysData.anyCcVisible = visible
         if (visible) {
-            root._pickPlayer()
             root._gpuLoaded = false
             brightnessCtrl.refresh()
-            Qt.callLater(root._syncPlayerPos)
+            langCtrl.warmUp()
             root._pwRev++
             root._btRev++
             Qt.callLater(function() { ccCard.forceActiveFocus() })
@@ -433,22 +391,15 @@ PanelWindow {
                 CcSystemSection {
                     width: parent.width
                     activePanel: root._activePanel
-                    diskPct:    SysData.diskPercent
-                    diskUsed:   SysData.diskUsedGb
-                    diskTotal:  SysData.diskUsedGb + SysData.diskAvailGb
-                    homePct:    SysData.homePercent
-                    homeUsed:   SysData.homeUsedGb
-                    homeTotal:  SysData.homeUsedGb + SysData.homeAvailGb
+                    diskPct:        SysData.diskPercent
+                    diskUsed:       SysData.diskUsedGb
+                    diskTotal:      SysData.diskUsedGb + SysData.diskAvailGb
+                    diskAvailable:  SysData.diskAvailable
+                    diskReadMbs:    SysData.diskReadMbs
+                    diskWriteMbs:   SysData.diskWriteMbs
                     onTogglePanel: function(key) {
                         root._activePanel = (root._activePanel === key) ? "" : key
                     }
-                }
-
-                // ── Media player ──────────────────────────────────────────
-                CcMediaPlayer {
-                    width: parent.width
-                    mprisPlayer: root.mprisPlayer
-                    playerPos:   root.playerPos
                 }
 
                 Item { width: parent.width; height: 8 }
@@ -550,20 +501,6 @@ PanelWindow {
         gpus:       root._gpus
         gpuLoaded:  root._gpuLoaded
 
-        // Disk
-        diskAvailable:  SysData.diskAvailable
-        diskPercent:    SysData.diskPercent
-        diskUsed:       SysData.diskUsedGb
-        diskAvail:      SysData.diskAvailGb
-        homePercent:    SysData.homePercent
-        homeUsed:       SysData.homeUsedGb
-        homeAvail:      SysData.homeAvailGb
-        nvmeModel:      SysData.diskNvmeModel
-        nvmeFw:         SysData.diskNvmeFw
-        nvmeTemp:       SysData.diskNvmeTemp
-        diskReadMbs:    SysData.diskReadMbs
-        diskWriteMbs:   SysData.diskWriteMbs
-
         // Language
         filteredLayouts: root._filteredLayouts
         filteredLocales: root._filteredLocales
@@ -588,7 +525,6 @@ PanelWindow {
             }
             root._activePanel = ""
         }
-        onDiskPanelOpened: SysData.triggerDiskIoSample()
 
         // WiFi
         onWifiToggleRadio:    root.wifiToggleRadio()

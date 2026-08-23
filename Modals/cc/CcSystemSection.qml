@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Shapes
 import "../../Components"
 
 // ── Métricas del sistema: CPU/RAM/GPU arcos + disco ───────────────────────────
@@ -15,9 +16,9 @@ Column {
     required property int diskPct
     required property int diskUsed
     required property int diskTotal
-    required property int homePct
-    required property int homeUsed
-    required property int homeTotal
+    required property bool diskAvailable
+    required property double diskReadMbs
+    required property double diskWriteMbs
 
     // ── Signals ───────────────────────────────────────────────────────────────
     signal togglePanel(string key)
@@ -77,48 +78,50 @@ Column {
 
                         property real arcPct: metCard.modelData.value / 100
                         Behavior on arcPct { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
-                        onArcPctChanged: arcCanvas.requestPaint()
 
-                        Canvas {
-                            id: arcCanvas
+                        // Track arc (background)
+                        Shape {
                             anchors.fill: parent
-
-                            onPaint: {
-                                var ctx = getContext("2d")
-                                ctx.clearRect(0, 0, width, height)
-                                var cx = width / 2, cy = height / 2, r = 16
-
-                                // Track
-                                ctx.beginPath()
-                                ctx.arc(cx, cy, r, -Math.PI * 0.75, Math.PI * 0.75)
-                                ctx.strokeStyle = Theme.surface3.toString()
-                                ctx.lineWidth = 3.5
-                                ctx.lineCap = "round"
-                                ctx.stroke()
-
-                                // Fill
-                                if (arcItem.arcPct > 0) {
-                                    var end = -Math.PI * 0.75 + Math.PI * 1.5 * Math.min(arcItem.arcPct, 1)
-                                    ctx.beginPath()
-                                    ctx.arc(cx, cy, r, -Math.PI * 0.75, end)
-                                    ctx.strokeStyle = arcItem.arcPct > 0.85 ? "#ff7b72"
-                                                    : arcItem.arcPct > 0.65 ? "#e3b341"
-                                                    : Theme.accent.toString()
-                                    ctx.lineWidth = 3.5
-                                    ctx.lineCap = "round"
-                                    ctx.stroke()
+                            ShapePath {
+                                strokeColor: Theme.surface3
+                                fillColor: "transparent"
+                                strokeWidth: 3.5
+                                capStyle: ShapePath.RoundCap
+                                PathAngleArc {
+                                    centerX: 21; centerY: 21
+                                    radiusX: 16; radiusY: 16
+                                    startAngle: -225
+                                    sweepAngle: 270
                                 }
                             }
+                        }
 
-                            Component.onCompleted: requestPaint()
+                        // Fill arc (value)
+                        Shape {
+                            anchors.fill: parent
+                            visible: arcItem.arcPct > 0
+                            ShapePath {
+                                strokeColor: arcItem.arcPct > 0.85 ? Theme.error
+                                           : arcItem.arcPct > 0.65 ? Theme.warning
+                                           : Theme.accent
+                                fillColor: "transparent"
+                                strokeWidth: 3.5
+                                capStyle: ShapePath.RoundCap
+                                PathAngleArc {
+                                    centerX: 21; centerY: 21
+                                    radiusX: 16; radiusY: 16
+                                    startAngle: -225
+                                    sweepAngle: 270 * Math.min(arcItem.arcPct, 1)
+                                }
+                            }
                         }
 
                         Text {
                             anchors.centerIn: parent
                             text: metCard.modelData.icon
                             font.pixelSize: 14
-                            color: arcItem.arcPct > 0.85 ? "#ff7b72"
-                                 : arcItem.arcPct > 0.65 ? "#e3b341"
+                            color: arcItem.arcPct > 0.85 ? Theme.error
+                                 : arcItem.arcPct > 0.65 ? Theme.warning
                                  : Theme.muted1
                         }
                     }
@@ -127,8 +130,8 @@ Column {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: metCard.modelData.label + " " + Math.round(metCard.modelData.value) + "%"
                         font.pixelSize: 9; font.weight: Font.DemiBold
-                        color: metCard.modelData.value > 85 ? "#ff7b72"
-                             : metCard.modelData.value > 65 ? "#e3b341"
+                        color: metCard.modelData.value > 85 ? Theme.error
+                             : metCard.modelData.value > 65 ? Theme.warning
                              : Theme.text
                     }
                 }
@@ -143,91 +146,98 @@ Column {
         }
     }
 
-    // ── Disco: Root + Home ────────────────────────────────────────────────────
+    // ── Disco (un solo fs en esta máquina) ───────────────────────────────
     Item { width: parent.width; height: 8 }
 
-    Grid {
-        width: parent.width
-        columns: 2
-        rowSpacing: 6
-        columnSpacing: 6
+    Rectangle {
+        id: diskCard
+        width: parent.width; height: 76; radius: 10
+        color: Theme.surface2
 
-        Repeater {
-            model: [
-                { label: "Root", icon: "󰋊",
-                  pct: root.diskPct,  used: root.diskUsed,  total: root.diskTotal },
-                { label: "Home", icon: "󰋞",
-                  pct: root.homePct, used: root.homeUsed, total: root.homeTotal }
-            ]
+        RowLayout {
+            anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+            spacing: 8
 
-            Rectangle {
-                id: diskCard
-                required property var modelData
-                property bool hov: false
-                property bool expanded: root.activePanel === "disk"
-                width: (parent.width - 6) / 2; height: 52; radius: 10
-                color: expanded
-                    ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                    : (hov ? Theme.surface3 : Theme.surface2)
-                Behavior on color { ColorAnimation { duration: 100 } }
+            Text {
+                text: "󰋊"; font.pixelSize: 18
+                color: root.diskPct >= 90 ? Theme.error
+                     : root.diskPct >= 75 ? Theme.warning
+                     : Theme.text
+            }
 
-                RowLayout {
-                    anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
-                    spacing: 8
+            Column {
+                Layout.fillWidth: true
+                spacing: 4
 
+                Row {
+                    spacing: 6
                     Text {
-                        text: diskCard.modelData.icon; font.pixelSize: 18
-                        color: diskCard.modelData.pct >= 90 ? "#ff7b72"
-                             : diskCard.modelData.pct >= 75 ? "#e3b341"
-                             : Theme.muted1
+                        text: "Disco"
+                        font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text
                     }
-
-                    Column {
-                        Layout.fillWidth: true
-                        spacing: 4
-
-                        Row {
-                            spacing: 6
-                            Text {
-                                text: diskCard.modelData.label
-                                font.pixelSize: 11; font.weight: Font.DemiBold; color: Theme.text
-                            }
-                            Text {
-                                text: diskCard.modelData.pct + "%"
-                                font.pixelSize: 10
-                                color: diskCard.modelData.pct >= 90 ? "#ff7b72"
-                                     : diskCard.modelData.pct >= 75 ? "#e3b341"
-                                     : Theme.muted1
-                            }
-                        }
-
-                        // Barra de uso
-                        Item {
-                            width: parent.width; height: 4
-                            Rectangle { anchors.fill: parent; radius: 2; color: Theme.surface3 }
-                            Rectangle {
-                                anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                                width: Math.max(4, diskCard.modelData.pct / 100 * parent.width)
-                                radius: 2
-                                color: diskCard.modelData.pct >= 90 ? "#ff7b72"
-                                     : diskCard.modelData.pct >= 75 ? "#e3b341"
-                                     : Theme.accent
-                                Behavior on width { NumberAnimation { duration: 300 } }
-                            }
-                        }
-
-                        Text {
-                            text: diskCard.modelData.used + " / " + diskCard.modelData.total + " GB"
-                            font.pixelSize: 9; color: Theme.muted2
-                        }
+                    Text {
+                        text: root.diskPct + "%"
+                        font.pixelSize: 10
+                        color: root.diskPct >= 90 ? Theme.error
+                             : root.diskPct >= 75 ? Theme.warning
+                             : Theme.text
                     }
                 }
 
-                MouseArea {
-                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    onEntered: diskCard.hov = true
-                    onExited:  diskCard.hov = false
-                    onClicked: root.togglePanel("disk")
+                // Barra de uso
+                Item {
+                    width: parent.width; height: 4
+                    Rectangle { anchors.fill: parent; radius: 2; color: Theme.surface3 }
+                    Rectangle {
+                        anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                        width: Math.max(4, root.diskPct / 100 * parent.width)
+                        radius: 2
+                        color: root.diskPct >= 90 ? Theme.error
+                             : root.diskPct >= 75 ? Theme.warning
+                             : Theme.accent
+                        Behavior on width { NumberAnimation { duration: 300 } }
+                    }
+                }
+
+                Text {
+                    text: root.diskUsed + " / " + root.diskTotal + " GB"
+                    font.pixelSize: 9; color: Theme.text
+                }
+
+                Row {
+                    spacing: 8
+
+                    Text {
+                        text: "↓"
+                        font.pixelSize: 9; font.weight: Font.Bold
+                        color: Theme.accent
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        text: root.diskAvailable && !isNaN(root.diskReadMbs)
+                            ? root.diskReadMbs.toFixed(1) + " MB/s" : "—"
+                        font.pixelSize: 9; font.family: "monospace"
+                        color: Theme.text
+                        width: 52
+                        horizontalAlignment: Text.AlignRight
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    Text {
+                        text: "↑"
+                        font.pixelSize: 9; font.weight: Font.Bold
+                        color: Theme.warning
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        text: root.diskAvailable && !isNaN(root.diskWriteMbs)
+                            ? root.diskWriteMbs.toFixed(1) + " MB/s" : "—"
+                        font.pixelSize: 9; font.family: "monospace"
+                        color: Theme.text
+                        width: 52
+                        horizontalAlignment: Text.AlignRight
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
                 }
             }
         }

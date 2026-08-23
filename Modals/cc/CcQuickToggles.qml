@@ -107,8 +107,8 @@ Column {
             active: root.activePanel === "power"
             icon: root.powerIconFn(PowerProfiles.profile)
             iconColor: {
-                if (PowerProfiles.profile === PowerProfile.Performance) return "#ff7b72"
-                if (PowerProfiles.profile === PowerProfile.PowerSaver)  return "#79c0ff"
+                if (PowerProfiles.profile === PowerProfile.Performance) return Theme.error
+                if (PowerProfiles.profile === PowerProfile.PowerSaver)  return Theme.blue
                 return Theme.accent
             }
             title: "Power & Fans"

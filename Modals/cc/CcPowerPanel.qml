@@ -190,8 +190,8 @@ Rectangle {
                     Text { text: tempRow.modelData.label + ":"; font.pixelSize: 9; color: Theme.muted2 }
                     Text {
                         text: tempRow.modelData.temp + " °C"; font.pixelSize: 9
-                        color: tempRow.modelData.temp >= 85 ? "#ff7b72"
-                             : tempRow.modelData.temp >= 70 ? "#e3b341"
+                        color: tempRow.modelData.temp >= 85 ? Theme.error
+                             : tempRow.modelData.temp >= 70 ? Theme.warning
                              : Theme.muted1
                     }
                 }

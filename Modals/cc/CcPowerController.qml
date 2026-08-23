@@ -49,14 +49,6 @@ QtObject {
     }
 
     // ── Funciones de formato de tiempo y velocidad ────────────────────────
-    function _fmtTime(seconds) {
-        if (!seconds || seconds <= 0) return ""
-        var h = Math.floor(seconds / 3600)
-        var m = Math.floor((seconds % 3600) / 60)
-        if (h > 0) return h + "h " + m + "m"
-        return m + "m"
-    }
-
     function _fmtSpeed(bps) {
         if (!bps || bps < 1024)         return Math.round(bps || 0) + " B/s"
         if (bps < 1024 * 1024)          return (bps / 1024).toFixed(1) + " KB/s"

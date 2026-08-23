@@ -1,14 +1,14 @@
+// qmllint disable unqualified missing-property
 import QtQuick
-import "."
+import qs.Modals.cc
 
-// ── Overlay de paneles del Control Center ─────────────────────────────────────
-// Se coloca con z:200 dentro del PanelWindow principal.
-// Muestra un backdrop + el panel activo centrado verticalmente, alineado a la derecha.
+// ── Overlay de paneles del Control Center ────────────────────────────────────
+// Muestra un backdrop + el panel activo, alineado a la derecha.
 Item {
     id: root
 
     // ── Inputs desde ControlCenter ────────────────────────────────────────
-    required property string activePanel          // "wifi"|"bluetooth"|"audio"|"power"|"battery"|"language"|"cpu"|"ram"|"gpu"|"disk"|""
+    required property string activePanel          // "wifi"|"bluetooth"|"audio"|"power"|"battery"|"language"|"cpu"|"ram"|"gpu"|""
 
     // WiFi
     required property var    nmWifiDev
@@ -86,20 +86,6 @@ Item {
     required property var  gpus
     required property bool gpuLoaded
 
-    // Disk
-    required property bool   diskAvailable
-    required property int    diskPercent
-    required property int    diskUsed
-    required property int    diskAvail
-    required property int    homePercent
-    required property int    homeUsed
-    required property int    homeAvail
-    required property string nvmeModel
-    required property string nvmeFw
-    required property int    nvmeTemp
-    required property real   diskReadMbs
-    required property real   diskWriteMbs
-
     // Language
     required property var    filteredLayouts
     required property var    filteredLocales
@@ -110,7 +96,6 @@ Item {
 
     // ── Outputs ───────────────────────────────────────────────────────────
     signal closePanel()
-    signal diskPanelOpened()
 
     // WiFi signals
     signal wifiToggleRadio()
@@ -126,7 +111,11 @@ Item {
     signal wifiPasswordFetched(int idx, string pw)
     signal wifiStatusMessage(string msg)
 
-    onWifiPasswordFetched: (idx, pw) => wifiPanelInst.passwordFetched(idx, pw)
+    // wifiPanelInst ya no es accesible directamente (está dentro del Loader).
+    // Se accede via wifiLoader.item para llamar el método passwordFetched.
+    onWifiPasswordFetched: (idx, pw) => {
+        if (wifiLoader.item) wifiLoader.item.passwordFetched(idx, pw)
+    }
 
     // Bluetooth signals
     signal btTogglePower()
@@ -154,10 +143,6 @@ Item {
     // ── Visibilidad ───────────────────────────────────────────────────────
     visible: root.activePanel !== ""
 
-    onActivePanelChanged: {
-        if (root.activePanel === "disk") root.diskPanelOpened()
-    }
-
     // ── Backdrop ──────────────────────────────────────────────────────────
     Rectangle {
         anchors.fill: parent
@@ -170,14 +155,52 @@ Item {
 
     // ── Panel container — alineado a la derecha (mismo margen que ccCard) ─
     Item {
+        id: panelHost
         anchors {
             right: parent.right
             rightMargin: 12
             top: parent.top
             topMargin: 150
         }
-        width: childrenRect.width
-        height: childrenRect.height
+        // Tamaño implícito del panel visible.
+        // El loop sobre children.visible fallaba con Loaders porque el item se
+        // instancia de forma asíncrona: el binding se evaluaba antes de que el
+        // Loader completara la carga y visible fuera true.
+        // Solución: leer implicitWidth/implicitHeight del Loader activo por id,
+        // con Qt.binding para re-evaluar cuando statusChanged dispare.
+        width:  _activeLoader ? _activeLoader.implicitWidth  : 0
+        height: _activeLoader ? _activeLoader.implicitHeight : 0
+
+        // Re-evalúa cuando el Loader activo termina de instanciar su item.
+        // Un timer de un solo disparo diferido asegura que el binding se
+        // re-evalúa DESPUÉS de que el Loader completa la carga asíncrona.
+        property int _loaderRevision: 0
+        readonly property Loader _activeLoader: {
+            const _ = root.activePanel
+            const __ = _loaderRevision     // dependency: re-evalúa en cada bump
+            for (const child of panelHost.children) {
+                // qmllint disable missing-property
+                if (child instanceof Loader && child.active) return child
+                // qmllint enable missing-property
+            }
+            return null
+        }
+
+        Timer {
+            id: loaderReadyTimer
+            interval: 0          // dispara en el próximo event loop tick
+            repeat: false
+            onTriggered: panelHost._loaderRevision++
+        }
+
+        Connections {
+            target: root
+            function onActivePanelChanged() {
+                // Cuando cambia el panel, diferir la actualización de tamaño
+                // para que el Loader tenga tiempo de instanciar su item.
+                loaderReadyTimer.restart()
+            }
+        }
 
         // Animación de entrada
         scale: root.visible ? 1.0 : 0.94
@@ -186,188 +209,187 @@ Item {
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
         // ── WiFi Panel ────────────────────────────────────────────────────
-        CcWifiPanel {
-            id: wifiPanelInst
-            visible: root.activePanel === "wifi"
-
-            nmWifiDev:          root.nmWifiDev
-            wifiRadioOn:        root.wifiRadioOn
-            wifiScanning:       root.wifiScanning
-            wifiWorking:        root.wifiWorking
-            wifiStatusMsg:      root.wifiStatusMsg
-            wifiSelectedIdx:    root.wifiSelectedIdx
-            wifiPasswordByIndex: root.wifiPasswordByIndex
-            wifiConnectedSsid:  root.wifiConnectedSsid
-            ethConnected:       root.ethConnected
-            ethIp:              root.ethIp
-            ethSpeed:           root.ethSpeed
-            wifiIp:             root.wifiIp
-            wifiGateway:        root.wifiGateway
-            wifiDns:            root.wifiDns
-            onCloseRequested:     root.closePanel()
-            onToggleRadio:        root.wifiToggleRadio()
-            onRescan:             root.wifiRescan()
-            onConnectKnown: (net) => root.wifiConnectKnown(net)
-            onConnectNew: (ssid, pw) => root.wifiConnectNew(ssid, pw)
-            onDisconnectNet: (net) => root.wifiDisconnect(net)
-            onForgetNet: (net) => root.wifiForget(net)
-            onFetchPassword: (ssid, idx) => root.wifiFetchPassword(ssid, idx)
-            onCopyPassword: (ssid) => root.wifiCopyPassword(ssid)
-            onSelectNetwork: (idx) => root.wifiSelectIdx(idx)
-            onPasswordChanged: (idx, pw) => root.wifiPasswordChanged(idx, pw)
-            onStatusMessage: (msg) => root.wifiStatusMessage(msg)
+        Loader {
+            id: wifiLoader
+            active: root.activePanel === "wifi"
+            sourceComponent: Component {
+                CcWifiPanel {
+                    nmWifiDev:           root.nmWifiDev
+                    wifiRadioOn:         root.wifiRadioOn
+                    wifiScanning:        root.wifiScanning
+                    wifiWorking:         root.wifiWorking
+                    wifiStatusMsg:       root.wifiStatusMsg
+                    wifiSelectedIdx:     root.wifiSelectedIdx
+                    wifiPasswordByIndex: root.wifiPasswordByIndex
+                    wifiConnectedSsid:   root.wifiConnectedSsid
+                    ethConnected:        root.ethConnected
+                    ethIp:               root.ethIp
+                    ethSpeed:            root.ethSpeed
+                    wifiIp:              root.wifiIp
+                    wifiGateway:         root.wifiGateway
+                    wifiDns:             root.wifiDns
+                    onCloseRequested:      root.closePanel()
+                    onToggleRadio:         root.wifiToggleRadio()
+                    onRescan:              root.wifiRescan()
+                    onConnectKnown: (net) => root.wifiConnectKnown(net)
+                    onConnectNew: (ssid, pw) => root.wifiConnectNew(ssid, pw)
+                    onDisconnectNet: (net) => root.wifiDisconnect(net)
+                    onForgetNet: (net) => root.wifiForget(net)
+                    onFetchPassword: (ssid, idx) => root.wifiFetchPassword(ssid, idx)
+                    onCopyPassword: (ssid) => root.wifiCopyPassword(ssid)
+                    onSelectNetwork: (idx) => root.wifiSelectIdx(idx)
+                    onPasswordChanged: (idx, pw) => root.wifiPasswordChanged(idx, pw)
+                    onStatusMessage: (msg) => root.wifiStatusMessage(msg)
+                }
+            }
         }
 
         // ── Bluetooth Panel ───────────────────────────────────────────────
-        CcBluetoothPanel {
-            visible: root.activePanel === "bluetooth"
-
-            btAdapter:     root.btAdapter
-            btAvailable:   root.btAvailable
-            btPwrd:        root.btPwrd
-            btScanning:    root.btScanning
-            btWorking:     root.btWorking
-            btStatusMsg:   root.btStatusMsg
-            btPairedList:  root.btPairedList
-            btNearbyList:  root.btNearbyList
-            btPairedCount: root.btPairedCount
-            btNearbyCount: root.btNearbyCount
-            btCodecData:   root.btCodecData
-
-            onCloseRequested:          root.closePanel()
-            onTogglePower:             root.btTogglePower()
-            onToggleScan:              root.btToggleScan()
-            onConnectDevice: (d)    => root.btConnect(d)
-            onDisconnectDevice: (d) => root.btDisconnect(d)
-            onPairDevice: (d)       => root.btPair(d)
-            onCancelPairDevice: (d) => root.btCancelPair(d)
-            onForgetDevice: (d)     => root.btForget(d)
-            onSetCodec: (mac, prof) => root.btSetCodec(mac, prof)
+        Loader {
+            active: root.activePanel === "bluetooth"
+            sourceComponent: Component {
+                CcBluetoothPanel {
+                    btAdapter:     root.btAdapter
+                    btAvailable:   root.btAvailable
+                    btPwrd:        root.btPwrd
+                    btScanning:    root.btScanning
+                    btWorking:     root.btWorking
+                    btStatusMsg:   root.btStatusMsg
+                    btPairedList:  root.btPairedList
+                    btNearbyList:  root.btNearbyList
+                    btPairedCount: root.btPairedCount
+                    btNearbyCount: root.btNearbyCount
+                    btCodecData:   root.btCodecData
+                    onCloseRequested:          root.closePanel()
+                    onTogglePower:             root.btTogglePower()
+                    onToggleScan:              root.btToggleScan()
+                    onConnectDevice: (d)    => root.btConnect(d)
+                    onDisconnectDevice: (d) => root.btDisconnect(d)
+                    onPairDevice: (d)       => root.btPair(d)
+                    onCancelPairDevice: (d) => root.btCancelPair(d)
+                    onForgetDevice: (d)     => root.btForget(d)
+                    onSetCodec: (mac, prof) => root.btSetCodec(mac, prof)
+                }
+            }
         }
 
         // ── Audio Panel ───────────────────────────────────────────────────
-        CcAudioPanel {
-            visible: root.activePanel === "audio"
-
-            audioSinks:   root.audioSinks
-            audioSources: root.audioSources
-
-            onCloseRequested:          root.closePanel()
-            onSetDefaultSink: (e)   => root.audioSetDefaultSink(e)
-            onSetDefaultSource: (e) => root.audioSetDefaultSource(e)
+        Loader {
+            active: root.activePanel === "audio"
+            sourceComponent: Component {
+                CcAudioPanel {
+                    audioSinks:   root.audioSinks
+                    audioSources: root.audioSources
+                    onCloseRequested:          root.closePanel()
+                    onSetDefaultSink: (e)   => root.audioSetDefaultSink(e)
+                    onSetDefaultSource: (e) => root.audioSetDefaultSource(e)
+                }
+            }
         }
 
         // ── Power Panel ───────────────────────────────────────────────────
-        CcPowerPanel {
-            visible: root.activePanel === "power"
-
-            fanProfiles: root.fanProfiles
-            fanProfile:  root.fanProfile
-
-            onCloseRequested: root.closePanel()
-            onSetPower: (p) => root.powerSetProfile(p)
+        Loader {
+            active: root.activePanel === "power"
+            sourceComponent: Component {
+                CcPowerPanel {
+                    fanProfiles: root.fanProfiles
+                    fanProfile:  root.fanProfile
+                    onCloseRequested: root.closePanel()
+                    onSetPower: (p) => root.powerSetProfile(p)
+                }
+            }
         }
 
         // ── Battery Panel ─────────────────────────────────────────────────
-        CcBatteryPanel {
-            visible: root.activePanel === "battery"
-
-            batAvailable:  root.batAvailable
-            batPct:        root.batPct
-            batCharging:   root.batCharging
-            batFull:       root.batFull
-            batHealth:     root.batHealth
-            batCapWh:      root.batCapWh
-            batEnergy:     root.batEnergy
-            batChangeRate: root.batChangeRate
-            batTimeEmpty:  root.batTimeEmpty
-            batTimeFull:   root.batTimeFull
-
-            onCloseRequested: root.closePanel()
+        Loader {
+            active: root.activePanel === "battery"
+            sourceComponent: Component {
+                CcBatteryPanel {
+                    batAvailable:  root.batAvailable
+                    batPct:        root.batPct
+                    batCharging:   root.batCharging
+                    batFull:       root.batFull
+                    batHealth:     root.batHealth
+                    batCapWh:      root.batCapWh
+                    batEnergy:     root.batEnergy
+                    batChangeRate: root.batChangeRate
+                    batTimeEmpty:  root.batTimeEmpty
+                    batTimeFull:   root.batTimeFull
+                    onCloseRequested: root.closePanel()
+                }
+            }
         }
 
         // ── CPU Panel ─────────────────────────────────────────────────────
-        CcCpuPanel {
-            visible: root.activePanel === "cpu"
-
-            cpuAvailable:  root.cpuAvailable
-            cpuPercent:    root.cpuPercent
-            cpuTemp:       root.cpuTemp
-            cpuModel:      root.cpuModel
-            cpuAvgFreq:    root.cpuAvgFreq
-            cpuGov:        root.cpuGov
-            cpuNcores:     root.cpuNcores
-            cpuCorePcts:   root.cpuCorePcts
-            cpuCoreTemps:  root.cpuCoreTemps
-            cpuLoaded:     root.cpuLoaded
-
-            onCloseRequested: root.closePanel()
+        Loader {
+            active: root.activePanel === "cpu"
+            sourceComponent: Component {
+                CcCpuPanel {
+                    cpuAvailable:  root.cpuAvailable
+                    cpuPercent:    root.cpuPercent
+                    cpuTemp:       root.cpuTemp
+                    cpuModel:      root.cpuModel
+                    cpuAvgFreq:    root.cpuAvgFreq
+                    cpuGov:        root.cpuGov
+                    cpuNcores:     root.cpuNcores
+                    cpuCorePcts:   root.cpuCorePcts
+                    cpuCoreTemps:  root.cpuCoreTemps
+                    cpuLoaded:     root.cpuLoaded
+                    onCloseRequested: root.closePanel()
+                }
+            }
         }
 
         // ── RAM Panel ─────────────────────────────────────────────────────
-        CcRamPanel {
-            visible: root.activePanel === "ram"
-
-            ramAvailable: root.ramAvailable
-            ramPercent:   root.ramPercent
-            ramUsedGb:    root.ramUsedGb
-            ramTotalGb:   root.ramTotalGb
-            ramAvailGb:   root.ramAvailGb
-            ramCacheGb:   root.ramCacheGb
-            ramAppsGb:    root.ramAppsGb
-            swapPercent:  root.swapPercent
-            swapTotalGb:  root.swapTotalGb
-            swapFreeGb:   root.swapFreeGb
-
-            onCloseRequested: root.closePanel()
+        Loader {
+            active: root.activePanel === "ram"
+            sourceComponent: Component {
+                CcRamPanel {
+                    ramAvailable: root.ramAvailable
+                    ramPercent:   root.ramPercent
+                    ramUsedGb:    root.ramUsedGb
+                    ramTotalGb:   root.ramTotalGb
+                    ramAvailGb:   root.ramAvailGb
+                    ramCacheGb:   root.ramCacheGb
+                    ramAppsGb:    root.ramAppsGb
+                    swapPercent:  root.swapPercent
+                    swapTotalGb:  root.swapTotalGb
+                    swapFreeGb:   root.swapFreeGb
+                    onCloseRequested: root.closePanel()
+                }
+            }
         }
 
         // ── GPU Panel ─────────────────────────────────────────────────────
-        CcGpuPanel {
-            visible: root.activePanel === "gpu"
-
-            gpus:      root.gpus
-            gpuLoaded: root.gpuLoaded
-
-            onCloseRequested: root.closePanel()
-        }
-
-        // ── Disk Panel ────────────────────────────────────────────────────
-        CcDiskPanel {
-            visible: root.activePanel === "disk"
-
-            diskAvailable: root.diskAvailable
-            diskPercent:   root.diskPercent
-            diskUsed:      root.diskUsed
-            diskAvail:     root.diskAvail
-            homePercent:   root.homePercent
-            homeUsed:      root.homeUsed
-            homeAvail:     root.homeAvail
-            nvmeModel:     root.nvmeModel
-            nvmeFw:        root.nvmeFw
-            nvmeTemp:      root.nvmeTemp
-            diskReadMbs:   root.diskReadMbs
-            diskWriteMbs:  root.diskWriteMbs
-
-            onCloseRequested: root.closePanel()
+        Loader {
+            active: root.activePanel === "gpu"
+            sourceComponent: Component {
+                CcGpuPanel {
+                    gpus:      root.gpus
+                    gpuLoaded: root.gpuLoaded
+                    onCloseRequested: root.closePanel()
+                }
+            }
         }
 
         // ── Language Panel ────────────────────────────────────────────────
-        CcLanguagePanel {
-            visible: root.activePanel === "language"
-
-            filteredLayouts: root.filteredLayouts
-            filteredLocales: root.filteredLocales
-            langLayout:      root.langLayout
-            langLocale:      root.langLocale
-            langTab:         root.langTab
-            langSearch:      root.langSearch
-
-            onCloseRequested:          root.closePanel()
-            onTabChanged: (tab)     => root.langSelectTab(tab)
-            onSearchChanged: (q)    => root.langSearchQuery(q)
-            onSetLayout: (code)     => root.langSetLayout(code)
-            onSetLocale: (value)    => root.langSetLocale(value)
+        Loader {
+            active: root.activePanel === "language"
+            sourceComponent: Component {
+                CcLanguagePanel {
+                    filteredLayouts: root.filteredLayouts
+                    filteredLocales: root.filteredLocales
+                    langLayout:      root.langLayout
+                    langLocale:      root.langLocale
+                    langTab:         root.langTab
+                    langSearch:      root.langSearch
+                    onCloseRequested:          root.closePanel()
+                    onTabChanged: (tab)     => root.langSelectTab(tab)
+                    onSearchChanged: (q)    => root.langSearchQuery(q)
+                    onSetLayout: (code)     => root.langSetLayout(code)
+                    onSetLocale: (value)    => root.langSetLocale(value)
+                }
+            }
         }
     }
 }

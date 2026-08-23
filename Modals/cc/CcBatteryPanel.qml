@@ -31,15 +31,6 @@ Rectangle {
     // ── Outputs ───────────────────────────────────────────────────────────
     signal closeRequested()
 
-    // ── Helpers ───────────────────────────────────────────────────────────
-    function _fmtTime(seconds) {
-        if (!seconds || seconds <= 0) return ""
-        var h = Math.floor(seconds / 3600)
-        var m = Math.floor((seconds % 3600) / 60)
-        if (h > 0) return h + "h " + m + "m"
-        return m + "m"
-    }
-
     Column {
         id: batDetailCol
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
@@ -175,7 +166,7 @@ Rectangle {
             Text {
                 text: {
                     var t = root.batCharging ? root.batTimeFull : root.batTimeEmpty
-                    return root._fmtTime(t) || "—"
+                    return Formatters.fmtTime(t) || "—"
                 }
                 font.pixelSize: 10; color: Theme.text
             }
