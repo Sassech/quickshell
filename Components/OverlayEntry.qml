@@ -22,4 +22,10 @@ QtObject {
     // ── Estado (persistido) ───────────────────────────────────────────────
     property bool enabled: true
     property bool onTop:   true
+
+    // ── Posición (px relativos a la esquina anclada) ─────────────────────
+    property int topOffset:    0
+    property int bottomOffset: 0
+    property int leftOffset:   0
+    property int rightOffset:  0
 }

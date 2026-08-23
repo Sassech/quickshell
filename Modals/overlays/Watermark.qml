@@ -19,7 +19,6 @@ OverlayWindow {
     animInMs:       250
     animOutMs:      250
     autoHideMs:     0                       // 0 = siempre visible (estilo Windows)
-    bottomOffset:   0                       // capa = la provee OverlayWindow vía _effectiveOnTop
     mouseThrough:   true    // decorativo: los clicks pasan a la ventana de abajo
 
     // ── Contenido (slot por defecto → contentArea) ─────────────────────────

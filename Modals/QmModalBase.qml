@@ -26,9 +26,10 @@ PanelWindow {
     property bool cardClip: false
 
     // ── Anclaje de la card ─────────────────────────────────────────────
-    property string cardAnchor: "center"              // center | top | topRight | topCenter
+    property string cardAnchor: "center"              // center | top | topRight | topCenter | left
     property int cardTopMargin: 36
     property int cardRightMargin: 12
+    property int cardLeftMargin: 0
 
     // ── Backdrop ───────────────────────────────────────────────────────
     property bool showScrim: true
@@ -82,12 +83,14 @@ PanelWindow {
             if (root.escapeEnabled) root.close()
         }
 
-        anchors.centerIn: root.cardAnchor === "center" ? parent : undefined
-        anchors.horizontalCenter: root.cardAnchor === "top" || root.cardAnchor === "topCenter" ? parent.horizontalCenter : undefined
-        anchors.top: root.cardAnchor === "top" || root.cardAnchor === "topCenter" ? parent.top : undefined
-        anchors.right: root.cardAnchor === "topRight" ? parent.right : undefined
-        anchors.topMargin: root.cardAnchor !== "center" ? root.cardTopMargin : 0
-        anchors.rightMargin: root.cardAnchor === "topRight" ? root.cardRightMargin : 0
+        // Posicionamiento según cardAnchor (x/y en vez de anchors: evita la
+        // combinación inválida left+right+horizontalCenter y preserva el
+        // comportamiento original de cada esquema).
+        x: root.cardAnchor === "left" ? root.cardLeftMargin
+         : root.cardAnchor === "topRight" ? parent.width - card.width - root.cardRightMargin
+         : (parent.width - card.width) / 2
+        y: root.cardAnchor === "top" || root.cardAnchor === "topCenter" || root.cardAnchor === "topRight" ? root.cardTopMargin
+         : (parent.height - card.height) / 2
 
         // ── Stripe superior ────────────────────────────────────────────
         Rectangle {

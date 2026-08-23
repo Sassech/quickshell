@@ -9,6 +9,17 @@ Row {
     // ── Player state ──────────────────────────────────────────────────────────
     property MprisPlayer _cachedPlayer: null
 
+    // El wallpaper de video (mpvpaper → mpv) toma el bus canónico
+    // org.mpris.MediaPlayer2.mpv; el mpv real del usuario, al abrirse después,
+    // queda como org.mpris.MediaPlayer2.mpv.instance-XXXX. Se banea el canónico
+    // SOLO cuando coexiste una instancia real: entonces el canónico es el
+    // wallpaper (Playing en loop perpetuo) y el instance es el mpv del usuario.
+    function _isBanned(p) {
+        if ((p.busName ?? "") !== "org.mpris.MediaPlayer2.mpv") return false
+        const players = Mpris.players.values ?? []
+        return players.some(q => (q.busName ?? "").startsWith("org.mpris.MediaPlayer2.mpv.instance"))
+    }
+
     function _updateCachedPlayer() {
         const players = Mpris.players.values ?? []
         let playingOther = null
@@ -17,6 +28,7 @@ Row {
 
         for (let i = 0; i < players.length; i++) {
             const p = players[i]
+            if (root._isBanned(p)) continue
             if (!first) first = p
             const isMpd = (p.identity ?? "").toLowerCase().includes("music player daemon")
             if (p.isPlaying) {
@@ -55,9 +67,31 @@ Row {
         function onTrackChanged()     { root._updateCachedPlayer() }
     }
 
-    visible: true
+    // Escucha cada player individualmente — cubre cambios de playbackState que
+    // onValuesChanged no detecta (e.g. Brave pasa de Paused a Playing sin
+    // re-registrarse en la lista).
+    Instantiator {
+        model: Mpris.players
+        delegate: Connections {
+            required property var modelData
+            target: modelData
+            // qmllint disable unqualified
+            function onPlaybackStateChanged() { root._updateCachedPlayer() }
+            function onTrackChanged()         { root._updateCachedPlayer() }
+            function onIsPlayingChanged()     { root._updateCachedPlayer() }
+            // qmllint enable unqualified
+        }
+    }
 
-    Item { width: 1; height: 1 }
+    // Fallback periódico — solo cubre casos extremos (player colgado, etc.)
+    Timer {
+        interval: 10000
+        repeat: true
+        running: (Mpris.players.values ?? []).length > 0
+        onTriggered: root._updateCachedPlayer()
+    }
+
+    visible: true
 
     // ── Fade al cambiar de canción ────────────────────────────────────────────
     onMediaInfoChanged: songChangeAnim.restart()
@@ -83,8 +117,6 @@ Row {
     CavaVisualizer {
         isPlaying: root.isPlaying
     }
-
-    Item { width: 1; height: 1 }
 
     // ── Contenedor de texto con scroll ────────────────────────────────────────
     Item {

@@ -55,6 +55,67 @@ QmModalBase {
             color: Theme.surface2
         }
 
+        // ── Modo edición de posición ────────────────────────────────────
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 32
+            spacing: 10
+
+            MouseArea {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    OverlaysManager.editPosition = !OverlaysManager.editPosition
+                    // Al activar el modo edición se cierra el modal para
+                    // arrastrar directo; para apagarlo se vuelve a abrir el
+                    // modal y se desactiva el botón (plan inicial).
+                    if (OverlaysManager.editPosition) root.close()
+                }
+
+                RowLayout {
+                    anchors.fill: parent
+                    spacing: 10
+
+                    Text {
+                        text: "󰍌"   // nf-md-cursor-move
+                        font.pixelSize: 16
+                        color: Theme.accent
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+
+                        Text {
+                            text: "Mover overlays"
+                            font.pixelSize: 12
+                            font.weight: Font.DemiBold
+                            color: Theme.text
+                        }
+                        Text {
+                            text: "Arrastrá el overlay; se guarda al soltar"
+                            font.pixelSize: 10
+                            color: Theme.muted2
+                            elide: Text.ElideRight
+                        }
+                    }
+                }
+            }
+
+            ToggleSwitch {
+                Layout.alignment: Qt.AlignVCenter
+                checked: OverlaysManager.editPosition
+                onToggled: value => {
+                    OverlaysManager.editPosition = value
+                    // Igual que el clic en la fila: activar cierra el modal.
+                    if (value) root.close()
+                    else OverlaysManager.persistNow()
+                }
+            }
+        }
+
         // ── Filas por overlay (data-driven) ─────────────────────────
         Repeater {
             model: OverlaysManager.overlays

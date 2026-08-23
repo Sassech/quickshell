@@ -12,15 +12,16 @@ OverlayWindow {
     // ── Configuración concreta ────────────────────────────────────────────
     entryId:        "preview"       // OverlayWindow auto-gobierna visibilidad vía OverlaysManager
     corner:         "bottom-right"
-    overlayWidth:   200
+    overlayWidth:   150
+    overlayHeight:  150
     bgColor:        "transparent"           // solo el GIF, sin tarjeta
     showAccent:     false
     restingOpacity: 0.95
     animInMs:       250
     animOutMs:      250
     autoHideMs:     0                       // 0 = siempre visible (loop)
-    bottomOffset:   70                      // capa = la provee OverlayWindow vía _effectiveOnTop
     mouseThrough:   true    // decorativo: los clicks pasan a la ventana de abajo
+    // La posición (offsets) la gobierna OverlaysManager vía su OverlayEntry.
 
     // ── Contenido (slot por defecto → contentArea) ─────────────────────────
     // sourceSize controla el tamaño de decodificación: 200px basta para el
@@ -29,12 +30,12 @@ OverlayWindow {
         anchors {
             left: parent.left
             top: parent.top
-            leftMargin: 14
-            topMargin: 14
+            leftMargin: 0
+            topMargin: 0
         }
         width: root.overlayWidth
         height: root.overlayWidth            // ratio 1:1 del asset
-        source: "assets/preview.gif"
+        source: "assets/miyabi-fruit.gif"
         sourceSize: Qt.size(200, 200)
         fillMode: Image.PreserveAspectFit
         asynchronous: true
