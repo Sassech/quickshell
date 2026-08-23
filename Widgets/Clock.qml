@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import Quickshell.Io
 import "../Components"
 
@@ -13,145 +14,122 @@ Rectangle {
 
     property bool use24h: true
     property string timezone: ""
-    property string utcTime: "--:--"
     property bool ntpSynced: true
 
-    // ── Valores cacheados del tooltip (actualizados por updateTime, no en cada hover) ──
-    property int  _weekOfYear:    0
-    property int  _dayOfYear:     0
-    property int  _daysRemaining: 0
-    property string _tooltipDate: ""
+    // ── Reloj nativo (SystemClock — reactivo, sin Timer ni setters) ───────
+    // precision Seconds → dateChanged cada segundo.
+    SystemClock {
+        id: sysClock
+        precision: SystemClock.Seconds
+    }
 
-    // ── Load preferences ───────────────────────────────────────────────────
+    // ── Computed properties — texto del reloj (bindings sobre sysClock) ───
+    readonly property string _timeStr: {
+        const h = sysClock.hours
+        const m = sysClock.minutes
+        if (root.use24h)
+            return h.toString().padStart(2, "0") + ":" + m.toString().padStart(2, "0")
+        const h12 = h % 12 || 12
+        return h12 + ":" + m.toString().padStart(2, "0")
+    }
+
+    readonly property string _secsStr: {
+        const s = sysClock.seconds
+        if (root.use24h)
+            return ":" + s.toString().padStart(2, "0")
+        const ampm = sysClock.hours >= 12 ? " pm" : " am"
+        return ":" + s.toString().padStart(2, "0") + ampm
+    }
+
+    readonly property string _dateStr: Qt.formatDateTime(sysClock.date, "ddd dd MMM")
+
+    readonly property string _utcStr: {
+        const d = new Date(sysClock.date)
+        const utc = new Date(d.getTime() + (d.getTimezoneOffset() * -60000))
+        return utc.toLocaleTimeString(Qt.locale(), Locale.ShortFormat).slice(0, 5)
+    }
+
+    // ── Valores del tooltip — derivados de sysClock.date (recomputan solos) ─
+    readonly property string _tooltipDate: Qt.formatDateTime(sysClock.date, "dddd, d 'de' MMMM 'de' yyyy")
+    readonly property int  _weekOfYear:    _calcWeekOfYear(sysClock.date)
+    readonly property int  _dayOfYear:     _calcDayOfYear(sysClock.date)
+    readonly property int  _daysRemaining: _calcDaysRemaining(sysClock.date)
+
+    // ── Inicialización ─────────────────────────────────────────────────────
     Component.onCompleted: {
-        loadPrefs();
-        loadTimezone();
-        checkNtp();
+        prefsFile.reload()
+        loadTimeAndNtp()
+    }
+
+    // ── Fix 1: FileView reemplaza loadPrefsProc ────────────────────────────
+    FileView {
+        id: prefsFile
+        path: Paths.config + "/clock-prefs.json"
+        onLoaded: {
+            try {
+                const prefs = JSON.parse(text())
+                root.use24h = prefs.use24h !== false
+            } catch(e) {}
+        }
     }
 
     // ── Reload prefs only when explicitly requested (no timer) ────────────
     function requestPrefsReload() {
-        loadPrefs()
-    }
-
-    Process {
-        id: tzProc
-        running: false
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => root.timezone = data.trim()
-        }
-    }
-
-    function loadTimezone() {
-        tzProc.command = ["bash", "-c", "timedatectl show -p Timezone --value 2>/dev/null || echo 'Unknown'"];
-        tzProc.running = true;
-    }
-
-    Process {
-        id: loadPrefsProc
-        running: false
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => {
-                try {
-                    const prefs = JSON.parse(data);
-                    root.use24h = prefs.use24h !== false;
-                    root.updateTime();
-                } catch(e) {}
-            }
-        }
-    }
-
-    function loadPrefs() {
-        loadPrefsProc.command = ["bash", "-c", "cat \"" + Paths.config + "/clock-prefs.json\" 2>/dev/null || echo '{}'"];
-        loadPrefsProc.running = true;
+        prefsFile.reload()
     }
 
     function savePrefs() {
-        savePrefsProc.command = ["bash", "-c", "echo '" + JSON.stringify({use24h: root.use24h}) + "' > \"" + Paths.config + "/clock-prefs.json\""];
-        savePrefsProc.running = true;
+        prefsFile.setText(JSON.stringify({use24h: root.use24h}))
     }
 
+    // ── Timezone + NTP (timedatectl — sin alternativa nativa en v0.3.0) ────
+    // Un solo proceso: `timedatectl show` admite varias propiedades por llamada,
+    // eliminando el segundo Process + el pipe a grep del NTP check.
     Process {
-        id: savePrefsProc
-        running: false
-    }
-
-    // ── NTP check ──────────────────────────────────────────────────────────
-    Process {
-        id: ntpProc
+        id: timeProc
         running: false
         stdout: SplitParser {
             splitMarker: "\n"
-            onRead: data => {
-                root.ntpSynced = data.trim().indexOf("yes") !== -1;
+            onRead: line => {
+                const t = line.trim()
+                if (t.startsWith("Timezone=")) {
+                    root.timezone = t.substring("Timezone=".length) || "Unknown"
+                } else if (t.startsWith("NTPSynchronized=")) {
+                    root.ntpSynced = t.endsWith("yes")
+                }
             }
         }
-    }
-
-    function checkNtp() {
-        ntpProc.command = ["bash", "-c", "timedatectl status 2>/dev/null | grep -oP 'System clock synchronized: \\K\\w+' || echo 'no'"];
-        ntpProc.running = true;
-    }
-
-    // ── UTC time monitor ───────────────────────────────────────────────────
-    Timer {
-        interval: 1000
-        running: true
-        repeat: true
-        onTriggered: {
-            const now = new Date();
-            const utc = new Date(now.getTime() + (now.getTimezoneOffset() * -60000));
-            root.utcTime = utc.toLocaleTimeString(Qt.locale(), Locale.ShortFormat).slice(0,5);
-            
-            const prevSec = secsText.text;
-            const newSec = Qt.formatDateTime(now, ":ss");
-            if (prevSec !== newSec) {
-                root.updateTime();
-            }
+        // qmllint disable signal-handler-parameters
+        onExited: {
+            if (root.timezone === "") root.timezone = "Unknown"
         }
+        // qmllint enable signal-handler-parameters
     }
 
-    function updateTime() {
-        const now = new Date();
-        const hours = now.getHours();
-        const minutes = now.getMinutes();
-        const seconds = now.getSeconds();
-
-        if (root.use24h) {
-            timeText.text = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
-            secsText.text = `:${seconds.toString().padStart(2, "0")}`;
-        } else {
-            const ampm = hours >= 12 ? "pm" : "am";
-            const h = hours % 12 || 12;
-            timeText.text = `${h}:${minutes.toString().padStart(2, "0")}`;
-            secsText.text = `:${seconds.toString().padStart(2, "0")} ${ampm}`;
-        }
-
-        // Actualizar fecha (evita que se vuelva stale pasada la medianoche)
-        dateText.text = Qt.formatDateTime(now, "ddd dd MMM");
-
-        // Actualizar valores del tooltip una vez por segundo (no en cada hover)
-        root._tooltipDate    = Qt.formatDateTime(now, "dddd, d 'de' MMMM 'de' yyyy");
-        root._weekOfYear     = _calcWeekOfYear(now);
-        root._dayOfYear      = _calcDayOfYear(now);
-        root._daysRemaining  = _calcDaysRemaining(now);
+    function loadTimeAndNtp() {
+        timeProc.command = ["timedatectl", "show", "-p", "Timezone", "-p", "NTPSynchronized"]
+        timeProc.running = true
     }
 
+    // ── Helpers tooltip (reciben sysClock.date — el tipo QML `date` es
+    // Date-compatible en JS, por eso new Date(now) replica el comportamiento
+    // original con el instante del SystemClock) ────────────────────────────
     function _calcWeekOfYear(now) {
-        const start = new Date(now.getFullYear(), 0, 1);
-        return Math.ceil(((now - start) + start.getDay() * 86400000) / 604800000);
+        const d = new Date(now)
+        const start = new Date(d.getFullYear(), 0, 1)
+        return Math.ceil(((d - start) + start.getDay() * 86400000) / 604800000)
     }
 
     function _calcDayOfYear(now) {
-        const start = new Date(now.getFullYear(), 0, 1);
-        return Math.ceil((now - start) / 86400000);
+        const d = new Date(now)
+        const start = new Date(d.getFullYear(), 0, 1)
+        return Math.ceil((d - start) / 86400000)
     }
 
     function _calcDaysRemaining(now) {
-        const end = new Date(now.getFullYear(), 11, 31);
-        return Math.ceil((end - now) / 86400000);
+        const d = new Date(now)
+        const end = new Date(d.getFullYear(), 11, 31)
+        return Math.ceil((end - d) / 86400000)
     }
 
     Row {
@@ -172,7 +150,7 @@ Rectangle {
                 font.bold: true
                 font.family: "monospace"
                 anchors.verticalCenter: parent.verticalCenter
-                text: "--:--"
+                text: root._timeStr
             }
 
             Text {
@@ -181,7 +159,7 @@ Rectangle {
                 font.pixelSize: 14
                 font.family: "monospace"
                 anchors.verticalCenter: parent.verticalCenter
-                text: ":--"
+                text: root._secsStr
             }
         }
 
@@ -200,7 +178,7 @@ Rectangle {
             color: Theme.muted1
             font.pixelSize: 11
             anchors.verticalCenter: parent.verticalCenter
-            text: "---"
+            text: root._dateStr
         }
 
         // UTC indicator
@@ -213,7 +191,7 @@ Rectangle {
 
             Text {
                 id: utcText
-                text: "UTC " + root.utcTime
+                text: "UTC " + root._utcStr
                 color: Theme.muted2
                 font.pixelSize: 8
                 font.family: "monospace"

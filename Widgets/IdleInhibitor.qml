@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell.Io
+import Quickshell.Wayland
 import Quickshell.Services.Mpris
 import "../Components"
 
@@ -13,103 +14,73 @@ Rectangle {
 
     signal clicked()
 
+    // Propiedad inyectada desde shell.qml — IdleInhibitor la necesita
+    required property var barWindow
+
     property bool inhibiting: false
     property string idleTime: "--"
     property bool mediaPlaying: false
-    property string _loadBuf: ""
-    property string _idleBuf: ""
-    property string _sessionId: ""
+    property real _idleStartMs: 0
 
     Behavior on color { ColorAnimation { duration: 120 } }
 
     Component.onCompleted: {
-        loadState();
-        detectSession();
+        idleStateFile.reload()
     }
 
-    // ── Detect session ID once (avoid re-running loginctl list-sessions) ──
-    Process {
-        id: sessionDetectProc
-        running: false
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => {
-                const v = data.trim()
-                if (v) root._sessionId = v
-            }
+    // ── Estado persistente via FileView (reemplaza loadProc + saveProc) ──
+    FileView {
+        id: idleStateFile
+        path: Paths.config + "/idle-state.json"
+        onLoaded: {
+            try {
+                const d = JSON.parse(idleStateFile.text())
+                if (d.inhibiting === true) root.inhibiting = true
+            } catch(e) {}
         }
-    }
-
-    function detectSession() {
-        sessionDetectProc.command = ["bash", "-c",
-            "loginctl --no-legend list-sessions 2>/dev/null | grep seat0 | awk '{print $1}' | head -1"]
-        sessionDetectProc.running = true
-    }
-
-    Process {
-        id: loadProc
-        running: false
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => {
-                root._loadBuf += data;
-                try {
-                    const d = JSON.parse(root._loadBuf.trim());
-                    if (d.inhibiting === true) {
-                        root.inhibiting = true;
-                        root.inhibitProc.running = true;
-                    }
-                    root._loadBuf = "";
-                } catch (e) {}
-            }
-        }
-    }
-
-    function loadState() {
-        _loadBuf = "";
-        loadProc.command = ["bash", "-c", "cat \"" + Paths.config + "/idle-state.json\" 2>/dev/null || echo ''"];
-        loadProc.running = true;
     }
 
     function saveState(data) {
-        saveProc.command = ["bash", "-c", "echo '" + JSON.stringify(data) + "' > \"" + Paths.config + "/idle-state.json\""];
-        saveProc.running = true;
+        idleStateFile.setText(JSON.stringify(data))
     }
 
-    Process {
-        id: saveProc
-        running: false
+    // ── Idle inhibitor nativo Wayland (reemplaza systemd-inhibit) ──
+    IdleInhibitor {
+        id: idleInhibitorItem
+        // TODO: asignar desde shell.qml
+        window: root.barWindow
+        enabled: root.inhibiting
     }
 
-    Process {
-        id: idleProc
-        running: false
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => {
-                root._idleBuf += data;
-                const seconds = parseInt(root._idleBuf.trim()) || 0;
-                root.idleTime = root.formatIdleTime(seconds);
-                root._idleBuf = "";
-            }
+    // ── Monitor de idle nativo Wayland (reemplaza loginctl + idleProc) ──
+    IdleMonitor {
+        id: idleMonitorItem
+        timeout: 60   // segundos (doc v0.3.0: timeout es real en segundos, no ms)
+        // qmllint disable unqualified
+        onIsIdleChanged: root._updateIdleTime()
+        // qmllint enable unqualified
+    }
+
+    function _updateIdleTime() {
+        if (idleMonitorItem.isIdle) {
+            // isIdle se dispara tras ~timeout segundos sin input → anclar el
+            // inicio al momento real de idle, no al del evento.
+            root._idleStartMs = Date.now() - idleMonitorItem.timeout * 1000
+        } else {
+            root._idleStartMs = 0
+            root.idleTime = "--"
         }
     }
 
+    // Actualiza el tiempo transcurrido mientras el tooltip es visible
     Timer {
-        id: idleTimer
-        interval: 30000
-        // Solo pollea cuando el tooltip está visible — es el único consumidor del valor
-        running: mouseArea.containsMouse
+        interval: 5000
+        running: mouseArea.containsMouse && idleMonitorItem.isIdle && root._idleStartMs > 0
         repeat: true
         triggeredOnStart: true
         onTriggered: {
-            if (root._sessionId) {
-                idleProc.command = ["bash", "-c",
-                    "loginctl show-session " + root._sessionId + " -p IdleSince --value 2>/dev/null | cut -d. -f1 || echo 0"]
-            } else {
-                idleProc.command = ["bash", "-c", "echo 0"]
-            }
-            idleProc.running = true;
+            const elapsed = Math.floor((Date.now() - root._idleStartMs) / 1000)
+            root.idleTime = root.formatIdleTime(elapsed)
         }
     }
 
@@ -136,41 +107,28 @@ Rectangle {
         root.mediaPlaying = playing
         if (root.mediaPlaying && !root.inhibiting) {
             root.inhibiting = true
-            if (root.inhibitProc) root.inhibitProc.running = true
             saveState({ inhibiting: true })
         }
     }
 
-    // onValuesChanged cubre inserción/remoción de players; también revalúa el estado
-    // de playback. No usamos Connections a values[0] porque es dangling reference
-    // cuando el player se reemplaza o elimina.
+    // onValuesChanged cubre inserción/remoción de players.
     Connections {
         target: Mpris.players
         function onValuesChanged() { root._checkMediaPlaying() }
     }
 
-    property Process inhibitProc: Process {
-        id: inhibitProc
-        command: [
-            "systemd-inhibit",
-            "--what=idle",
-            "--who=Quickshell",
-            "--why=Manual inhibit",
-            "--mode=block",
-            "sleep", "infinity"
-        ]
-        running: false
-        stdout: SplitParser { splitMarker: "\n"; onRead: data => {} }
-
-        // qmllint disable signal-handler-parameters
-        onExited: function(exitCode) {
-            if (root.inhibiting && exitCode !== 0) {
-                root.inhibiting = false;
-                root.sendNotif("error", "Error al bloquear idle", "systemd-inhibit falló");
-                root.saveState({ inhibiting: false });
-            }
+    // Escucha cada player individualmente — detecta transiciones Paused→Playing
+    // sin que la lista de players cambie (onValuesChanged no se dispara en ese caso).
+    Instantiator {
+        model: Mpris.players
+        delegate: Connections {
+            required property var modelData
+            target: modelData
+            // qmllint disable unqualified
+            function onPlaybackStateChanged() { root._checkMediaPlaying() }
+            function onIsPlayingChanged()     { root._checkMediaPlaying() }
+            // qmllint enable unqualified
         }
-        // qmllint enable signal-handler-parameters
     }
 
     Process {
@@ -222,13 +180,11 @@ Rectangle {
 
         onClicked: {
             root.inhibiting = !root.inhibiting
-            
+
             if (root.inhibiting) {
-                inhibitProc.running = true
-                root.sendNotif("critical", "☕ Idle bloqueado", "La pantalla no se apagará automáticamente");
+                root.sendNotif("normal", "☕ Idle bloqueado", "La pantalla no se apagará automáticamente");
                 root.saveState({ inhibiting: true });
             } else {
-                inhibitProc.running = false
                 root.sendNotif("normal", "Idle restaurado", "El sistema volverá al comportamiento normal");
                 root.saveState({ inhibiting: false });
             }

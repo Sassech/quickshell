@@ -10,12 +10,21 @@ QtObject {
     id: root
 
     // ── Estado del dispositivo WiFi ───────────────────────────────────────
-    property var    _nmWifiDev: {
+    property var    _nmWifiDev: null
+
+    function _findWifiDev() {
         var devs = Networking.devices.values
         for (var i = 0; i < devs.length; i++) {
             if (devs[i].type === DeviceType.Wifi) return devs[i]
         }
         return null
+    }
+
+    Component.onCompleted: root._nmWifiDev = root._findWifiDev()
+
+    property var _nmDevConnections: Connections {
+        target: Networking.devices
+        function onValuesChanged() { root._nmWifiDev = root._findWifiDev() }
     }
 
     property bool   _wifiRadioOn:    Networking.wifiEnabled
@@ -232,9 +241,9 @@ QtObject {
             + "ethtool \"$ETH_IFACE\" 2>/dev/null | grep \"Speed:\" | awk '{print $2}'; "
             + "else echo \"disconnected\"; fi"]
         onLines: lines => {
-            root._ethConnected = (lines[0] || "").trim() === "connected"
-            root._ethIp    = (lines[1] || "").trim()
-            root._ethSpeed = (lines[2] || "").trim()
+            root._ethConnected = String(lines[0] || "").trim() === "connected"
+            root._ethIp    = String(lines[1] || "").trim()
+            root._ethSpeed = String(lines[2] || "").trim()
         }
     }
 
@@ -274,9 +283,9 @@ QtObject {
             + "nmcli -g IP4.DNS dev show \"$IFACE\" 2>/dev/null; "
             + "fi"]
         onLines: lines => {
-            root._wifiIp      = (lines[0] || "").split("/")[0].trim()
-            root._wifiGateway = (lines[1] || "").trim()
-            root._wifiDns     = (lines[2] || "").trim()
+            root._wifiIp      = String(lines[0] || "").split("/")[0].trim()
+            root._wifiGateway = String(lines[1] || "").trim()
+            root._wifiDns     = String(lines[2] || "").trim()
         }
     }
 

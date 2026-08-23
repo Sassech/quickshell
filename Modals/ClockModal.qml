@@ -250,7 +250,11 @@ QmModalBase {
                                                     const ic = notifItem.modelData.notifIcon ?? ""
                                                     if (!ic || ic.length === 0) return ""
                                                     if (ic.startsWith("/") || ic.startsWith("file://")) return ic
-                                                    if (ic.length > 4) return "image://theme/" + ic
+                                                    var name = ic
+                                                    if (name.startsWith("image://theme/")) name = name.substring("image://theme/".length)
+                                                    else if (name.startsWith("image://icon/")) name = name.substring("image://icon/".length)
+                                                    else if (name.startsWith("image://")) name = name.substring(name.indexOf("/", "image://".length) + 1)
+                                                    if (name.length > 4) return "image://theme/" + name
                                                     return ""
                                                 }
                                                 fillMode: Image.PreserveAspectFit
@@ -602,37 +606,22 @@ QmModalBase {
     }
 
     // ── Persistencia de formato ───────────────────────────────────────────
-    Component.onCompleted: loadFormatPref()
-
-    function loadFormatPref() {
-        loadFormatProc.running = true
-    }
-
-    Process {
-        id: loadFormatProc
-        running: false
-        command: ["bash", "-c", "cat \"" + Paths.config + "/clock-prefs.json\" 2>/dev/null || echo '{\"use24h\":true}'"]
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => {
-                try {
-                    const prefs = JSON.parse(data.trim())
-                    root.use24hFormat = prefs.use24h !== false
-                    clockText.updateTime()
-                } catch(e) {}
-            }
+    FileView {
+        id: clockPrefsFile
+        path: Paths.config + "/clock-prefs.json"
+        Component.onCompleted: this.reload()
+        onLoaded: {
+            try {
+                const prefs = JSON.parse(text())
+                root.use24hFormat = prefs.use24h !== false
+                clockText.updateTime()
+            } catch(e) {}
         }
     }
 
     function setFormat(is24h) {
         root.use24hFormat = is24h
         clockText.updateTime()
-        saveFormatProc.command = ["bash", "-c", "echo '{\"use24h\":" + is24h + "}' > \"" + Paths.config + "/clock-prefs.json\""]
-        saveFormatProc.running = true
-    }
-
-    Process {
-        id: saveFormatProc
-        running: false
+        clockPrefsFile.setText(JSON.stringify({ use24h: is24h }))
     }
 }

@@ -26,9 +26,6 @@ PanelWindow {
 
     implicitHeight: screen.height
 
-    // ── Propiedades públicas ──────────────────────────────────────────────
-    property string _scriptsPath: Paths.scripts
-
     // ── Estado interno ────────────────────────────────────────────────────
     property bool _running: false
 
@@ -101,7 +98,7 @@ PanelWindow {
         property string mode: "region"
         onTriggered: {
             safetyTimer.restart()
-            captureProc.command = ["bash", root._scriptsPath + "/screenshot.sh", mode]
+            captureProc.command = ["bash", Paths.scripts + "/screenshot.sh", mode]
             captureProc.running = true
         }
     }

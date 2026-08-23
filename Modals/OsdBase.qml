@@ -5,19 +5,12 @@ import Quickshell
 import Quickshell.Wayland
 import "../Components"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// OsdBase — plantilla base para OSD transitorios (volumen, brillo).
-//
-// Encapsula el ciclo de vida completo de un OSD: PanelWindow flotante
-// bottom-center, slide-in desde abajo, auto-dismiss con fade-out, tarjeta con
-// borde de acento. El OSD concreto hereda, bindea su contenido a las
-// properties parametrizadas (value/icon/label/colores) y define su `show()`,
-// que termina llamando `showCard()` de la base (QML no tiene super).
-//
-// Contenido común: fila [icono | barra de progreso | label]. La barra escala
-// sobre `max` (el volumen usa 150 para admitir boost >100%); el marcador de
-// 100% se muestra solo si `showHundredTick` es true.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── OsdBase — plantilla base para OSD transitorios (volumen, brillo) ───────
+// PanelWindow bottom-center, slide-in y auto-dismiss con fade-out. El OSD
+// concreto hereda, bindea su contenido y define su `show()`, que termina
+// llamando `showCard()` de la base (QML no tiene super). La barra escala sobre
+// `max` (el volumen usa 150 para admitir boost >100%); el marcador de 100%
+// aparece solo si `showHundredTick` es true.
 PanelWindow {
     id: root
 

@@ -53,16 +53,15 @@ Rectangle {
         Component.onCompleted: running = true
     }
 
-    // Poll system locale once at startup
-    Process {
-        id: localeProc
-        command: ["sh", "-c",
-            "localectl status 2>/dev/null | awk '/System Locale/{print $3}' | cut -d= -f2 | cut -d_ -f1"]
-        stdout: SplitParser {
-            splitMarker: ""
-            onRead: data => { const v = data.trim(); if (v) root.locale = v.toUpperCase() }
+    // Lee /etc/locale.conf directamente — sin procesos externos ni polling
+    FileView {
+        id: localeFile
+        path: "/etc/locale.conf"
+        Component.onCompleted: this.reload()
+        onLoaded: {
+            const m = text().match(/^LANG=(.+)$/m)
+            if (m) root.locale = m[1].trim().split("_")[0].toUpperCase()
         }
-        Component.onCompleted: running = true
     }
 
     Row {

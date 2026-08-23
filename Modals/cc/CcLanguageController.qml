@@ -1,6 +1,7 @@
 // Controlador de idioma — layout de teclado + locale + búsqueda con debounce
 import QtQuick
 import Quickshell.Io
+import Quickshell.Hyprland
 import "../../Components"
 
 QtObject {
@@ -49,16 +50,34 @@ QtObject {
         onTriggered: root._langSearch = root._langSearchPending
     }
 
-    // ── Proceso: layout actual desde Hyprland ─────────────────────────────
+    // ── One-shot: layout actual desde Hyprland ─────────────────────────
+    // Lazy: no corre al nacer — ControlCenter.warmUp() lo dispara en la
+    // primera apertura del CC; rawEvent cubre los cambios posteriores.
     property var _langCurrentProc: Process {
         id: langCurrentProc
-        command: ["sh", "-c",
-            "hyprctl getoption input:kb_layout 2>/dev/null | awk '/^str:/{print $2}'"]
+        running: false
+        command: ["hyprctl", "getoption", "input:kb_layout"]
         stdout: SplitParser {
-            splitMarker: ""
-            onRead: d => {
-                var v = d.trim()
-                if (v) root._langLayout = v
+            splitMarker: "\n"
+            onRead: data => {
+                const m = data.match(/str:\s*(\S+)/)
+                if (m) root._langLayout = m[1].split(",")[0].trim()
+            }
+        }
+    }
+
+    // ── Warm-up perezoso: siembra el layout inicial al abrir el CC ──────
+    function warmUp() {
+        if (!langCurrentProc.running) langCurrentProc.running = true
+    }
+
+    // ── Cambios en runtime vía rawEvent ──────────────────────────────────
+    property var _hyprlandLayoutConn: Connections {
+        target: Hyprland
+        function onRawEvent(event) {
+            if (event.name === "activelayout") {
+                const parts = event.data.split(",")
+                if (parts.length >= 2) root._langLayout = parts[parts.length - 1].trim()
             }
         }
     }
@@ -90,12 +109,10 @@ QtObject {
     }
 
     // ── Proceso: aplicar layout via Hyprland ──────────────────────────────
+    // El cambio se detecta vía rawEvent "activelayout" — no necesita re-run.
     property var _langSetProc: Process {
         id: langSetProc
         command: ["hyprctl", "keyword", "input:kb_layout", ""]
-        // qmllint disable signal-handler-parameters
-        onExited: Qt.callLater(() => langCurrentProc.running = true)
-        // qmllint enable signal-handler-parameters
     }
 
     // ── Proceso: locales disponibles ──────────────────────────────────────
@@ -129,9 +146,10 @@ QtObject {
         _langSearchDebounce.stop()
         root._langTab           = "keyboard"
         langLayoutProc.running     = true
-        langCurrentProc.running    = true
         langLocaleProc.running     = true
         langLocaleListProc.running = true
+        // langCurrentProc: one-shot se siembra via warmUp() al abrir el CC;
+        // rawEvent cubre los cambios futuros.
     }
 
     function setLayout(code) {

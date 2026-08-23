@@ -76,13 +76,13 @@ PanelWindow {
                 id: clipboardWidget
                 onClicked: root.clipboardClicked(root.screen)
             }
-            IdleInhibitor {}
+            IdleInhibitor { barWindow: root }
 
             Weather {
                 id: weatherWidget
                 onClicked: root.weatherClicked(root.screen)
             }
-            
+
             Clock {
                 id: clockWidget
                 onClicked: root.clockClicked(root.screen)

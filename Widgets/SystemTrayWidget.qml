@@ -51,12 +51,9 @@ Item {
                 panelWindow: root.panelWindow
 
                 // Ocultar Passive cuando no está expandido
-                visible: root.expanded || modelData.status !== Status.Passive
-
-                Behavior on visible {
-                    // Fade suave al mostrar/ocultar
-                    NumberAnimation { property: "opacity"; duration: 150 }
-                }
+                opacity: (root.expanded || modelData.status !== Status.Passive) ? 1.0 : 0.0
+                visible: opacity > 0
+                Behavior on opacity { NumberAnimation { duration: 150 } }
             }
         }
     }

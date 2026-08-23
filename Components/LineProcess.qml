@@ -8,7 +8,7 @@ import Quickshell.Io
 Process {
     id: root
     property string buffer: ""
-    signal lines(var arr)
+    signal lines(list<string> arr)
     stdout: SplitParser {
         splitMarker: "\n"
         onRead: d => root.buffer += d + "\n"

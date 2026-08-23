@@ -53,7 +53,10 @@ OsdBase {
     Connections {
         target: Pipewire
         function onDefaultAudioSinkChanged() {
-            if (!readVolProc.running) {
+            const v = root.sink?.audio?.volume
+            if (v !== undefined && v !== null && !isNaN(v)) {
+                root._volumePct = Math.round(v * 100)
+            } else if (!readVolProc.running) {
                 root._buf = ""
                 readVolProc.running = true
             }

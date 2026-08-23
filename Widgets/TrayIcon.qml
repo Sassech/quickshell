@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Quickshell.Widgets
 import Quickshell.Services.SystemTray
+import "../Components"
 
 Rectangle {
     id: root
@@ -17,7 +18,7 @@ Rectangle {
     // ── Color de fondo según estado ──────────────────────────────────────
     property bool _needsAttention: root.trayItem.status === Status.NeedsAttention
 
-    color: ma.containsMouse ? "#22ffffff" : "transparent"
+    color: ma.containsMouse ? Theme.surfaceHover : "transparent"
     Behavior on color { ColorAnimation { duration: 100 } }
 
     scale: ma.pressed ? 0.92 : 1.0
@@ -31,7 +32,7 @@ Rectangle {
         height: parent.height + 6
         radius: parent.radius + 3
         color: "transparent"
-        border.color: "#ffcc00"
+        border.color: Theme.warning
         border.width: 1.5
         opacity: 0
         visible: root._needsAttention
@@ -78,13 +79,13 @@ Rectangle {
         }
         contentItem: Text {
             text: tooltip.text
-            color: "#e0e0e0"
+            color: Theme.text
             font.pixelSize: 11
             wrapMode: Text.WordWrap
         }
         background: Rectangle {
-            color: "#1e1e2e"
-            border.color: "#44ffffff"
+            color: Theme.cardBg3
+            border.color: Theme.borderSubtle
             border.width: 1
             radius: 4
         }

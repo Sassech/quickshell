@@ -20,8 +20,10 @@ QtObject {
     // Pipewire.defaultAudioSink/defaultSource no cambian de forma confiable al
     // usar preferredDefaultAudioSink/Source — trackeamos nosotros el nodo y
     // nombre activos para highlight, volumen, mute y bindings.
-    property var    _activeSink:       defaultSink
-    property var    _activeSource:     defaultSource
+    property var    _activeSink:       defaultSink             // binding declarativo puro
+    property var    _activeSource:     defaultSource           // binding declarativo puro
+    // computed — se re-evalúan cuando defaultSink/defaultSource cambian
+    // (no readonly: setDefaultSink/setDefaultSource asignan imperativamente al seleccionar)
     property string _activeSinkName:   defaultSink?.name   ?? ""
     property string _activeSourceName: defaultSource?.name ?? ""
 
@@ -34,46 +36,8 @@ QtObject {
     // ── Sincronizar tracking cuando Pipewire avisa de un cambio real ──────
     property var _pwConnections: Connections {
         target: Pipewire
-        function onDefaultAudioSinkChanged() {
-            root._pwRev++
-            if (root.defaultSink?.name) {
-                root._activeSink     = root.defaultSink
-                root._activeSinkName = root.defaultSink.name
-            }
-        }
-        function onDefaultAudioSourceChanged() {
-            root._pwRev++
-            if (root.defaultSource?.name) {
-                root._activeSource     = root.defaultSource
-                root._activeSourceName = root.defaultSource.name
-            }
-        }
-    }
-
-    // ── Volumen/mute del sink activo ──────────────────────────────────────
-    property var _sinkAudioConn: Connections {
-        target: root._activeSink?.audio ?? null
-        function onVolumesChanged() {
-            const v = root._activeSink?.audio?.volume
-            if (v !== undefined && !isNaN(v)) root.masterVolume = v
-        }
-        function onMutedChanged() {
-            const m = root._activeSink?.audio?.muted
-            if (m !== undefined) root.masterMuted = m
-        }
-    }
-
-    // ── Volumen/mute del source activo ────────────────────────────────────
-    property var _sourceAudioConn: Connections {
-        target: root._activeSource?.audio ?? null
-        function onVolumesChanged() {
-            const v = root._activeSource?.audio?.volume
-            if (v !== undefined && !isNaN(v)) root.micVolume = v
-        }
-        function onMutedChanged() {
-            const m = root._activeSource?.audio?.muted
-            if (m !== undefined) root.micMuted = m
-        }
+        function onDefaultAudioSinkChanged()   { root._pwRev++ }
+        function onDefaultAudioSourceChanged() { root._pwRev++ }
     }
 
     // ── Audio state ───────────────────────────────────────────────────────
@@ -236,12 +200,10 @@ QtObject {
 
     // ── Funciones de control de volumen ───────────────────────────────────
     function setMasterVolume(v) {
-        root.masterVolume = v
         if (root._activeSink?.audio) root._activeSink.audio.volume = v
     }
 
     function setMicVol(v) {
-        root.micVolume = v
         if (root._activeSource?.audio) root._activeSource.audio.volume = v
     }
 
@@ -295,11 +257,25 @@ QtObject {
         _audioMoveSourceProc.running = true
     }
 
+    // ── Debounce para colapsar llamadas rápidas en un solo batch ─────────
+    property bool _audioDevLoadPending: false
+    property var _audioDevDebounce: Timer {
+        id: _audioDevDebounce
+        interval: 500
+        repeat: false
+        onTriggered: {
+            root._audioDevLoadPending = false
+            _audioSinkAvailProc.running   = true
+            _audioSourceAvailProc.running = true
+            _audioCardsProc.running       = true
+        }
+    }
+
     // ── Cargar disponibilidad de dispositivos ─────────────────────────────
     function loadAudioDevices() {
-        _audioSinkAvailProc.running   = true
-        _audioSourceAvailProc.running = true
-        _audioCardsProc.running       = true
+        if (root._audioDevLoadPending) return
+        root._audioDevLoadPending = true
+        _audioDevDebounce.restart()
     }
 
     // ── Aplicar pending sink switch tras profile change ───────────────────
@@ -444,10 +420,8 @@ QtObject {
         onTriggered: root._applyPendingSinkSwitch()
     }
 
-    // ── Refresh cada 5 s mientras el panel de audio esté abierto ─────────
-    property var _audioRefreshTimer: Timer {
-        interval: 5000; repeat: true
-        running: root.panelVisible && root.panelActive
-        onTriggered: root.loadAudioDevices()
+    // ── Cargar dispositivos al activar el panel ───────────────────────────
+    onPanelActiveChanged: {
+        if (root.panelActive && root.panelVisible) root.loadAudioDevices()
     }
 }

@@ -10,9 +10,9 @@ Rectangle {
     color: Theme.surface2
 
     // ── Properties ───────────────────────────────────────────
-    property bool batteryAvailable: SysData.batAvailable
-    property int  batteryLevel:     SysData.batPercent
-    property bool isCharging:       SysData.batCharging
+    readonly property bool batteryAvailable: SysData.batAvailable
+    readonly property int  batteryLevel:     SysData.batPercent
+    readonly property bool isCharging:       SysData.batCharging
 
     property string stateIcon: {
         if (!batteryAvailable) return ""

@@ -20,21 +20,20 @@ Rectangle {
     property bool available: adapter !== null
     property bool powered:   adapter ? adapter.enabled : false
 
-    property int devicesRevision: 0
-    property var connectedDevices: {
-        devicesRevision
+    property var connectedDevices: []
+    property bool   connected:  connectedDevices.length > 0
+    property string deviceName: connected
+        ? (connectedDevices[0].name || connectedDevices[0].deviceName)
+        : ""
+
+    function _updateConnectedDevices() {
         var all = root.adapter ? root.adapter.devices.values : []
         var out = []
         for (var i = 0; i < all.length; i++) {
             if (all[i].connected) out.push(all[i])
         }
-        return out
+        root.connectedDevices = out
     }
-
-    property bool   connected:  connectedDevices.length > 0
-    property string deviceName: connected
-        ? (connectedDevices[0].name || connectedDevices[0].deviceName)
-        : ""
 
     Behavior on color { ColorAnimation { duration: 100 } }
 
@@ -51,10 +50,13 @@ Rectangle {
         return Theme.muted1
     }
 
+    onAdapterChanged: _updateConnectedDevices()
+    Component.onCompleted: _updateConnectedDevices()
+
     Connections {
         target: root.adapter ? root.adapter.devices : null
-        function onObjectInsertedPost(object, index) { root.devicesRevision++ }
-        function onObjectRemovedPost(object, index) { root.devicesRevision++ }
+        function onObjectInsertedPost(object, index) { root._updateConnectedDevices() }
+        function onObjectRemovedPost(object, index) { root._updateConnectedDevices() }
     }
 
     Instantiator {
@@ -62,9 +64,9 @@ Rectangle {
         delegate: Connections {
             required property var modelData
             target: modelData
-            function onConnectedChanged() { root.devicesRevision++ }
-            function onNameChanged() { root.devicesRevision++ }
-            function onDeviceNameChanged() { root.devicesRevision++ }
+            function onConnectedChanged() { root._updateConnectedDevices() }
+            function onNameChanged() { root._updateConnectedDevices() }
+            function onDeviceNameChanged() { root._updateConnectedDevices() }
         }
     }
 

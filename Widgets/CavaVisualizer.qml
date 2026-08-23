@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell.Io
+import Quickshell.Services.Pipewire
 import "../Components"
 
 Rectangle {
@@ -13,45 +14,23 @@ Rectangle {
     layer.smooth: true
 
     property bool isPlaying: false
-    property string cavaSource: ""
     property var audioLevels: [0, 0, 0, 0, 0, 0, 0, 0]
-    property bool sinkDetected: false
-    property int restartAttempts: 0
-    property int maxRestartAttempts: 3
 
-    Component.onCompleted: sinkProcess.running = true
-
-    Process {
-        id: sinkProcess
-        command: ["wpctl", "inspect", "@DEFAULT_AUDIO_SINK@"]
-
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => {
-                if (!data || data.indexOf("node.name") === -1)
-                    return
-
-                var match = data.match(/node\.name\s*=\s*"([^"]+)"/)
-                if (match && match.length > 1) {
-                    root.cavaSource = match[1] + ".monitor"
-                    root.sinkDetected = true
-                    sinkProcess.running = false
-                    cavaProcess.running = true
-                }
-            }
-        }
-
-        // qmllint disable signal-handler-parameters
-        onExited: {
-            if (!root.sinkDetected) {
-                root.restartAttempts++
-                if (root.restartAttempts < root.maxRestartAttempts) {
-                    Qt.callLater(function() { sinkProcess.running = true })
-                }
-            }
-        }
-        // qmllint enable signal-handler-parameters
+    // Binding reactivo: se actualiza automáticamente cuando cambia el sink por defecto
+    property string cavaSource: {
+        const sink = Pipewire.defaultAudioSink
+        return sink ? sink.name + ".monitor" : "default.monitor"
     }
+
+    // Relanzar CAVA cuando el sink cambia (e.g. conectar auriculares)
+    onCavaSourceChanged: {
+        if (cavaProcess.running) {
+            cavaProcess.running = false
+            Qt.callLater(function() { cavaProcess.running = true })
+        }
+    }
+
+    Component.onCompleted: cavaProcess.running = true
 
     Process {
         id: cavaProcess
@@ -87,11 +66,8 @@ Rectangle {
 
         // qmllint disable signal-handler-parameters
         onExited: {
-            if (root.isPlaying && root.sinkDetected) {
-                root.restartAttempts++
-                if (root.restartAttempts < root.maxRestartAttempts) {
-                    Qt.callLater(function() { cavaProcess.running = true })
-                }
+            if (root.isPlaying) {
+                Qt.callLater(function() { cavaProcess.running = true })
             }
         }
         // qmllint enable signal-handler-parameters
