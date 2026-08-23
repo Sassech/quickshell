@@ -12,3 +12,5 @@ scripts/__pycache__/*
 .codegraph/
 missfont.log
 scripts/qs-helper/qs-helper
+.env.sonar
+.qmllint/
