@@ -24,5 +24,12 @@ mkdir -p "$QMLLINT_DIR/qs/Modals"
 # existente (reemplazo directo).
 ln -sfn ../../../Modals/cc "$QMLLINT_DIR/qs/Modals/cc"
 
+# Portable .qmllint.ini for IDEs that invoke qmllint without -I (gitignored).
+# Wrapper is source of truth via -I; this file is only for direct IDE calls.
+# Regenerate if missing or stale (wrong absolute path).
+if [[ ! -f "$ROOT/.qmllint.ini" ]] || ! grep -Fq "$ROOT/.qmllint" "$ROOT/.qmllint.ini" 2>/dev/null; then
+    printf "[General]\nAdditionalQmlImportPaths=%s/.qmllint\n" "$ROOT" > "$ROOT/.qmllint.ini"
+fi
+
 QMLLINT="${QMLLINT:-$(command -v qmllint || echo /usr/lib64/qt6/bin/qmllint)}"
 exec "$QMLLINT" -I "$QMLLINT_DIR" "$@"
