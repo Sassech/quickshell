@@ -126,6 +126,9 @@ func detectTheme() string {
 			return strings.TrimSpace(strings.TrimPrefix(line, "gtk-icon-theme-name="))
 		}
 	}
+	if err := scanner.Err(); err != nil {
+		return ""
+	}
 	return ""
 }
 
