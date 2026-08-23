@@ -7,7 +7,7 @@ import Quickshell.Bluetooth
 import Quickshell.Widgets
 import "../../Components"
 
-// ── Panel Bluetooth — popup del Control Center ────────────────────────────────
+// Panel Bluetooth — popup del Control Center
 Rectangle {
     id: root
 
@@ -24,7 +24,7 @@ Rectangle {
         border.width: 1
     }
 
-    // ── Inputs ────────────────────────────────────────────────────────────
+    // Inputs
     required property var    btAdapter
     required property bool   btAvailable
     required property bool   btPwrd
@@ -37,7 +37,7 @@ Rectangle {
     required property int    btNearbyCount
     required property var    btCodecData
 
-    // ── Outputs ───────────────────────────────────────────────────────────
+    // Outputs
     signal closeRequested()
     signal togglePower()
     signal toggleScan()
@@ -48,12 +48,12 @@ Rectangle {
     signal forgetDevice(var device)
     signal setCodec(string mac, string profile)
 
-    // ── Helpers ───────────────────────────────────────────────────────────
+    // Helpers
     function _deviceName(device) {
         return device.name || device.deviceName || device.address
     }
 
-    // ── Estado de forget pendiente (clave: MAC del dispositivo) ───────────
+    // Estado de forget pendiente (clave: MAC del dispositivo)
     property var    _pendingForget:    ({})   // { "AA:BB:CC" : true }
     property string _forgetPendingMac: ""
 
@@ -69,13 +69,13 @@ Rectangle {
         }
     }
 
-    // ── Contenido ─────────────────────────────────────────────────────────
+    // Contenido
     Column {
         id: btDetailCol
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
         spacing: 8
 
-        // ── Header ─────────────────────────────────────────────────────────
+        // Header
         Item {
             width: parent.width; height: 32
 
@@ -160,7 +160,7 @@ Rectangle {
             }
         }
 
-        // ── Status message ─────────────────────────────────────────────────
+        // Status message
         Text {
             visible: root.btWorking || root.btStatusMsg !== ""
             text: root.btWorking ? "Trabajando…" : root.btStatusMsg
@@ -169,7 +169,7 @@ Rectangle {
                  : root.btStatusMsg.startsWith("✓") ? Theme.success : Theme.error
         }
 
-        // ── No adapter ─────────────────────────────────────────────────────
+        // No adapter
         Item {
             visible: !root.btAvailable
             width: parent.width; height: 40
@@ -180,7 +180,7 @@ Rectangle {
             }
         }
 
-        // ── Off message ────────────────────────────────────────────────────
+        // Off message
         Item {
             visible: root.btAvailable && !root.btPwrd
             width: parent.width; height: 36
@@ -191,7 +191,7 @@ Rectangle {
             }
         }
 
-        // ── Device lists ───────────────────────────────────────────────────
+        // Device lists
         Column {
             visible: root.btAvailable && root.btPwrd
             width: parent.width; spacing: 4
@@ -373,7 +373,7 @@ Rectangle {
                         }
                     }
 
-                    // ── Codec panel ────────────────────────────────────────
+                    // Codec panel
                     Rectangle {
                         visible: btPairedEntry.hasCodec
                         width: parent.width; height: 34; radius: 7

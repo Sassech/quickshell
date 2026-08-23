@@ -1,7 +1,7 @@
 import QtQuick
 import "../Components"
 
-// ── Botón engranaje — abre el Control Center ─────────────────────────────
+// Botón engranaje — abre el Control Center
 Rectangle {
     id: root
     signal clicked()

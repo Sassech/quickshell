@@ -7,11 +7,11 @@ import "../../Components"
 QtObject {
     id: root
 
-    // ── Props requeridas: gate para computed sinks/sources ────────────────
+    // Props requeridas: gate para computed sinks/sources
     required property bool panelVisible
     required property bool panelActive
 
-    // ── Pipewire nodes ────────────────────────────────────────────────────
+    // Pipewire nodes
     property var defaultSink:   Pipewire.defaultAudioSink
     property var defaultSource: Pipewire.defaultAudioSource
 
@@ -27,23 +27,23 @@ QtObject {
     property string _activeSinkName:   defaultSink?.name   ?? ""
     property string _activeSourceName: defaultSource?.name ?? ""
 
-    // ── Volumen/mute bindeados al nodo activo ─────────────────────────────
+    // Volumen/mute bindeados al nodo activo
     property real masterVolume: root._activeSink?.audio?.volume   ?? 0.75
     property bool masterMuted:  root._activeSink?.audio?.muted    ?? false
     property real micVolume:    root._activeSource?.audio?.volume ?? 0.75
     property bool micMuted:     root._activeSource?.audio?.muted  ?? false
 
-    // ── Sincronizar tracking cuando Pipewire avisa de un cambio real ──────
+    // Sincronizar tracking cuando Pipewire avisa de un cambio real
     property var _pwConnections: Connections {
         target: Pipewire
         function onDefaultAudioSinkChanged()   { root._pwRev++ }
         function onDefaultAudioSourceChanged() { root._pwRev++ }
     }
 
-    // ── Audio state ───────────────────────────────────────────────────────
+    // Audio state
     property int _pwRev: 0   // bump en cambios de sinks/sources/visibilidad
 
-    // ── Audio device lists (sinks / sources) ──────────────────────────────
+    // Audio device lists (sinks / sources)
     property var _audioSinkAvail:   ({})   // { nodeName: bool }
     property var _audioSourceAvail: ({})
 
@@ -54,7 +54,7 @@ QtObject {
     property string _pendingSinkToken:   ""   // "speaker" | "headphones"
     property int    _pendingSinkRetries: 0
 
-    // ── Computed: lista de sinks disponibles ─────────────────────────────
+    // Computed: lista de sinks disponibles
     // Gate: solo escanea cuando el panel de audio está activo y visible
     property var audioSinks: {
         _pwRev; _audioSinkAvail; root._activeSinkName; root._audioComboCards
@@ -77,7 +77,7 @@ QtObject {
             })
         }
 
-        // ── Combo-jack: Speaker y Headphones son perfiles ALSA excluyentes en
+        // Combo-jack: Speaker y Headphones son perfiles ALSA excluyentes en
         // este hardware, no puertos simultáneos del mismo sink. Si el perfil
         // activo no expone uno de los dos como nodo real, lo agregamos como
         // entrada "virtual": al hacer click dispara un cambio de perfil de
@@ -114,7 +114,7 @@ QtObject {
         return out
     }
 
-    // ── Computed: lista de sources disponibles ────────────────────────────
+    // Computed: lista de sources disponibles
     property var audioSources: {
         _pwRev; _audioSourceAvail; root._activeSourceName
         if (!root.panelVisible || !root.panelActive) return []
@@ -138,7 +138,7 @@ QtObject {
         return out
     }
 
-    // ── Helpers de ícono y descripción ────────────────────────────────────
+    // Helpers de ícono y descripción
     function _audioSinkIcon(name) {
         const n = name.toLowerCase()
         if (n.includes("hdmi") || n.includes("displayport") || n.includes("iec958")) return "󰡁"
@@ -168,7 +168,7 @@ QtObject {
         return n.replace(/\b\w/g, function(c) { return c.toUpperCase() })
     }
 
-    // ── Tokens entre paréntesis de un nombre de perfil ALSA ──────────────
+    // Tokens entre paréntesis de un nombre de perfil ALSA
     function _profileTokens(name) {
         if (!name) return []
         var m = name.match(/\(([^)]*)\)/)
@@ -176,7 +176,7 @@ QtObject {
         return m[1].split(",").map(function(s) { return s.trim() })
     }
 
-    // ── Entre los perfiles que incluyen `wantedToken`, elegir el mejor ────
+    // Entre los perfiles que incluyen `wantedToken`, elegir el mejor
     function _pickBestProfile(card, wantedToken) {
         var activeTokens = root._profileTokens(card.activeProfile).map(function(t) { return t.toLowerCase() })
         var best = null
@@ -198,7 +198,7 @@ QtObject {
         return best ? best.name : null
     }
 
-    // ── Funciones de control de volumen ───────────────────────────────────
+    // Funciones de control de volumen
     function setMasterVolume(v) {
         if (root._activeSink?.audio) root._activeSink.audio.volume = v
     }
@@ -219,7 +219,7 @@ QtObject {
         }
     }
 
-    // ── Cambiar sink default ──────────────────────────────────────────────
+    // Cambiar sink default
     function setDefaultSink(entry) {
         if (entry.virtual) {
             root._pendingSinkToken   = entry.targetToken
@@ -243,7 +243,7 @@ QtObject {
         _audioMoveSinkProc.running = true
     }
 
-    // ── Cambiar source default ────────────────────────────────────────────
+    // Cambiar source default
     function setDefaultSource(entry) {
         if (!entry.node) return
         root._activeSource     = entry.node
@@ -257,7 +257,7 @@ QtObject {
         _audioMoveSourceProc.running = true
     }
 
-    // ── Debounce para colapsar llamadas rápidas en un solo batch ─────────
+    // Debounce para colapsar llamadas rápidas en un solo batch
     property bool _audioDevLoadPending: false
     property var _audioDevDebounce: Timer {
         id: _audioDevDebounce
@@ -271,14 +271,14 @@ QtObject {
         }
     }
 
-    // ── Cargar disponibilidad de dispositivos ─────────────────────────────
+    // Cargar disponibilidad de dispositivos
     function loadAudioDevices() {
         if (root._audioDevLoadPending) return
         root._audioDevLoadPending = true
         _audioDevDebounce.restart()
     }
 
-    // ── Aplicar pending sink switch tras profile change ───────────────────
+    // Aplicar pending sink switch tras profile change
     function _applyPendingSinkSwitch() {
         if (!root._pendingSinkToken) return
         var all = Pipewire.nodes.values
@@ -302,7 +302,7 @@ QtObject {
         }
     }
 
-    // ── Fetch port availability (pactl) ───────────────────────────────────
+    // Fetch port availability (pactl)
     property var _audioSinkAvailProc: JsonProcess {
         id: _audioSinkAvailProc
         command: ["bash", "-c", "LANG=C pactl --format=json list sinks 2>/dev/null"]
@@ -364,11 +364,11 @@ QtObject {
         }
     }
 
-    // ── Mover streams al nuevo sink/source ───────────────────────────────
+    // Mover streams al nuevo sink/source
     property var _audioMoveSinkProc:   Process { id: _audioMoveSinkProc;   command: ["bash", "-c", ""] }
     property var _audioMoveSourceProc: Process { id: _audioMoveSourceProc; command: ["bash", "-c", ""] }
 
-    // ── Detectar tarjetas combo-jack (Speaker/Headphones como perfiles ALSA)
+    // Detectar tarjetas combo-jack (Speaker/Headphones como perfiles ALSA)
     property var _audioCardsProc: JsonProcess {
         id: _audioCardsProc
         command: ["bash", "-c", "LANG=C pactl --format=json list cards 2>/dev/null"]
@@ -400,7 +400,7 @@ QtObject {
         }
     }
 
-    // ── Cambiar perfil ALSA (combo-jack) ─────────────────────────────────
+    // Cambiar perfil ALSA (combo-jack)
     property var _audioProfileSwitchProc: Process {
         id: _audioProfileSwitchProc
         command: ["bash", "-c", ""]
@@ -412,7 +412,7 @@ QtObject {
         // qmllint enable signal-handler-parameters
     }
 
-    // ── Timer: dar tiempo a PipeWire para enumerar el nodo del nuevo perfil
+    // Timer: dar tiempo a PipeWire para enumerar el nodo del nuevo perfil
     property var _pendingSinkApplyTimer: Timer {
         id: _pendingSinkApplyTimer
         interval: 400
@@ -420,7 +420,7 @@ QtObject {
         onTriggered: root._applyPendingSinkSwitch()
     }
 
-    // ── Cargar dispositivos al activar el panel ───────────────────────────
+    // Cargar dispositivos al activar el panel
     onPanelActiveChanged: {
         if (root.panelActive && root.panelVisible) root.loadAudioDevices()
     }

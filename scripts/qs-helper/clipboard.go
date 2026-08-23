@@ -511,7 +511,7 @@ func handleHTMLMime(id string, decoded []byte, mimeType string) (bool, int) {
 	return true, 0
 }
 
-// ── Daemon clipboard (JSON-lines, cache en memoria) ─────────────────────
+// Daemon clipboard (JSON-lines, cache en memoria)
 
 // clipRequest es un request JSON-lines del daemon clipboard.
 type clipRequest struct {

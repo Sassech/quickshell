@@ -3,12 +3,12 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import "../../Components"
 
-// ── Power action buttons row + close button ───────────────────────────────────
+// Power action buttons row + close button
 Item {
     id: root
     implicitHeight: 44
 
-    // ── Signals ───────────────────────────────────────────────────────────
+    // Signals
     signal showConfirm(string label, var cmd)
     signal runCmd(var cmd)
     signal close()

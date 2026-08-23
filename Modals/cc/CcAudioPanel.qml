@@ -19,16 +19,16 @@ Rectangle {
         border.width: 1
     }
 
-    // ── Inputs ────────────────────────────────────────────────────────────
+    // Inputs
     required property var audioSinks
     required property var audioSources
 
-    // ── Outputs ───────────────────────────────────────────────────────────
+    // Outputs
     signal closeRequested()
     signal setDefaultSink(var entry)
     signal setDefaultSource(var entry)
 
-    // ── Contenido ─────────────────────────────────────────────────────────
+    // Contenido
     Column {
         id: audioDevCol
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
@@ -56,7 +56,7 @@ Rectangle {
             }
         }
 
-        // ── Salidas ────────────────────────────────────────────────────────
+        // Salidas
         Text {
             text: "Salidas de audio"
             font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.muted1
@@ -121,7 +121,7 @@ Rectangle {
             }
         }
 
-        // ── Entradas ───────────────────────────────────────────────────────
+        // Entradas
         Text {
             text: "Entradas de audio"
             font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.muted1

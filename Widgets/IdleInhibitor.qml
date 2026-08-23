@@ -28,7 +28,7 @@ Rectangle {
         idleStateFile.reload()
     }
 
-    // ── Estado persistente via FileView (reemplaza loadProc + saveProc) ──
+    // Estado persistente via FileView (reemplaza loadProc + saveProc)
     FileView {
         id: idleStateFile
         path: Paths.config + "/idle-state.json"
@@ -44,7 +44,7 @@ Rectangle {
         idleStateFile.setText(JSON.stringify(data))
     }
 
-    // ── Idle inhibitor nativo Wayland (reemplaza systemd-inhibit) ──
+    // Idle inhibitor nativo Wayland (reemplaza systemd-inhibit)
     IdleInhibitor {
         id: idleInhibitorItem
         // TODO: asignar desde shell.qml
@@ -52,7 +52,7 @@ Rectangle {
         enabled: root.inhibiting
     }
 
-    // ── Monitor de idle nativo Wayland (reemplaza loginctl + idleProc) ──
+    // Monitor de idle nativo Wayland (reemplaza loginctl + idleProc)
     IdleMonitor {
         id: idleMonitorItem
         timeout: 60   // segundos (doc v0.3.0: timeout es real en segundos, no ms)
@@ -92,7 +92,7 @@ Rectangle {
         return `${h}h ${m}m`;
     }
 
-    // ── Detección de reproducción via Mpris nativo (event-driven, sin forks) ──
+    // Detección de reproducción via Mpris nativo (event-driven, sin forks)
     function _checkMediaPlaying() {
         var playing = false
         var players = (Mpris.players && Mpris.players.values) ? Mpris.players.values : []

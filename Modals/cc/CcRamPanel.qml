@@ -3,7 +3,7 @@ import "../../Components"
 
 pragma ComponentBehavior: Bound
 
-// ── CcRamPanel ───────────────────────────────────────────────────────────────
+// CcRamPanel
 // Panel de detalle de RAM: desglose Apps / Caché / Libre + Swap.
 Rectangle {
     id: root
@@ -19,7 +19,7 @@ Rectangle {
         border.width: 1
     }
 
-    // ── Inputs ────────────────────────────────────────────────────────────
+    // Inputs
     required property bool ramAvailable
     required property int  ramPercent
     required property real ramUsedGb
@@ -31,10 +31,10 @@ Rectangle {
     required property real swapTotalGb
     required property real swapFreeGb
 
-    // ── Outputs ───────────────────────────────────────────────────────────
+    // Outputs
     signal closeRequested()
 
-    // ── Helpers ──────────────────────────────────────────────────────────
+    // Helpers
     function usageColor(pct) {
         if (!root.ramAvailable) return Theme.muted2
         if (pct >= 90) return Theme.error
@@ -43,13 +43,13 @@ Rectangle {
         return Theme.accent
     }
 
-    // ── Layout ────────────────────────────────────────────────────────────
+    // Layout
     Column {
         id: ramCol
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
         spacing: 10
 
-        // ── Header ────────────────────────────────────────────────────────
+        // Header
         Item {
             width: parent.width; height: 28
             Text {
@@ -71,13 +71,13 @@ Rectangle {
             }
         }
 
-        // ── Sub-línea: total ───────────────────────────────────────────────
+        // Sub-línea: total
         Text {
             text: root.ramTotalGb.toFixed(0) + " GB total"
             font.pixelSize: 10; color: Theme.muted2
         }
 
-        // ── 2 cards: Usado + Libre ─────────────────────────────────────────
+        // 2 cards: Usado + Libre
         Row {
             width: parent.width; spacing: 6
 
@@ -118,7 +118,7 @@ Rectangle {
             }
         }
 
-        // ── Desglose Apps / Caché / Libre ─────────────────────────────────
+        // Desglose Apps / Caché / Libre
         Column {
             width: parent.width
             spacing: 6
@@ -193,7 +193,7 @@ Rectangle {
             }
         }
 
-        // ── Swap ──────────────────────────────────────────────────────────
+        // Swap
         Item {
             width: parent.width; height: 16
             visible: root.swapTotalGb > 0

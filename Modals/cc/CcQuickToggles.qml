@@ -4,22 +4,22 @@ import QtQuick
 import Quickshell.Services.UPower
 import "../../Components"
 
-// ── Controles rápidos (grid 2×3) ──────────────────────────────────────────────
+// Controles rápidos (grid 2×3)
 // WiFi, Bluetooth, Power & Fans, Audio, Battery, Language
 Column {
     id: root
     spacing: 0
 
-    // ── Panel state ───────────────────────────────────────────────────────────
+    // Panel state
     required property string activePanel
 
-    // ── Bluetooth ─────────────────────────────────────────────────────────────
+    // Bluetooth
     required property var    btAdapter
     required property bool   btPowered
     required property int    btConnectedCount
     required property string btFirstConnectedName
 
-    // ── Battery ───────────────────────────────────────────────────────────────
+    // Battery
     required property bool   batAvailable
     required property real   batPct
     required property bool   batCharging
@@ -27,20 +27,20 @@ Column {
     required property real   batTimeFull
     required property real   batTimeEmpty
 
-    // ── Audio ─────────────────────────────────────────────────────────────────
+    // Audio
     required property var    defaultSink
 
-    // ── Language ──────────────────────────────────────────────────────────────
+    // Language
     required property string langLayout
     required property string langLocale
 
-    // ── Power helpers (functions passed as property var) ───────────────────────
+    // Power helpers (functions passed as property var)
     required property var    powerLabelFn
     required property var    powerIconFn
     required property var    fmtTimeFn
     required property var    audioFormatDescFn
 
-    // ── Signals ───────────────────────────────────────────────────────────────
+    // Signals
     signal openWifi()
     signal openBluetooth()
     signal openPower()
@@ -48,19 +48,19 @@ Column {
     signal openBattery()
     signal openLanguage()
 
-    // ── Leading spacer + separator ────────────────────────────────────────────
+    // Leading spacer + separator
     Item { width: parent.width; height: 10 }
     Rectangle { width: parent.width; height: 1; color: Theme.surface2 }
     Item { width: parent.width; height: 8 }
 
-    // ── Grid 2×3 ──────────────────────────────────────────────────────────────
+    // Grid 2×3
     Grid {
         width: parent.width
         columns: 2
         rowSpacing: 6
         columnSpacing: 6
 
-        // ── WiFi ──────────────────────────────────────────────────────────────
+        // WiFi
         CcToggleCard {
             active: SysData.netConnected || root.activePanel === "wifi"
             icon: {
@@ -84,7 +84,7 @@ Column {
             onClicked: () => root.openWifi()
         }
 
-        // ── Bluetooth ─────────────────────────────────────────────────────────
+        // Bluetooth
         CcToggleCard {
             active: (root.btConnectedCount > 0 && root.btPowered) || root.activePanel === "bluetooth"
             icon: root.btConnectedCount > 0 ? "󰂱"
@@ -102,7 +102,7 @@ Column {
             onClicked: () => root.openBluetooth()
         }
 
-        // ── Power & Fans ──────────────────────────────────────────────────────
+        // Power & Fans
         CcToggleCard {
             active: root.activePanel === "power"
             icon: root.powerIconFn(PowerProfiles.profile)
@@ -121,7 +121,7 @@ Column {
             onClicked: () => root.openPower()
         }
 
-        // ── Audio ─────────────────────────────────────────────────────────────
+        // Audio
         CcToggleCard {
             active: root.activePanel === "audio"
             icon: "󰕾"
@@ -134,7 +134,7 @@ Column {
             onClicked: () => root.openAudio()
         }
 
-        // ── Battery ───────────────────────────────────────────────────────────
+        // Battery
         CcToggleCard {
             active: root.activePanel === "battery"
             icon: {
@@ -171,7 +171,7 @@ Column {
             onClicked: () => root.openBattery()
         }
 
-        // ── Language ──────────────────────────────────────────────────────────
+        // Language
         CcToggleCard {
             active: root.activePanel === "language"
             icon: "󰌌"

@@ -115,7 +115,7 @@ Uso:
   qs-helper updates-check`)
 }
 
-// ── Helpers compartidos ───────────────────────────────────────────────────
+// Helpers compartidos
 
 // contextTimeout crea un contexto con timeout (evita repetir imports).
 func contextTimeout(d time.Duration) (context.Context, context.CancelFunc) {

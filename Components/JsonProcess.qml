@@ -2,7 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell.Io
 
-// ── JsonProcess — Process con stdout JSON parseado ─────────────────────────────
+// JsonProcess — Process con stdout JSON parseado
 // Captura stdout línea a línea en un buffer; en onExited hace trim + JSON.parse
 // y emite parsed(data). SIEMPRE limpia el buffer (incluso si el parse falla,
 // catch silencioso, igual que los bloques originales de ControlCenter) y emite

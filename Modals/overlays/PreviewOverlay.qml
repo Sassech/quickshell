@@ -1,15 +1,13 @@
 // qmllint disable uncreatable-type
 import QtQuick
 
-// ─────────────────────────────────────────────────────────────────────────────
 // PreviewOverlay — overlay decorativo con GIF animado (preview.gif).
 // Reutiliza OverlayWindow; el contenido aterriza en contentArea (default
 // property). La visibilidad la gobierna su OverlayEntry en OverlaysManager.
-// ─────────────────────────────────────────────────────────────────────────────
 OverlayWindow {
     id: root
 
-    // ── Configuración concreta ────────────────────────────────────────────
+    // Configuración concreta
     entryId:        "preview"       // OverlayWindow auto-gobierna visibilidad vía OverlaysManager
     corner:         "bottom-right"
     overlayWidth:   150
@@ -23,7 +21,7 @@ OverlayWindow {
     mouseThrough:   true    // decorativo: los clicks pasan a la ventana de abajo
     // La posición (offsets) la gobierna OverlaysManager vía su OverlayEntry.
 
-    // ── Contenido (slot por defecto → contentArea) ─────────────────────────
+    // Contenido (slot por defecto → contentArea)
     // sourceSize controla el tamaño de decodificación: 200px basta para el
     // render, evita decodificar el GIF completo en RAM. Asset 192x192 (1:1).
     AnimatedImage {

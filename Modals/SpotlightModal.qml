@@ -23,7 +23,7 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-    // ── Estado ────────────────────────────────────────────────
+    // Estado
     property bool   _searching: false
     property int    selectedIndex: 0
     property string activeTab: "all"
@@ -96,7 +96,7 @@ PanelWindow {
 
     onActiveTabChanged: rebuildFiltered()
 
-    // ── Búsqueda ──────────────────────────────────────────────
+    // Búsqueda
     // Daemon persistente (spotlight --daemon): mantiene scanApps + icon cache
     // calientes en memoria para eliminar el overhead por invocación de
     // ~100-200ms. Protocolo JSON-lines por request id: stdin manda {"id",
@@ -246,7 +246,7 @@ PanelWindow {
         if (visible) searchInput.forceActiveFocus()
     }
 
-    // ── UI ────────────────────────────────────────────────────
+    // UI
 
     // Overlay oscuro — click fuera cierra
     Rectangle {
@@ -259,7 +259,7 @@ PanelWindow {
         }
     }
 
-    // ── Card ──────────────────────────────────────────────────
+    // Card
     Rectangle {
         id: card
 
@@ -309,7 +309,7 @@ PanelWindow {
             anchors.right: parent.right
             anchors.top: parent.top
 
-            // ── Barra de búsqueda ─────────────────────────────
+            // Barra de búsqueda
             Item {
                 id: searchBar
                 width: parent.width
@@ -440,7 +440,7 @@ PanelWindow {
                 }
             }
 
-            // ── Barra de pestañas ─────────────────────────────
+            // Barra de pestañas
             Item {
                 id: tabBar
                 width: parent.width
@@ -509,7 +509,7 @@ PanelWindow {
                 }
             }
 
-            // ── Grilla de resultados ──────────────────────────
+            // Grilla de resultados
             Item {
                 width: parent.width
                 height: Math.min(Math.ceil(filteredModel.count / root._cols), root._maxRows)
@@ -576,7 +576,7 @@ PanelWindow {
                                 anchors.centerIn: parent
                                 spacing: 6
 
-                                // ── Ícono ─────────────────────
+                                // Ícono
                                 Item {
                                     width: 48; height: 48
                                     anchors.horizontalCenter: parent.horizontalCenter
@@ -603,7 +603,7 @@ PanelWindow {
                                     }
                                 }
 
-                                // ── Nombre ────────────────────
+                                // Nombre
                                 Text {
                                     width: 68
                                     anchors.horizontalCenter: parent.horizontalCenter
@@ -633,7 +633,7 @@ PanelWindow {
                 }
             }
 
-            // ── Sin resultados / ayuda ────────────────────────
+            // Sin resultados / ayuda
             Item {
                 width: parent.width
                 height: 72

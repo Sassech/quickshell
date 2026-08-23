@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// ── Clima vía Open-Meteo con geo-IP opcional ───────────────────────────────
+// Clima vía Open-Meteo con geo-IP opcional
 
 type weatherGeo struct {
 	Lat  float64 `json:"lat"`

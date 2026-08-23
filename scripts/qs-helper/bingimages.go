@@ -16,7 +16,7 @@ import (
 	"html"
 )
 
-// ── Buscador de imágenes (Bing Image Search, por scraping) ────────────────
+// Buscador de imágenes (Bing Image Search, por scraping)
 // Sin API key ni keyring: se scrapea el HTML de resultados. La `murl` (media
 // URL) ES la imagen original → se descarga SIEMPRE murl. La etiqueta de
 // resolución se calcula con las dimensiones del resultado (mw/mh):
@@ -29,7 +29,7 @@ const browserUA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, li
 const bingSearchURL = "https://www.bing.com/images/search?q=%s&count=35&form=HDRSC2"
 const bingAsyncURL = "https://www.bing.com/images/async?q=%s&first=%d&count=35&mmasync=1"
 
-// ── Parseo del HTML ────────────────────────────────────────────────────────
+// Parseo del HTML
 // Los resultados están en <a class="iusc" ... m="{...}">: el atributo `m` es
 // JSON con las comillas escapadas a entidades HTML (&quot;) que contiene
 // murl/turl/mw/mh. Doble pasada + fallback suelto (el scraping es frágil).
@@ -135,7 +135,7 @@ func parseBingResults(page []byte) []bingHit {
 	return hits
 }
 
-// ── Búsqueda (image-search) ────────────────────────────────────────────────
+// Búsqueda (image-search)
 
 // fetchBingHits consulta una página de resultados. first es el índice 1-based
 // del primer resultado a pedir (1 = primera página). La primera página usa la
@@ -242,7 +242,7 @@ func runImageSearch(args []string) int {
 	return 0
 }
 
-// ── Descarga (image-download) ──────────────────────────────────────────────
+// Descarga (image-download)
 
 var wParamRe = regexp.MustCompile(`[?&](?:w|width)=(\d{2,5})`)
 var hParamRe = regexp.MustCompile(`[?&](?:h|height)=(\d{2,5})`)

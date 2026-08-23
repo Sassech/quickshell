@@ -6,7 +6,7 @@ Row {
     id: root
     spacing: 8
 
-    // ── Player state ──────────────────────────────────────────────────────────
+    // Player state
     property MprisPlayer _cachedPlayer: null
 
     // El wallpaper de video (mpvpaper → mpv) toma el bus canónico
@@ -39,7 +39,7 @@ Row {
         _cachedPlayer = playingOther ?? playingMpd ?? first ?? null
     }
 
-    // ── Bindings ──────────────────────────────────────────────────────────────
+    // Bindings
     property bool hasPlayer: _cachedPlayer !== null
     property bool isPlaying: _cachedPlayer?.isPlaying ?? false
 
@@ -51,16 +51,16 @@ Row {
         return title || artist || "No media"
     }
 
-    // ── Inicialización ────────────────────────────────────────────────────────
+    // Inicialización
     Component.onCompleted: Qt.callLater(root._updateCachedPlayer)
 
-    // ── Reacciona a cambios en la lista de players ────────────────────────────
+    // Reacciona a cambios en la lista de players
     Connections {
         target: Mpris.players
         function onValuesChanged() { root._updateCachedPlayer() }
     }
 
-    // ── Reacciona a cambios del player activo ─────────────────────────────────
+    // Reacciona a cambios del player activo
     Connections {
         target: root._cachedPlayer ?? null
         function onIsPlayingChanged() { root._updateCachedPlayer() }
@@ -93,7 +93,7 @@ Row {
 
     visible: true
 
-    // ── Fade al cambiar de canción ────────────────────────────────────────────
+    // Fade al cambiar de canción
     onMediaInfoChanged: songChangeAnim.restart()
 
     SequentialAnimation {
@@ -118,7 +118,7 @@ Row {
         isPlaying: root.isPlaying
     }
 
-    // ── Contenedor de texto con scroll ────────────────────────────────────────
+    // Contenedor de texto con scroll
     Item {
         id: textContainer
         width: 120
@@ -166,7 +166,7 @@ Row {
         }
     }
 
-    // ── Botón anterior ────────────────────────────────────────────────────────
+    // Botón anterior
     MouseArea {
         width: 20
         height: 20
@@ -183,7 +183,7 @@ Row {
         }
     }
 
-    // ── Botón play/pause ──────────────────────────────────────────────────────
+    // Botón play/pause
     MouseArea {
         width: 24
         height: 24
@@ -217,7 +217,7 @@ Row {
         }
     }
 
-    // ── Botón siguiente ───────────────────────────────────────────────────────
+    // Botón siguiente
     MouseArea {
         width: 20
         height: 20

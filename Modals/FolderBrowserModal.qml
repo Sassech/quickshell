@@ -18,7 +18,7 @@ QmModalBase {
     cardClip: true
     hasStripe: true
 
-    // ── API pública ───────────────────────────────────────────
+    // API pública
     signal folderSelected(string path)
 
     property string initialPath: "~"
@@ -32,7 +32,7 @@ QmModalBase {
         visible = true
     }
 
-    // ── Estado ────────────────────────────────────────────────
+    // Estado
     property string currentPath: ""
     property string parentPath:  ""
     property bool   _loading:    false
@@ -40,7 +40,7 @@ QmModalBase {
 
     ListModel { id: entryModel }
 
-    // ── Accesos rápidos ───────────────────────────────────────
+    // Accesos rápidos
     readonly property var quickAccess: [
         { label: "Inicio",      icon: "󰋞", path: "~" },
         { label: "Imágenes",    icon: "󰋩", path: "~/Imágenes" },
@@ -52,7 +52,7 @@ QmModalBase {
         { label: "Videos",      icon: "󰿎", path: "~/Videos" },
     ]
 
-    // ── Proceso de listado ────────────────────────────────────
+    // Proceso de listado
     Process {
         id: listProc
         property string targetPath: ""
@@ -101,13 +101,13 @@ QmModalBase {
         }
     }
 
-    // ── UI ────────────────────────────────────────────────────
+    // UI
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 0
         spacing: 0
 
-        // ── Header ─────────────────────────────────────────
+        // Header
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 56
@@ -186,13 +186,13 @@ QmModalBase {
             }
         }
 
-        // ── Body: sidebar + lista ─────────────────────────
+        // Body: sidebar + lista
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
-            // ── Sidebar accesos rápidos ─────────────────
+            // Sidebar accesos rápidos
             Rectangle {
                 Layout.preferredWidth: 160
                 Layout.fillHeight: true
@@ -266,7 +266,7 @@ QmModalBase {
                 }
             }
 
-            // ── Lista de entradas ────────────────────────
+            // Lista de entradas
             Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -373,7 +373,7 @@ QmModalBase {
             }
         }
 
-        // ── Footer: ruta actual + botón seleccionar ──────
+        // Footer: ruta actual + botón seleccionar
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 56

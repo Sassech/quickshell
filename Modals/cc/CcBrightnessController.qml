@@ -5,15 +5,15 @@ import Quickshell.Io
 QtObject {
     id: root
 
-    // ── Estado público ────────────────────────────────────────────────────
+    // Estado público
     property int  brightness:       50
     property bool _brightnessReady: false
 
-    // ── Path sysfs (detectado por backlightPathProc) ──────────────────────
+    // Path sysfs (detectado por backlightPathProc)
     property string _backlightPath: ""
     property int    _maxBrightness: 100
 
-    // ── Detectar path del backlight ───────────────────────────────────────
+    // Detectar path del backlight
     // Lazy: no corre al nacer — ControlCenter.refresh() lo dispara en la
     // primera apertura del CC (el path se cachea en _backlightPath).
     property var _backlightPathProc: Process {
@@ -32,7 +32,7 @@ QtObject {
         }
     }
 
-    // ── Leer max_brightness (one-shot) ────────────────────────────────────
+    // Leer max_brightness (one-shot)
     property var _maxBrightnessFile: FileView {
         id: maxBrightnessFile
         path: root._backlightPath !== "" ? root._backlightPath + "/max_brightness" : ""
@@ -45,7 +45,7 @@ QtObject {
         }
     }
 
-    // ── Leer brillo actual (reactivo a cambios en sysfs) ─────────────────
+    // Leer brillo actual (reactivo a cambios en sysfs)
     property var _brightnessFile: FileView {
         id: brightnessFile
         path: root._backlightPath !== "" ? root._backlightPath + "/brightness" : ""
@@ -60,7 +60,7 @@ QtObject {
         }
     }
 
-    // ── API pública ───────────────────────────────────────────────────────
+    // API pública
     function refresh() {
         if (root._backlightPath === "") {
             // Aún no se descubrió el path: arrancar el one-shot de detección.
@@ -72,7 +72,7 @@ QtObject {
         }
     }
 
-    // ── Escritura de brillo ────────────────────────────────────────────────
+    // Escritura de brillo
     // DECISIÓN (AUDIT Sección 5/8): la escritura NO migra a FileView.setText()
     // porque el sysfs es `root:root rw-r--r--` y el usuario no está en el grupo
     // `video` (ni hay regla udev aplicada en el sistema) — la escritura directa

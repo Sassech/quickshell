@@ -6,7 +6,7 @@ import Quickshell.Wayland
 import Quickshell.Io
 import "../Components"
 
-// ── ScreenshotModal — selector de captura de pantalla ────────────────────────
+// ScreenshotModal — selector de captura de pantalla
 // Posición: top-center   Atajo: SUPER+SHIFT+S
 // Opciones: pantalla completa | ventana activa | área seleccionada
 PanelWindow {
@@ -26,10 +26,10 @@ PanelWindow {
 
     implicitHeight: screen.height
 
-    // ── Estado interno ────────────────────────────────────────────────────
+    // Estado interno
     property bool _running: false
 
-    // ── Abrir / cerrar ────────────────────────────────────────────────────
+    // Abrir / cerrar
     function open() {
         // Limpia cualquier estado previo: si veníamos de un fade-out a medias,
         // matamos animación y timer de seguridad para no pelear por opacity
@@ -60,7 +60,7 @@ PanelWindow {
         }
     }
 
-    // ── Proceso de captura ────────────────────────────────────────────────
+    // Proceso de captura
     Process {
         id: captureProc
         running: false
@@ -103,7 +103,7 @@ PanelWindow {
         }
     }
 
-    // ── Animaciones ───────────────────────────────────────────────────────
+    // Animaciones
     NumberAnimation {
         id: fadeIn
         target: card
@@ -134,13 +134,13 @@ PanelWindow {
         easing.type: Easing.OutCubic
     }
 
-    // ── Backdrop — cierra al hacer clic fuera ────────────────────────────
+    // Backdrop — cierra al hacer clic fuera
     MouseArea {
         anchors.fill: parent
         onClicked: root.close()
     }
 
-    // ── Card centrado ─────────────────────────────────────────────────────
+    // Card centrado
     Rectangle {
         id: card
 
@@ -182,7 +182,7 @@ PanelWindow {
             }
             spacing: 6
 
-            // ── Encabezado ────────────────────────────────────────────────
+            // Encabezado
             Item {
                 Layout.fillWidth: true
                 implicitHeight: 36
@@ -197,7 +197,7 @@ PanelWindow {
                 }
             }
 
-            // ── Separador ─────────────────────────────────────────────────
+            // Separador
             Rectangle {
                 Layout.fillWidth: true
                 implicitHeight: 1
@@ -205,7 +205,7 @@ PanelWindow {
                 Layout.bottomMargin: 2
             }
 
-            // ── Opciones ──────────────────────────────────────────────────
+            // Opciones
             ScreenshotOption {
                 Layout.fillWidth: true
                 icon:  "󰍹"
@@ -238,7 +238,7 @@ PanelWindow {
         }
     }
 
-    // ── Componente interno: botón de opción ───────────────────────────────
+    // Componente interno: botón de opción
     component ScreenshotOption: Rectangle {
         id: optRoot
 

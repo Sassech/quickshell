@@ -6,10 +6,10 @@ import "../../Components"
 QtObject {
     id: root
 
-    // ── Estado público ────────────────────────────────────────────────────
+    // Estado público
     property var _fanProfiles: []   // [{id, label, icon}] leído de fan-control.sh
 
-    // ── Proceso de fan profiles ───────────────────────────────────────────
+    // Proceso de fan profiles
     property var _fanProfilesProc: LineProcess {
         id: fanProfilesProc
         command: ["bash", Paths.scripts + "/fan-control.sh", "list_profiles"]
@@ -30,7 +30,7 @@ QtObject {
         }
     }
 
-    // ── Funciones de perfil de energía ────────────────────────────────────
+    // Funciones de perfil de energía
     function _powerLabel(profile) {
         if (profile === PowerProfile.Performance) return "Performance"
         if (profile === PowerProfile.PowerSaver)  return "Power saver"
@@ -48,7 +48,7 @@ QtObject {
         SysData.refreshCpuDetail()
     }
 
-    // ── Funciones de formato de tiempo y velocidad ────────────────────────
+    // Funciones de formato de tiempo y velocidad
     function _fmtSpeed(bps) {
         if (!bps || bps < 1024)         return Math.round(bps || 0) + " B/s"
         if (bps < 1024 * 1024)          return (bps / 1024).toFixed(1) + " KB/s"

@@ -5,12 +5,12 @@ import QtQuick.Layouts
 import QtQuick.Shapes
 import "../../Components"
 
-// ── Métricas del sistema: CPU/RAM/GPU arcos + disco ───────────────────────────
+// Métricas del sistema: CPU/RAM/GPU arcos + disco
 Column {
     id: root
     spacing: 0
 
-    // ── Required properties ───────────────────────────────────────────────────
+    // Required properties
     required property string activePanel
 
     required property int diskPct
@@ -20,10 +20,10 @@ Column {
     required property double diskReadMbs
     required property double diskWriteMbs
 
-    // ── Signals ───────────────────────────────────────────────────────────────
+    // Signals
     signal togglePanel(string key)
 
-    // ── Leading spacer + separator + label ────────────────────────────────────
+    // Leading spacer + separator + label
     Item { width: parent.width; height: 10 }
     Rectangle { width: parent.width; height: 1; color: Theme.surface2 }
     Item { width: parent.width; height: 8 }
@@ -34,7 +34,7 @@ Column {
     }
     Item { width: parent.width; height: 6 }
 
-    // ── Grid CPU / RAM / GPU ──────────────────────────────────────────────────
+    // Grid CPU / RAM / GPU
     Row {
         id: metricsRow
         width: parent.width
@@ -70,7 +70,7 @@ Column {
                     anchors.centerIn: parent
                     spacing: 4
 
-                    // ── Arc gauge ─────────────────────────────────────────────
+                    // Arc gauge
                     Item {
                         id: arcItem
                         width: 42; height: 42
@@ -146,7 +146,7 @@ Column {
         }
     }
 
-    // ── Disco (un solo fs en esta máquina) ───────────────────────────────
+    // Disco (un solo fs en esta máquina)
     Item { width: parent.width; height: 8 }
 
     Rectangle {

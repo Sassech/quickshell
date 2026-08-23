@@ -22,7 +22,7 @@ Item {
     // Acceder a SystemTray.items activa el tracking D-Bus automáticamente
     property var _trayItems: SystemTray.items
 
-    // ── Hay al menos un ícono Passive? ───────────────────────────────────
+    // Hay al menos un ícono Passive?
     property bool _hasPassive: {
         // qmllint disable missing-property
         for (let i = 0; i < SystemTray.items.length; i++) {
@@ -58,7 +58,7 @@ Item {
         }
     }
 
-    // ── Botón expandir/colapsar íconos Passive ───────────────────────────
+    // Botón expandir/colapsar íconos Passive
     Text {
         id: expandBtn
         anchors {
@@ -81,7 +81,7 @@ Item {
         }
     }
 
-    // ── Placeholder cuando no hay íconos visibles ─────────────────────────
+    // Placeholder cuando no hay íconos visibles
     Text {
         anchors.centerIn: parent
         text: "󰒲"

@@ -3,7 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import "../../Components"
 
-// ── CcSlider — fila de slider parametrizada (volumen, micrófono, brillo) ─────
+// CcSlider — fila de slider parametrizada (volumen, micrófono, brillo)
 // Encapsula el layout común de los sliders del Control Center: ícono (con
 // hover opcional vía iconButton), track con fill/thumb animados y label con %.
 // Normaliza value/minValue/maxValue a una fracción 0..1 para fill/thumb.
@@ -11,7 +11,7 @@ Item {
     id: root
     width: parent.width; height: 36
 
-    // ── API pública ───────────────────────────────────────────────────────
+    // API pública
     required property real value
     property real minValue: 0
     property real maxValue: 100
@@ -26,10 +26,10 @@ Item {
     property color labelColor: Theme.muted1
     property bool muted: false
 
-    // ── Fracción normalizada 0..1 (bindable, usada en fill y thumb) ───────
+    // Fracción normalizada 0..1 (bindable, usada en fill y thumb)
     property real frac: (root.value - root.minValue) / (root.maxValue - root.minValue)
 
-    // ── Ícono ─────────────────────────────────────────────────────────────
+    // Ícono
     Row {
         anchors { left: parent.left; verticalCenter: parent.verticalCenter }
         spacing: 8
@@ -52,7 +52,7 @@ Item {
         }
     }
 
-    // ── Track ─────────────────────────────────────────────────────────────
+    // Track
     Item {
         anchors {
             left: parent.left; leftMargin: 44
@@ -94,7 +94,7 @@ Item {
         }
     }
 
-    // ── Label ─────────────────────────────────────────────────────────────
+    // Label
     Text {
         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
         text: root.label

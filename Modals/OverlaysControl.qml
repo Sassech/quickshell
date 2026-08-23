@@ -5,13 +5,11 @@ import Quickshell
 import Quickshell.Wayland
 import "../Components"
 
-// ─────────────────────────────────────────────────────────────────────────────
 // OverlaysControl — modal del sistema para gestionar los overlays flotantes.
 //
 // Data-driven: renderiza una fila por entrada de OverlaysManager.overlays
 // (Repeater). Agregar un overlay nuevo NO requiere tocar este archivo — solo
 // agregar la OverlayEntry en el manager.
-// ─────────────────────────────────────────────────────────────────────────────
 QmModalBase {
     id: root
 
@@ -22,7 +20,7 @@ QmModalBase {
     focusCard: true
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
 
-    // ── Contenido ────────────────────────────────────────────────────────────
+    // Contenido
     ColumnLayout {
         id: ocCol
         anchors {
@@ -33,7 +31,7 @@ QmModalBase {
         }
         spacing: 4
 
-        // ── Título ──────────────────────────────────────────────────
+        // Título
         Text {
             text: "Overlays"
             font.pixelSize: 16
@@ -46,7 +44,7 @@ QmModalBase {
             color: Theme.muted2
         }
 
-        // ── Separador ───────────────────────────────────────────────
+        // Separador
         Rectangle {
             Layout.fillWidth: true
             Layout.topMargin: 8
@@ -55,7 +53,7 @@ QmModalBase {
             color: Theme.surface2
         }
 
-        // ── Modo edición de posición ────────────────────────────────────
+        // Modo edición de posición
         RowLayout {
             Layout.fillWidth: true
             Layout.preferredHeight: 32
@@ -116,7 +114,7 @@ QmModalBase {
             }
         }
 
-        // ── Filas por overlay (data-driven) ─────────────────────────
+        // Filas por overlay (data-driven)
         Repeater {
             model: OverlaysManager.overlays
 
@@ -233,7 +231,7 @@ QmModalBase {
             }
         }
 
-        // ── Hint de cierre ──────────────────────────────────────────
+        // Hint de cierre
         Text {
             Layout.fillWidth: true
             Layout.topMargin: 6
@@ -244,7 +242,7 @@ QmModalBase {
         }
     }
 
-    // ── Componente interno: switch custom ─────────────────────────────────
+    // Componente interno: switch custom
     // Estilo hand-rolled del proyecto (Behavior + thumb animado), sin
     // QtQuick.Controls para no introducir dependencia nueva.
     component ToggleSwitch: Item {

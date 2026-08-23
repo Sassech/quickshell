@@ -4,13 +4,13 @@ import QtQuick
 import QtQuick.Layouts
 import "../../Components"
 
-// ── Tarjeta de control rápido reutilizable (grid 2×3 en CcQuickToggles) ────────
+// Tarjeta de control rápido reutilizable (grid 2×3 en CcQuickToggles)
 // WiFi, Bluetooth, Power, Audio, Battery y Language comparten este esqueleto;
 // cada instancia aporta solo sus bindings de datos (active, icon, title, subtitle).
 Rectangle {
     id: root
 
-    // ── API pública ───────────────────────────────────────────────────────────
+    // API pública
     required property bool active
     required property var onClicked
 
@@ -20,7 +20,7 @@ Rectangle {
     property string subtitle
     property color subtitleColor: Theme.muted1
 
-    // ── Estado interno (hover) ────────────────────────────────────────────────
+    // Estado interno (hover)
     property bool hov: false
 
     width: (parent.width - 6) / 2; height: 52; radius: 10
@@ -30,7 +30,7 @@ Rectangle {
                 : Theme.surface2)
     Behavior on color { ColorAnimation { duration: 100 } }
 
-    // ── Stripe de acento cuando la tarjeta está activa ────────────────────────
+    // Stripe de acento cuando la tarjeta está activa
     Rectangle {
         visible: root.active
         width: 3; height: 24; radius: 2
@@ -38,7 +38,7 @@ Rectangle {
         color: Theme.accent
     }
 
-    // ── Contenido: icono + título/subtítulo ───────────────────────────────────
+    // Contenido: icono + título/subtítulo
     RowLayout {
         anchors {
             fill: parent
@@ -70,7 +70,7 @@ Rectangle {
         }
     }
 
-    // ── Interacción ───────────────────────────────────────────────────────────
+    // Interacción
     MouseArea {
         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
         onEntered: root.hov = true

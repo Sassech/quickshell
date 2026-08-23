@@ -3,12 +3,12 @@ import QtQuick
 import QtQml
 import Quickshell.Io
 
-// ── OverlaysManager — hub data-driven del subsistema de overlays ────────────
+// OverlaysManager — hub data-driven del subsistema de overlays
 // Agregar un overlay = 1 entrada en `overlays`; NO se toca OverlaysControl ni shell.qml.
 QtObject {
     id: root
 
-    // ── Registro de overlays (data-driven) ────────────────────────────────
+    // Registro de overlays (data-driven)
     property list<QtObject> overlays: [
         OverlayEntry {
             entryId: "watermark"
@@ -36,16 +36,16 @@ QtObject {
 
     ]
 
-    // ── Modo edición de posición ───────────────────────────────────────────
+    // Modo edición de posición
     // No se persiste: arranca apagado cada sesión y solo habilita el drag
     // de overlays dentro de OverlayWindow mientras está activo.
     property bool editPosition: false
 
-    // ── Secciones del hub (esqueletos para lo que crezca después) ─────────
+    // Secciones del hub (esqueletos para lo que crezca después)
     property QtObject config: QtObject {}   // configuración general (futuro)
     property QtObject data:   QtObject {}   // datos/servicios (futuro)
 
-    // ── Lookup por entryId (usado por los .qml de cada overlay) ───────────
+    // Lookup por entryId (usado por los .qml de cada overlay)
     function get(id) {
         for (let i = 0; i < root.overlays.length; ++i) {
             if (root.overlays[i].entryId === id) return root.overlays[i]
@@ -53,12 +53,12 @@ QtObject {
         return null
     }
 
-    // ── Guard de carga ─────────────────────────────────────────────────────
+    // Guard de carga
     // Evita escribir durante la lectura inicial: solo se persiste cuando
     // _loaded == true (la carga falla silenciosamente → se mantienen defaults).
     property bool _loaded: false
 
-    // ── Persistencia (un solo archivo, formato genérico por entryId) ──────
+    // Persistencia (un solo archivo, formato genérico por entryId)
     // FileView reemplaza saveProc (bash echo → shell injection) y loadProc
     // (bash cat). setText() escribe sin shell; onLoaded/onLoadFailed cubren
     // ambas ramas de la carga inicial.

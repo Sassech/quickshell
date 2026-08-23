@@ -3,7 +3,7 @@ import QtQuick
 import Quickshell.Services.UPower
 import "../../Components"
 
-// ── CcPowerPanel ─────────────────────────────────────────────────────────────
+// CcPowerPanel
 // Panel de perfiles de energía (UPower) y control de ventiladores.
 Rectangle {
     id: root
@@ -18,15 +18,15 @@ Rectangle {
         border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2); border.width: 1
     }
 
-    // ── Inputs ────────────────────────────────────────────────────────────
+    // Inputs
     required property var    fanProfiles    // [{id, label, icon}] — no usado, mantenido por compatibilidad
     required property string fanProfile     // SysData.fanProfile — no usado
 
-    // ── Outputs ───────────────────────────────────────────────────────────
+    // Outputs
     signal closeRequested()
     signal setPower(var profile)
 
-    // ── Helpers ───────────────────────────────────────────────────────────
+    // Helpers
     function _powerLabel(profile) {
         if (profile === PowerProfile.Performance) return "Performance"
         if (profile === PowerProfile.PowerSaver)  return "Power saver"
@@ -43,7 +43,7 @@ Rectangle {
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
         spacing: 10
 
-        // ── Header ────────────────────────────────────────────────────────
+        // Header
         Item {
             width: parent.width; height: 28
             Text {
@@ -65,7 +65,7 @@ Rectangle {
             }
         }
 
-        // ── CPU power profiles — UPower PowerProfiles ─────────────────────
+        // CPU power profiles — UPower PowerProfiles
         Text {
             text: "CPU Power Profile"
             font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.muted1
@@ -125,7 +125,7 @@ Rectangle {
             }
         }
 
-        // ── Fans ───────────────────────────────────────────────────────────
+        // Fans
         Rectangle { width: parent.width; height: 1; color: Theme.surface3; visible: SysData.fanAvailable }
 
         Text {
@@ -173,7 +173,7 @@ Rectangle {
             }
         }
 
-        // ── Temps row ─────────────────────────────────────────────────────
+        // Temps row
         Row {
             visible: SysData.fanAvailable
             spacing: 8

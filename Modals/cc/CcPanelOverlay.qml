@@ -2,12 +2,12 @@
 import QtQuick
 import qs.Modals.cc
 
-// ── Overlay de paneles del Control Center ────────────────────────────────────
+// Overlay de paneles del Control Center
 // Muestra un backdrop + el panel activo, alineado a la derecha.
 Item {
     id: root
 
-    // ── Inputs desde ControlCenter ────────────────────────────────────────
+    // Inputs desde ControlCenter
     required property string activePanel          // "wifi"|"bluetooth"|"audio"|"power"|"battery"|"language"|"cpu"|"ram"|"gpu"|""
 
     // WiFi
@@ -94,7 +94,7 @@ Item {
     required property string langTab
     required property string langSearch
 
-    // ── Outputs ───────────────────────────────────────────────────────────
+    // Outputs
     signal closePanel()
 
     // WiFi signals
@@ -140,10 +140,10 @@ Item {
     signal langSetLayout(string code)
     signal langSetLocale(string value)
 
-    // ── Visibilidad ───────────────────────────────────────────────────────
+    // Visibilidad
     visible: root.activePanel !== ""
 
-    // ── Backdrop ──────────────────────────────────────────────────────────
+    // Backdrop
     Rectangle {
         anchors.fill: parent
         color: Qt.rgba(0, 0, 0, 0.35)
@@ -153,7 +153,7 @@ Item {
         }
     }
 
-    // ── Panel container — alineado a la derecha (mismo margen que ccCard) ─
+    // Panel container — alineado a la derecha (mismo margen que ccCard)
     Item {
         id: panelHost
         anchors {
@@ -208,7 +208,7 @@ Item {
         Behavior on scale   { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
-        // ── WiFi Panel ────────────────────────────────────────────────────
+        // WiFi Panel
         Loader {
             id: wifiLoader
             active: root.activePanel === "wifi"
@@ -244,7 +244,7 @@ Item {
             }
         }
 
-        // ── Bluetooth Panel ───────────────────────────────────────────────
+        // Bluetooth Panel
         Loader {
             active: root.activePanel === "bluetooth"
             sourceComponent: Component {
@@ -273,7 +273,7 @@ Item {
             }
         }
 
-        // ── Audio Panel ───────────────────────────────────────────────────
+        // Audio Panel
         Loader {
             active: root.activePanel === "audio"
             sourceComponent: Component {
@@ -287,7 +287,7 @@ Item {
             }
         }
 
-        // ── Power Panel ───────────────────────────────────────────────────
+        // Power Panel
         Loader {
             active: root.activePanel === "power"
             sourceComponent: Component {
@@ -300,7 +300,7 @@ Item {
             }
         }
 
-        // ── Battery Panel ─────────────────────────────────────────────────
+        // Battery Panel
         Loader {
             active: root.activePanel === "battery"
             sourceComponent: Component {
@@ -320,7 +320,7 @@ Item {
             }
         }
 
-        // ── CPU Panel ─────────────────────────────────────────────────────
+        // CPU Panel
         Loader {
             active: root.activePanel === "cpu"
             sourceComponent: Component {
@@ -340,7 +340,7 @@ Item {
             }
         }
 
-        // ── RAM Panel ─────────────────────────────────────────────────────
+        // RAM Panel
         Loader {
             active: root.activePanel === "ram"
             sourceComponent: Component {
@@ -360,7 +360,7 @@ Item {
             }
         }
 
-        // ── GPU Panel ─────────────────────────────────────────────────────
+        // GPU Panel
         Loader {
             active: root.activePanel === "gpu"
             sourceComponent: Component {
@@ -372,7 +372,7 @@ Item {
             }
         }
 
-        // ── Language Panel ────────────────────────────────────────────────
+        // Language Panel
         Loader {
             active: root.activePanel === "language"
             sourceComponent: Component {

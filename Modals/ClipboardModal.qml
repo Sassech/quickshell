@@ -16,7 +16,7 @@ QmModalBase {
     cardBorderColor: Qt.rgba(1, 1, 1, 0.06)
     cardClip: true
 
-    // ── Data ────────────────────────────────────────────────────────────
+    // Data
     property var  allEntries:  []
     property int  entryCount:  0
     property bool isLoading:   false
@@ -32,7 +32,7 @@ QmModalBase {
         }
     }
 
-    // ── Daemon JSON-lines (clipboard --daemon) ────────────────────────────
+    // Daemon JSON-lines (clipboard --daemon)
     // Responde {"id","items"} con el MISMO id del request; _activeReqId
     // descarta respuestas stale. El daemon cachea el listado de cliphist y
     // reutiliza los thumbnails en disco, evitando re-ejecutar cliphist en
@@ -82,14 +82,14 @@ QmModalBase {
         for (var i = 0; i < src.length; i++) displayModel.append(src[i])
     }
 
-    // ── Debounce búsqueda ────────────────────────────────────────────────
+    // Debounce búsqueda
     Timer {
         id: searchDebounce
         interval: 150
         onTriggered: root.updateDisplay()
     }
 
-    // ── Daemon persistente (clipboard --daemon) ─────────────────────────
+    // Daemon persistente (clipboard --daemon)
     Process {
         id: listProc
         running: true
@@ -112,7 +112,7 @@ QmModalBase {
         // qmllint enable signal-handler-parameters
     }
 
-    // ── Copia al portapapeles ───────────────────────────────────────────
+    // Copia al portapapeles
     Process {
         id: copyProc
 
@@ -171,7 +171,7 @@ QmModalBase {
         }
     }
 
-    // ── Limpia todo ─────────────────────────────────────────────────────
+    // Limpia todo
     Process {
         id: wipeProc
         command: ["bash", "-c", "cliphist wipe 2>>/tmp/qs-clipboard.log"]
@@ -191,14 +191,14 @@ QmModalBase {
 
     ListModel { id: displayModel }
 
-    // ── UI ──────────────────────────────────────────────────────────────
+    // UI
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 16
         anchors.topMargin: 20
         spacing: 10
 
-        // ── Header ───────────────────────────────────────────────
+        // Header
         RowLayout {
             spacing: 8
             Layout.fillWidth: true
@@ -245,7 +245,7 @@ QmModalBase {
             }
         }
 
-        // ── Buscador ──────────────────────────────────────────────
+        // Buscador
         Item {
             Layout.fillWidth: true
             Layout.preferredHeight: 40
@@ -296,7 +296,7 @@ QmModalBase {
             }
         }
 
-        // ── Lista ─────────────────────────────────────────────────
+        // Lista
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true

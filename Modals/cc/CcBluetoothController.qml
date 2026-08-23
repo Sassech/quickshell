@@ -9,7 +9,7 @@ import "../../Components"
 QtObject {
     id: root
 
-    // ── Estado del adaptador ──────────────────────────────────────────────
+    // Estado del adaptador
     // qmllint disable unresolved-type
     property var    _btAdapter:   Bluetooth.defaultAdapter
     // qmllint enable unresolved-type
@@ -37,7 +37,7 @@ QtObject {
     property var    _btCodecQueue:       []
     property string _btCurrentCodecMac:  ""
 
-    // ── Propiedades de resumen para CcQuickToggles / CcPanelOverlay ──────
+    // Propiedades de resumen para CcQuickToggles / CcPanelOverlay
     // qmllint disable unresolved-type
     property var  btAdapter: Bluetooth.defaultAdapter
     // qmllint enable unresolved-type
@@ -57,7 +57,7 @@ QtObject {
         return d.name || d.deviceName || d.address || ""
     }
 
-    // ── Mensajes de estado ────────────────────────────────────────────────
+    // Mensajes de estado
     readonly property string _btMsgConnected:    "✓ Conectado"
     readonly property string _btMsgDisconnected: "✓ Desconectado"
     readonly property string _btMsgPaired:       "✓ Emparejado"
@@ -70,7 +70,7 @@ QtObject {
     readonly property string _btMsgPairFailed:   "✗ No se pudo emparejar"
     readonly property string _btMsgCodecErr:     "✗ Error al cambiar codec"
 
-    // ── Funciones BT ──────────────────────────────────────────────────────
+    // Funciones BT
     function btSanitizeMac(mac) {
         return mac.replace(/[^0-9A-Fa-f:]/g, "")
     }
@@ -216,7 +216,7 @@ QtObject {
         device.forget()
     }
 
-    // ── Timers BT ─────────────────────────────────────────────────────────
+    // Timers BT
     property var _btScanTimer: Timer {
         id: btScanTimer
         interval: 13000
@@ -280,7 +280,7 @@ QtObject {
         }
     }
 
-    // ── Connections: cambios en adaptador ─────────────────────────────────
+    // Connections: cambios en adaptador
     property var _btAdapterDevicesConn: Connections {
         target: root._btAdapter ? root._btAdapter.devices : null
         function onObjectInsertedPost(object, index) {
@@ -293,7 +293,7 @@ QtObject {
         }
     }
 
-    // ── Instantiator: observar cambios en cada dispositivo ────────────────
+    // Instantiator: observar cambios en cada dispositivo
     property var _btDeviceInstantiator: Instantiator {
         model: root._btAdapter ? root._btAdapter.devices : null
         delegate: Connections {
@@ -308,7 +308,7 @@ QtObject {
         }
     }
 
-    // ── Connections: dispositivo de acción activa ─────────────────────────
+    // Connections: dispositivo de acción activa
     property var _btActionDeviceConn: Connections {
         target: root._btActionDevice
         function onConnectedChanged() {
@@ -349,7 +349,7 @@ QtObject {
         }
     }
 
-    // ── Connections: dispositivo de auto-connect ──────────────────────────
+    // Connections: dispositivo de auto-connect
     property var _btAutoConnDeviceConn: Connections {
         target: root._btAutoConnDevice
         function onConnectedChanged() {
@@ -367,7 +367,7 @@ QtObject {
         }
     }
 
-    // ── Handler: cambio de poder ──────────────────────────────────────────
+    // Handler: cambio de poder
     on_BtPwrdChanged: {
         if (!root._btPwrd) {
             root._btCodecData       = ({})
@@ -384,7 +384,7 @@ QtObject {
 
     on_BtAdapterChanged: { root.btRefreshDeviceLists() }
 
-    // ── Procesos Bluetooth: codec ─────────────────────────────────────────
+    // Procesos Bluetooth: codec
     property var _btCodecProc: JsonProcess {
         id: btCodecProc
         command: ["bash", "-c", ""]

@@ -9,7 +9,7 @@ Rectangle {
     implicitWidth: weatherRow.implicitWidth + 16
     implicitHeight: 28
 
-    // ── Datos del provider (singleton) ────────────────────────────────────
+    // Datos del provider (singleton)
     property string temperature: WeatherProvider.hasData
         ? Math.round(WeatherProvider.temperature) + "°"
         : "--"
@@ -21,11 +21,11 @@ Rectangle {
         id: weatherHelpers
     }
 
-    // ── Gate de visibilidad ───────────────────────────────────────────────
+    // Gate de visibilidad
     Component.onCompleted: WeatherProvider._anyConsumerVisible = true
     Component.onDestruction: WeatherProvider._anyConsumerVisible = false
 
-    // ── Contenido ─────────────────────────────────────────────────────────
+    // Contenido
     Row {
         id: weatherRow
         anchors.centerIn:              parent

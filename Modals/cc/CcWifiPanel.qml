@@ -6,7 +6,7 @@ import QtQuick.Controls
 import Quickshell.Networking
 import "../../Components"
 
-// ── Panel WiFi — popup del Control Center ────────────────────────────────────
+// Panel WiFi — popup del Control Center
 Rectangle {
     id: root
 
@@ -23,7 +23,7 @@ Rectangle {
         border.width: 1
     }
 
-    // ── Inputs ────────────────────────────────────────────────────────────
+    // Inputs
     required property var    nmWifiDev
     required property bool   wifiRadioOn
     required property bool   wifiScanning
@@ -38,7 +38,7 @@ Rectangle {
     required property string wifiIp
     required property string wifiGateway
     required property string wifiDns
-    // ── Outputs ───────────────────────────────────────────────────────────
+    // Outputs
     signal closeRequested()
     signal toggleRadio()
     signal rescan()
@@ -53,7 +53,7 @@ Rectangle {
     signal passwordFetched(int idx, string pw)
     signal statusMessage(string msg)
 
-    // ── Estado interno ────────────────────────────────────────────────────
+    // Estado interno
     property int _fetchingIdx: -1
     property var _sortedNets: []
 
@@ -76,7 +76,7 @@ Rectangle {
     onNmWifiDevChanged: root._rebuildSortedNets()
     Component.onCompleted: root._rebuildSortedNets()
 
-    // ── Helpers ───────────────────────────────────────────────────────────
+    // Helpers
     function wifiSignalIcon(strength) {
         if (strength >= 0.80) return "󰤨"
         if (strength >= 0.60) return "󰤥"
@@ -97,13 +97,13 @@ Rectangle {
         return sec === WifiSecurityType.Open || sec === WifiSecurityType.Owe
     }
 
-    // ── Contenido ─────────────────────────────────────────────────────────
+    // Contenido
     Column {
         id: wifiDetailCol
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
         spacing: 6
 
-        // ── Header ────────────────────────────────────────────────────────
+        // Header
         Item {
             width: parent.width; height: 32
 
@@ -184,7 +184,7 @@ Rectangle {
             }
         }
 
-        // ── Status / working — un solo Text, tres estados ─────────────────
+        // Status / working — un solo Text, tres estados
         Text {
             visible: root.wifiWorking || root.wifiStatusMsg !== ""
             text:  root.wifiWorking ? "Conectando…" : root.wifiStatusMsg
@@ -194,7 +194,7 @@ Rectangle {
                    : root.wifiStatusMsg.startsWith("✓") ? Theme.success : Theme.error
         }
 
-        // ── Ethernet info ─────────────────────────────────────────────────
+        // Ethernet info
         Rectangle {
             width: parent.width
             height: root.ethConnected ? 44 : 0
@@ -219,14 +219,14 @@ Rectangle {
             }
         }
 
-        // ── Radio off ─────────────────────────────────────────────────────
+        // Radio off
         Item {
             visible: !root.wifiRadioOn
             width: parent.width; height: 36
             Text { anchors.centerIn: parent; text: "WiFi está apagado"; font.pixelSize: 11; color: Theme.muted1 }
         }
 
-        // ── Network list ──────────────────────────────────────────────────
+        // Network list
         ListView {
             visible: root.wifiRadioOn && root.nmWifiDev !== null
             width: parent.width
@@ -276,7 +276,7 @@ Rectangle {
                         }
                     }
 
-                    // ── Network row ───────────────────────────────────────
+                    // Network row
                     Rectangle {
                         width: parent.width; height: 36; radius: 8
                         color: {
@@ -368,7 +368,7 @@ Rectangle {
                         }
                     }
 
-                    // ── Expanded panel ────────────────────────────────────
+                    // Expanded panel
                     Rectangle {
                         visible: root.wifiSelectedIdx === wNetRow.index
                         width: parent.width
@@ -386,7 +386,7 @@ Rectangle {
                             anchors { top: parent.top; left: parent.left; right: parent.right; margins: 10 }
                             spacing: 6
 
-                            // ── Password field ────────────────────────────
+                            // Password field
                             RowLayout {
                                 visible: !root.wifiIsOpen(wNetRow.modelData.security) && !wNetRow.modelData.connected
                                 width: parent.width; spacing: 6
@@ -477,7 +477,7 @@ Rectangle {
                                 width: parent.width; height: 1; color: Theme.surface2
                             }
 
-                            // ── Info ──────────────────────────────────────
+                            // Info
                             Column {
                                 width: parent.width; spacing: 3
 
@@ -524,7 +524,7 @@ Rectangle {
                                 }
                             }
 
-                            // ── Forget ────────────────────────────────────
+                            // Forget
                             Row {
                                 visible: wNetRow.modelData.known
                                 width: parent.width

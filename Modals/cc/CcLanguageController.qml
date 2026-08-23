@@ -7,7 +7,7 @@ import "../../Components"
 QtObject {
     id: root
 
-    // ── Estado público ────────────────────────────────────────────────────
+    // Estado público
     property string _langLayout:        "—"
     property string _langLocale:        "—"
     property var    _langLayouts:       []   // [{label, code}]
@@ -16,7 +16,7 @@ QtObject {
     property string _langSearchPending: ""   // valor inmediato del campo de texto
     property string _langTab:           "keyboard"
 
-    // ── Filtros computados ────────────────────────────────────────────────
+    // Filtros computados
     property var _filteredLayouts: {
         root._langLayouts; root._langSearch
         var q = (root._langSearch || "").toLowerCase()
@@ -43,14 +43,14 @@ QtObject {
         return result
     }
 
-    // ── Debounce de búsqueda — aplica 150 ms después de la última tecla ───
+    // Debounce de búsqueda — aplica 150 ms después de la última tecla
     property var _debounceTimer: Timer {
         id: _langSearchDebounce
         interval: 150
         onTriggered: root._langSearch = root._langSearchPending
     }
 
-    // ── One-shot: layout actual desde Hyprland ─────────────────────────
+    // One-shot: layout actual desde Hyprland
     // Lazy: no corre al nacer — ControlCenter.warmUp() lo dispara en la
     // primera apertura del CC; rawEvent cubre los cambios posteriores.
     property var _langCurrentProc: Process {
@@ -66,12 +66,12 @@ QtObject {
         }
     }
 
-    // ── Warm-up perezoso: siembra el layout inicial al abrir el CC ──────
+    // Warm-up perezoso: siembra el layout inicial al abrir el CC
     function warmUp() {
         if (!langCurrentProc.running) langCurrentProc.running = true
     }
 
-    // ── Cambios en runtime vía rawEvent ──────────────────────────────────
+    // Cambios en runtime vía rawEvent
     property var _hyprlandLayoutConn: Connections {
         target: Hyprland
         function onRawEvent(event) {
@@ -82,7 +82,7 @@ QtObject {
         }
     }
 
-    // ── Proceso: locale del sistema ───────────────────────────────────────
+    // Proceso: locale del sistema
     property var _langLocaleProc: Process {
         id: langLocaleProc
         command: ["sh", "-c",
@@ -93,7 +93,7 @@ QtObject {
         }
     }
 
-    // ── Proceso: layouts disponibles (XKB) ───────────────────────────────
+    // Proceso: layouts disponibles (XKB)
     property var _langLayoutProc: LineProcess {
         id: langLayoutProc
         command: ["sh", "-c", "timeout 3s localectl list-x11-keymap-layouts 2>/dev/null"]
@@ -108,14 +108,14 @@ QtObject {
         }
     }
 
-    // ── Proceso: aplicar layout via Hyprland ──────────────────────────────
+    // Proceso: aplicar layout via Hyprland
     // El cambio se detecta vía rawEvent "activelayout" — no necesita re-run.
     property var _langSetProc: Process {
         id: langSetProc
         command: ["hyprctl", "keyword", "input:kb_layout", ""]
     }
 
-    // ── Proceso: locales disponibles ──────────────────────────────────────
+    // Proceso: locales disponibles
     property var _langLocaleListProc: LineProcess {
         id: langLocaleListProc
         command: ["sh", "-c", "timeout 3s localectl list-locales 2>/dev/null"]
@@ -130,7 +130,7 @@ QtObject {
         }
     }
 
-    // ── Proceso: aplicar locale via localectl ─────────────────────────────
+    // Proceso: aplicar locale via localectl
     property var _langSetLocaleProc: Process {
         id: langSetLocaleProc
         command: ["sh", "-c", ""]
@@ -139,7 +139,7 @@ QtObject {
         // qmllint enable signal-handler-parameters
     }
 
-    // ── API pública ───────────────────────────────────────────────────────
+    // API pública
     function langRefresh() {
         root._langSearchPending = ""
         root._langSearch        = ""

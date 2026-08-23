@@ -4,7 +4,6 @@ import Quickshell
 import Quickshell.Wayland
 import "../../Components"
 
-// ─────────────────────────────────────────────────────────────────────────────
 // OverlayWindow — template reutilizable para overlays flotantes (fade + slide).
 // PanelWindow anclado a un corner, sin exclusión, con máscara recortada a la
 // tarjeta. El overlay concreto declara su contenido como hijos (slot default).
@@ -17,14 +16,13 @@ import "../../Components"
 //                  de abajo (overlays decorativos como Watermark/Preview).
 //   onTop        → capa para overlays NO manejados (entryId vacio): true =
 //                  Overlay (sobre ventanas); false = Bottom (detras).
-// ─────────────────────────────────────────────────────────────────────────────
 PanelWindow {
     id: root
 
     visible: false
     color: "transparent"
 
-    // ── Config properties (set from shell.qml) ────────────────────────────
+    // Config properties (set from shell.qml)
     property string corner:         "bottom-right"
     property int    overlayWidth:   320
     property int    overlayHeight:  0
@@ -46,7 +44,7 @@ PanelWindow {
     property string entryId:        ""      // id en OverlayManager; si se setea, la visibilidad la gobierna el manager
     property bool   _dragged:       false   // true tras un arrastre real del modo edición
 
-    // ── Auto-gobierno de visibilidad vía OverlaysManager ──────────────────
+    // Auto-gobierno de visibilidad vía OverlaysManager
     readonly property QtObject _ownEntry:   OverlaysManager.get(root.entryId)
     readonly property bool _managed: root.entryId !== ""
 
@@ -59,7 +57,7 @@ PanelWindow {
         ? root._ownEntry.onTop
         : root.onTop
 
-    // ── Fix capa: el binding WlrLayershell.layer por sí solo no re-mapea la
+    // Fix capa: el binding WlrLayershell.layer por sí solo no re-mapea la
     // surface en zwlr_layer_shell (el compositor fija la capa al mapear).
     // Se fuerza hide→show cuando _effectiveOnTop cambia estando visible.
     // Además se defiere el show inicial hasta OverlaysManager._loaded para
@@ -115,7 +113,7 @@ PanelWindow {
     on_EffectiveOnTopChanged: root._restackForLayer()
     // qmllint enable missing-property
 
-    // ── Computed layout ───────────────────────────────────────────────────
+    // Computed layout
     readonly property bool _barOnRight:     corner.endsWith("right")
     readonly property int  _contentMargin:  14
     readonly property int  _slideOffset:    overlayWidth + 16 + 24
@@ -191,7 +189,7 @@ PanelWindow {
     Region { id: _cardRegion; item: overlayCard }
     mask: (OverlaysManager.editPosition || !root.mouseThrough) ? _cardRegion : _mouseThroughRegion
 
-    // ── API pública ───────────────────────────────────────────────────────
+    // API pública
     function show() {
         root._animateIn()
     }
@@ -216,14 +214,14 @@ PanelWindow {
         hideOutAnim.start()
     }
 
-    // ── Auto-hide ─────────────────────────────────────────────────────────
+    // Auto-hide
     Timer {
         id: autoHideTimer
         interval: root.autoHideMs
         onTriggered: root.hide()
     }
 
-    // ── Animaciones ───────────────────────────────────────────────────────
+    // Animaciones
     ParallelAnimation {
         id: showInAnim
         NumberAnimation {
@@ -259,7 +257,7 @@ PanelWindow {
         }
     }
 
-    // ── Tarjeta ───────────────────────────────────────────────────────────
+    // Tarjeta
     Rectangle {
         id: overlayCard
         width:  root.overlayWidth
@@ -295,7 +293,7 @@ PanelWindow {
             anchors.fill: parent
         }
 
-        // ── Indicador de modo edición ───────────────────────────────────────
+        // Indicador de modo edición
         Rectangle {
             anchors.fill: parent
             visible: OverlaysManager.editPosition
@@ -305,7 +303,7 @@ PanelWindow {
             border.width: 2
         }
 
-        // ── Drag de posición (modo edición) ────────────────────────────────
+        // Drag de posición (modo edición)
         // DragHandler (no MouseArea): mantiene el grab del puntero aunque el
         // cursor salga de la tarjeta. Con MouseArea, como el compositor
         // reposiciona la capa con ~1 frame de latencia, el cursor supera a la

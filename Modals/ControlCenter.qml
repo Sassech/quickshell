@@ -21,7 +21,7 @@ PanelWindow {
     anchors.top: true; anchors.bottom: true
     anchors.left: true; anchors.right: true
 
-    // ── Coordinación UI ───────────────────────────────────────────────────
+    // Coordinación UI
     property bool   _showConfirm:  false
     property string _confirmLabel: ""
     property var    _confirmCmd:   []
@@ -30,7 +30,7 @@ PanelWindow {
     property string _activePanel: ""   // "wifi" | "bluetooth" | "audio" | "power" | "battery" | "language" | "cpu" | "ram" | "gpu" | ""
     property bool   _audioShowSources: true
 
-    // ── Controladores de dominio ──────────────────────────────────────────
+    // Controladores de dominio
     // DECISIÓN: los controllers se instancian eager, NO dentro de un Loader
     // (el trabajo pesado ya está gateado internamente; un Loader rompería
     // ~60 referencias por scope QML). Los one-shot al nacer quedaron lazy.
@@ -70,7 +70,7 @@ PanelWindow {
         id: wifiCtrl
     }
 
-    // ── Conexión: signal del wifi controller → ccPanelOverlay ────────────
+    // Conexión: signal del wifi controller → ccPanelOverlay
     Connections {
         target: wifiCtrl
         function onWifiPasswordFetched(idx, pw) {
@@ -78,7 +78,7 @@ PanelWindow {
         }
     }
 
-    // ── Timer: btCodecRefreshTimer necesita condición del root ────────────
+    // Timer: btCodecRefreshTimer necesita condición del root
     Connections {
         target: btCtrl._btCodecRefreshTimer
         function onRunningChanged() {}
@@ -90,7 +90,7 @@ PanelWindow {
         value: root.visible && root._activePanel === "bluetooth"
     }
 
-    // ── Aliases Battery ───────────────────────────────────────────────────
+    // Aliases Battery
     property alias _upowerDev:      batCtrl._upowerDev
     property alias _batAvailableUP: batCtrl._batAvailableUP
     property alias _batPctUP:       batCtrl._batPctUP
@@ -103,18 +103,18 @@ PanelWindow {
     property alias _batTimeEmpty:   batCtrl._batTimeEmpty
     property alias _batTimeFull:    batCtrl._batTimeFull
 
-    // ── Aliases Brightness ────────────────────────────────────────────────
+    // Aliases Brightness
     property alias brightness:       brightnessCtrl.brightness
     property alias _brightnessReady: brightnessCtrl._brightnessReady
 
-    // ── Aliases GPU ───────────────────────────────────────────────────────
+    // Aliases GPU
     property alias _gpuLoaded:      gpuCtrl._gpuLoaded
     property alias _gpus:           gpuCtrl._gpus
 
-    // ── Aliases Power ─────────────────────────────────────────────────────
+    // Aliases Power
     property alias _fanProfiles: powerCtrl._fanProfiles
 
-    // ── Aliases Language ──────────────────────────────────────────────────
+    // Aliases Language
     property alias _langLayout:        langCtrl._langLayout
     property alias _langLocale:        langCtrl._langLocale
     property alias _langLayouts:       langCtrl._langLayouts
@@ -125,7 +125,7 @@ PanelWindow {
     property alias _filteredLayouts:   langCtrl._filteredLayouts
     property alias _filteredLocales:   langCtrl._filteredLocales
 
-    // ── Aliases Audio ─────────────────────────────────────────────────────
+    // Aliases Audio
     property alias defaultSink:       audioCtrl.defaultSink
     property alias defaultSource:     audioCtrl.defaultSource
     property alias _activeSink:       audioCtrl._activeSink
@@ -143,7 +143,7 @@ PanelWindow {
     property alias audioSinks:        audioCtrl.audioSinks
     property alias audioSources:      audioCtrl.audioSources
 
-    // ── Aliases Bluetooth ─────────────────────────────────────────────────
+    // Aliases Bluetooth
     property alias _btAdapter:         btCtrl._btAdapter
     property alias _btAvailable:       btCtrl._btAvailable
     property alias _btPwrd:            btCtrl._btPwrd
@@ -160,7 +160,7 @@ PanelWindow {
     property alias btConnectedCount:   btCtrl.btConnectedCount
     property alias btFirstConnectedName: btCtrl.btFirstConnectedName
 
-    // ── Aliases WiFi ──────────────────────────────────────────────────────
+    // Aliases WiFi
     property alias _nmWifiDev:          wifiCtrl._nmWifiDev
     property alias _wifiRadioOn:        wifiCtrl._wifiRadioOn
     property alias _wifiScanning:       wifiCtrl._wifiScanning
@@ -178,7 +178,7 @@ PanelWindow {
     property alias _ethIp:              wifiCtrl._ethIp
     property alias _ethSpeed:           wifiCtrl._ethSpeed
 
-    // ── Wrappers de funciones de controladores (para mantener contrato) ───
+    // Wrappers de funciones de controladores (para mantener contrato)
 
     // Battery/Power
     function _powerLabel(profile) { return powerCtrl._powerLabel(profile) }
@@ -232,7 +232,7 @@ PanelWindow {
     function wifiSecurityLabel(sec)        { return wifiCtrl.wifiSecurityLabel(sec) }
     function wifiIsOpen(sec)               { return wifiCtrl.wifiIsOpen(sec) }
 
-    // ── Startup / teardown ────────────────────────────────────────────────
+    // Startup / teardown
     onVisibleChanged: {
         SysData.anyCcVisible = visible
         if (visible) {
@@ -248,14 +248,14 @@ PanelWindow {
         }
     }
 
-    // ── Backdrop ──────────────────────────────────────────────────────────
+    // Backdrop
     Rectangle {
         anchors.fill: parent
         color: Theme.scrim
         MouseArea { anchors.fill: parent; onClicked: root.visible = false }
     }
 
-    // ── Card principal ────────────────────────────────────────────────────
+    // Card principal
     Rectangle {
         id: ccCard
         focus: true
@@ -282,7 +282,7 @@ PanelWindow {
 
         MouseArea { anchors.fill: parent }
 
-        // ── Scroll container ───────────────────────────────────────────────
+        // Scroll container
         Flickable {
             id: ccFlick
             anchors { fill: parent; margins: 12 }
@@ -296,7 +296,7 @@ PanelWindow {
                 width: ccFlick.width
                 spacing: 0
 
-                // ── POWER BAR ─────────────────────────────────────────────
+                // POWER BAR
                 CcPowerBar {
                     width: parent.width
                     onShowConfirm: (label, cmd) => {
@@ -311,13 +311,11 @@ PanelWindow {
                     onClose: root.visible = false
                 }
 
-                // ── SEPARADOR ──────────────────────────────────────────────
+                // SEPARADOR
                 Rectangle { width: parent.width; height: 1; color: Theme.surface2 }
                 Item { width: parent.width; height: 8 }
 
-                // ══════════════════════════════════════════════════════════
                 // SECCIÓN 1 — Sliders de audio y brillo
-                // ══════════════════════════════════════════════════════════
 
                 CcSliders {
                     width: parent.width
@@ -336,7 +334,7 @@ PanelWindow {
                 Item { width: parent.width; height: 8 }
                 Rectangle { width: parent.width; height: 1; color: Theme.surface2 }
 
-                // ── Controles rápidos ─────────────────────────────────────
+                // Controles rápidos
                 CcQuickToggles {
                     width: parent.width
                     activePanel:          root._activePanel
@@ -387,7 +385,7 @@ PanelWindow {
                     }
                 }
 
-                // ── Métricas del sistema ──────────────────────────────────
+                // Métricas del sistema
                 CcSystemSection {
                     width: parent.width
                     activePanel: root._activePanel
@@ -417,7 +415,7 @@ PanelWindow {
         }
     }
 
-    // ── Panel overlay (popups de detalle) ─────────────────────────────────
+    // Panel overlay (popups de detalle)
     CcPanelOverlay {
         id: ccPanelOverlay
         anchors.fill: parent
@@ -509,7 +507,7 @@ PanelWindow {
         langTab:         root._langTab
         langSearch:      root._langSearch
 
-        // ── Signal handlers ───────────────────────────────────────────────
+        // Signal handlers
         onClosePanel: {
             if (root._activePanel === "bluetooth") {
                 if (root._btAdapter) {
@@ -575,7 +573,7 @@ PanelWindow {
         }
     }
 
-    // ── Confirm overlay (acciones críticas de power) ──────────────────────
+    // Confirm overlay (acciones críticas de power)
     Rectangle {
         visible: root._showConfirm
         anchors.fill: parent
@@ -646,7 +644,7 @@ PanelWindow {
         }
     }
 
-    // ── Power exec process ────────────────────────────────────────────────
+    // Power exec process
     Process {
         id: ccExecProc
         running: false
@@ -656,7 +654,7 @@ PanelWindow {
         // qmllint enable signal-handler-parameters
     }
 
-    // ── CPU detail refresh — native QML pollers (SysData) ─────────────────
+    // CPU detail refresh — native QML pollers (SysData)
     Timer {
         interval: 1500; repeat: true
         running: root.visible && root._activePanel === "cpu"

@@ -4,7 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Controls
 import "../../Components"
 
-// ── CcLanguagePanel ──────────────────────────────────────────────────────────
+// CcLanguagePanel
 // Panel de selección de layout de teclado y locale del sistema.
 Rectangle {
     id: root
@@ -19,7 +19,7 @@ Rectangle {
         border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2); border.width: 1
     }
 
-    // ── Inputs ────────────────────────────────────────────────────────────
+    // Inputs
     required property var    filteredLayouts
     required property var    filteredLocales
     required property string langLayout
@@ -27,7 +27,7 @@ Rectangle {
     required property string langTab
     required property string langSearch
 
-    // ── Outputs ───────────────────────────────────────────────────────────
+    // Outputs
     signal closeRequested()
     signal tabChanged(string tab)
     signal searchChanged(string query)
@@ -45,7 +45,7 @@ Rectangle {
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
         spacing: 8
 
-        // ── Header ────────────────────────────────────────────────────────
+        // Header
         Item {
             width: parent.width; height: 28
             Text {
@@ -67,7 +67,7 @@ Rectangle {
             }
         }
 
-        // ── Mini tabs ─────────────────────────────────────────────────────
+        // Mini tabs
         Row {
             width: parent.width
             spacing: 4
@@ -112,7 +112,7 @@ Rectangle {
             }
         }
 
-        // ── Search ────────────────────────────────────────────────────────
+        // Search
         Rectangle {
             width: parent.width; height: 28; radius: 7
             color: Theme.surface3
@@ -143,7 +143,7 @@ Rectangle {
             }
         }
 
-        // ── Keyboard tab: layout list ──────────────────────────────────────
+        // Keyboard tab: layout list
         Item {
             visible: root.langTab === "keyboard"
             width: parent.width
@@ -207,7 +207,7 @@ Rectangle {
             }
         }
 
-        // ── Locale tab: locale list ────────────────────────────────────────
+        // Locale tab: locale list
         Item {
             visible: root.langTab === "locale"
             width: parent.width

@@ -12,14 +12,14 @@ import "./overlays"
 OverlayWindow {
     id: root
 
-    // ── Config (contrato con shell.qml) ──────────────────────────────────
+    // Config (contrato con shell.qml)
     property int    dismissMs:   4000   // compat: autoHideMs
     property int    marginTop:   25     // compat: topOffset
     property int    marginRight: 25     // compat: rightOffset
     property int    popupWidth:  400    // compat: overlayWidth
     property string position:    "top-right"   // compat: corner
 
-    // ── Mapeo al template ────────────────────────────────────────────────
+    // Mapeo al template
     corner:         root.position
     overlayWidth:   root.popupWidth
     // +32px cuando hay botones de acción (fila extra abajo).
@@ -31,7 +31,7 @@ OverlayWindow {
     showAccent:     false    // la franja del popup es de 4px condicional, no la del template
     restingOpacity: 1.0      // el popup no queda translúcido
 
-    // ── Contenido de la notificación ──────────────────────────────────────
+    // Contenido de la notificación
     property string notifTitle:   ""
     property string notifBody:    ""
     property string notifIcon:    "☕"
@@ -58,7 +58,7 @@ OverlayWindow {
         if (def) def.invoke()
     }
 
-    // ── Franja de acento izquierda (4px, condicional) ───────────────────
+    // Franja de acento izquierda (4px, condicional)
     Rectangle {
         anchors.left: parent.left
         anchors.top: parent.top
@@ -70,7 +70,7 @@ OverlayWindow {
              : Theme.muted3
     }
 
-    // ── Gradiente sutil ──────────────────────────────────────────────────
+    // Gradiente sutil
     Rectangle {
         anchors.fill: parent
         radius: root.card.radius
@@ -84,7 +84,7 @@ OverlayWindow {
         }
     }
 
-    // ── Click en body con hover ─────────────────────────────────────────
+    // Click en body con hover
     MouseArea {
         anchors.fill: parent
         hoverEnabled: true
@@ -102,7 +102,7 @@ OverlayWindow {
         }
     }
 
-    // ── Contenido principal (ícono + texto) ─────────────────────────────
+    // Contenido principal (ícono + texto)
     // Con botones de acción el contenido se ancla arriba para dejar libre el
     // fondo (evita que el texto y los botones se superpongan); sin acciones
     // queda centrado verticalmente como antes.
@@ -174,7 +174,7 @@ OverlayWindow {
         }
     }
 
-    // ── Botones de acción (NotificationAction[], excluye "default") ────
+    // Botones de acción (NotificationAction[], excluye "default")
     Row {
         visible: notifActionsRepeater.count > 0
         anchors {
@@ -221,7 +221,7 @@ OverlayWindow {
         }
     }
 
-    // ── Botón cerrar ─────────────────────────────────────────────────────
+    // Botón cerrar
     MouseArea {
         anchors.top: parent.top
         anchors.right: parent.right

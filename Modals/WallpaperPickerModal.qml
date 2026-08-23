@@ -18,12 +18,12 @@ QmModalBase {
     hasStripe: true
     focusCard: true
 
-    // ── Estado global ───────────────────────────────────────────
+    // Estado global
     property string currentWallpaper: ""
     property bool   _loading: false
     property string _errorMsg: ""
 
-    // ── Tabs ────────────────────────────────────────────────────
+    // Tabs
     // Cada tab: { id, label, path, type }
     // type === "folder" | "search"
     // La tab "search" es siempre la última y no tiene X
@@ -38,7 +38,7 @@ QmModalBase {
     // carga individual, para que reactivar un tab ya visitado sea instantáneo.
     property var _folderCache: ({})
 
-    // ── Daemon JSON-lines (wallpaper-multi --daemon) ────────────────
+    // Daemon JSON-lines (wallpaper-multi --daemon)
     // Cada request lleva id = path de la carpeta; la respuesta replica ese id
     // y escribe directo al _folderCache (sin depender del orden de llegada).
     // El daemon mantiene el listado por carpeta en memoria (invalidación por
@@ -105,7 +105,7 @@ QmModalBase {
 
     ListModel { id: imageModel }
 
-    // ── Lectura de config al inicio ─────────────────────────────
+    // Lectura de config al inicio
     FileView {
         id: wallpaperConfigFile
         path: Paths.config + "/wallpaper-config.json"
@@ -161,7 +161,7 @@ QmModalBase {
         }
     }
 
-    // ── Precarga masiva: un request por carpeta al daemon persistente, en
+    // Precarga masiva: un request por carpeta al daemon persistente, en
     // vez de relanzar `wallpaper-multi <folder1>...` como one-shot al abrir.
     function _preloadAllFolders() {
         var folders = []
@@ -182,7 +182,7 @@ QmModalBase {
         wallDaemon.write(JSON.stringify({ id: path, folder: path, force: !!force }) + "\n")
     }
 
-    // ── Daemon persistente (wallpaper-multi --daemon) ─────────────
+    // Daemon persistente (wallpaper-multi --daemon)
     // Mantiene el listado y los thumbnails calientes en memoria por carpeta.
     Process {
         id: wallDaemon
@@ -217,7 +217,7 @@ QmModalBase {
         applyProc.running = false
     }
 
-    // ── Safety timer para listado ───────────────────────────────
+    // Safety timer para listado
     Timer {
         id: loadSafetyTimer
         interval: 10000
@@ -232,7 +232,7 @@ QmModalBase {
         onTriggered: root._errorMsg = ""
     }
 
-    // ── Carga imágenes de la carpeta activa ─────────────────────
+    // Carga imágenes de la carpeta activa
     function loadImages(force) {
         if (_activeTab >= _tabs.length) return
         var tab = _tabs[_activeTab]
@@ -243,7 +243,7 @@ QmModalBase {
         root._requestFolder(tab.path, force)
     }
 
-    // ── Aplica wallpaper (carpeta) ──────────────────────────────
+    // Aplica wallpaper (carpeta)
     Process {
         id: setProc
         property string pending: ""
@@ -285,7 +285,7 @@ QmModalBase {
         receiveFolderResult(f)
     }
 
-    // ── Estado de búsqueda Bing ─────────────────────────────────
+    // Estado de búsqueda Bing
     property bool   _searching: false
     property bool   _loadingMore: false
     property int    _searchFirst: 1         // índice 1-based del primer resultado pedido (paginación)
@@ -297,7 +297,7 @@ QmModalBase {
     property string _searchStatus: ""
     ListModel { id: resultsModel }
 
-    // ── Bing: buscar ────────────────────────────────────────────
+    // Bing: buscar
     function search(q) {
         var query = String(q).trim()
         if (query === "") return
@@ -322,7 +322,7 @@ QmModalBase {
         resultsModel.append(item)
     }
 
-    // ── Paginación: pide la página siguiente y APPENDE (no limpia) ────────
+    // Paginación: pide la página siguiente y APPENDE (no limpia)
     function _loadMoreResults() {
         if (root._searching || root._loadingMore) return
         if (root._searchError !== "") return
@@ -369,7 +369,7 @@ QmModalBase {
         // qmllint enable signal-handler-parameters
     }
 
-    // ── Bing: descargar + aplicar ───────────────────────────────
+    // Bing: descargar + aplicar
     function download(item) {
         if (root._busyId !== "") return
         root._busyId = item.id
@@ -443,7 +443,7 @@ QmModalBase {
         onTriggered: root._searchStatus = ""
     }
 
-    // ── Renombrar tab (estado inline) ───────────────────────────
+    // Renombrar tab (estado inline)
     property int  _renamingIndex: -1
     property string _renameValue: ""
 
@@ -469,14 +469,14 @@ QmModalBase {
         _renamingIndex = -1
     }
 
-    // ── UI ──────────────────────────────────────────────────────
+    // UI
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 16
         anchors.topMargin: 20
         spacing: 8
 
-        // ── Header ─────────────────────────────────────────────
+        // Header
         RowLayout {
             Layout.fillWidth: true
             spacing: 8
@@ -576,7 +576,7 @@ QmModalBase {
             }
         }
 
-        // ── Barra de tabs ───────────────────────────────────────
+        // Barra de tabs
         RowLayout {
             Layout.fillWidth: true
             spacing: 0
@@ -796,12 +796,12 @@ QmModalBase {
             color: Theme.surface2
         }
 
-        // ── Contenido del tab activo ────────────────────────────
+        // Contenido del tab activo
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
-            // ── Vista: carpeta ──────────────────────────────────
+            // Vista: carpeta
             ColumnLayout {
                 anchors.fill: parent
                 spacing: 0
@@ -1006,7 +1006,7 @@ QmModalBase {
                 }
             }
 
-            // ── Vista: búsqueda online (Bing) ───────────────────
+            // Vista: búsqueda online (Bing)
             ColumnLayout {
                 anchors.fill: parent
                 spacing: 10

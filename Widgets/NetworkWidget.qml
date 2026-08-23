@@ -11,7 +11,7 @@ Rectangle {
 
     // Widget de solo estado — no emite clicks ni tiene hover
 
-    // ── Icon based on connection type ────────────────────────────────────
+    // Icon based on connection type
     property string networkIcon: {
         if (SysData.netConnectionType === "ethernet") return "󰈀"
         if (!SysData.netRadioOn) return "󰤮"
@@ -31,7 +31,7 @@ Rectangle {
         return Theme.error
     }
 
-    // ── Speed formatting ──────────────────────────────────────────────────
+    // Speed formatting
     function fmtSpeed(bps) {
         if (bps < 1024)            return Math.round(bps) + " B/s"
         if (bps < 1024 * 1024)     return (bps / 1024).toFixed(1) + " KB/s"
@@ -39,7 +39,7 @@ Rectangle {
         return (bps / (1024*1024*1024)).toFixed(2) + " GB/s"
     }
 
-    // ── Content Row ──────────────────────────────────────────────────────
+    // Content Row
     Row {
         id: contentRow
         anchors.centerIn: parent

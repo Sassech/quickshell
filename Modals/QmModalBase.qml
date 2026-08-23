@@ -13,7 +13,7 @@ import "../Components"
 PanelWindow {
     id: root
 
-    // ── Tamaño de la card ──────────────────────────────────────────────
+    // Tamaño de la card
     property int cardWidth: 580
     property real cardHeight: 0                       // >0 fuerza altura fija
     property bool fixedHeight: false
@@ -25,35 +25,35 @@ PanelWindow {
     property int cardBorderWidth: 1
     property bool cardClip: false
 
-    // ── Anclaje de la card ─────────────────────────────────────────────
+    // Anclaje de la card
     property string cardAnchor: "center"              // center | top | topRight | topCenter | left
     property int cardTopMargin: 36
     property int cardRightMargin: 12
     property int cardLeftMargin: 0
 
-    // ── Backdrop ───────────────────────────────────────────────────────
+    // Backdrop
     property bool showScrim: true
     property real scrimOpacity: 1.0
     property color scrimColor: Theme.scrim
     property bool closeOnScrimClick: true
 
-    // ── Comportamiento ─────────────────────────────────────────────────
+    // Comportamiento
     property bool consumeClicks: true
     property bool escapeEnabled: true
     property bool hasStripe: false
     property bool focusCard: false
 
-    // ── Slot de contenido ──────────────────────────────────────────────
+    // Slot de contenido
     default property alias content: contentArea.data
 
-    // ── Raíz ───────────────────────────────────────────────────────────
+    // Raíz
     visible: false
     color: "transparent"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
     anchors.top: true; anchors.bottom: true; anchors.left: true; anchors.right: true
 
-    // ── Backdrop scrim ─────────────────────────────────────────────────
+    // Backdrop scrim
     Rectangle {
         anchors.fill: parent
         visible: root.showScrim
@@ -66,7 +66,7 @@ PanelWindow {
         }
     }
 
-    // ── Card ───────────────────────────────────────────────────────────
+    // Card
     Rectangle {
         id: card
         width: root.cardWidth
@@ -92,7 +92,7 @@ PanelWindow {
         y: root.cardAnchor === "top" || root.cardAnchor === "topCenter" || root.cardAnchor === "topRight" ? root.cardTopMargin
          : (parent.height - card.height) / 2
 
-        // ── Stripe superior ────────────────────────────────────────────
+        // Stripe superior
         Rectangle {
             anchors.top: parent.top
             anchors.left: parent.left
@@ -109,21 +109,21 @@ PanelWindow {
             }
         }
 
-        // ── Consumo de clicks (debajo del contenido) ───────────────────
+        // Consumo de clicks (debajo del contenido)
         MouseArea {
             anchors.fill: parent
             visible: root.consumeClicks
             onClicked: {}
         }
 
-        // ── Contenido (encima del consume) ─────────────────────────────
+        // Contenido (encima del consume)
         Item {
             id: contentArea
             anchors.fill: parent
         }
     }
 
-    // ── API ────────────────────────────────────────────────────────────
+    // API
     function open() {
         root.visible = true
         if (root.focusCard) card.forceActiveFocus()

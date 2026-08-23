@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// ── Comprobación de actualizaciones del sistema (updates-check) ─────────────
+// Comprobación de actualizaciones del sistema (updates-check)
 // Detecta los gestores de paquetes instalados (dnf/apt/pacman/snap/flatpak) en
 // runtime con exec.LookPath y cuenta las actualizaciones disponibles de cada
 // uno. El resultado se cachea en ~/.cache/qs-helper/updates.json con TTL de 1h

@@ -9,7 +9,7 @@ Rectangle {
     radius: 8
     color: Theme.surface2
 
-    // ── Color thresholds ─────────────────────────────────────
+    // Color thresholds
     property color accentColor: {
         if (!SysData.ramAvailable) return Theme.muted2
         if (SysData.ramPercent >= 90) return Theme.error

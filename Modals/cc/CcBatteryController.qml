@@ -5,7 +5,7 @@ import Quickshell.Services.UPower
 QtObject {
     id: root
 
-    // ── UPower device ─────────────────────────────────────────────────────
+    // UPower device
     property var  _upowerDev:      UPower.displayDevice
 
     property bool _batAvailableUP: _upowerDev ? _upowerDev.isPresent && _upowerDev.isLaptopBattery : false

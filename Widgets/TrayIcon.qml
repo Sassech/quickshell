@@ -15,7 +15,7 @@ Rectangle {
     height: size
     radius: 4
 
-    // ── Color de fondo según estado ──────────────────────────────────────
+    // Color de fondo según estado
     property bool _needsAttention: root.trayItem.status === Status.NeedsAttention
 
     color: ma.containsMouse ? Theme.surfaceHover : "transparent"
@@ -24,7 +24,7 @@ Rectangle {
     scale: ma.pressed ? 0.92 : 1.0
     Behavior on scale { NumberAnimation { duration: 50 } }
 
-    // ── Glow pulsante cuando NeedsAttention ─────────────────────────────
+    // Glow pulsante cuando NeedsAttention
     Rectangle {
         id: attentionGlow
         anchors.centerIn: parent
@@ -45,7 +45,7 @@ Rectangle {
         }
     }
 
-    // ── Resolver icono con soporte para ?path= custom icons ─────────────
+    // Resolver icono con soporte para ?path= custom icons
     // Algunas apps (ej. Spotify) envían iconos como "image://icon/spotify-linux-32?path=/usr/share/spotify/icons"
     // Quickshell no soporta custom icon paths, así que lo resolvemos manualmente.
     property string _resolvedIcon: {
@@ -67,7 +67,7 @@ Rectangle {
         asynchronous: true
     }
 
-    // ── Tooltip ──────────────────────────────────────────────────────────
+    // Tooltip
     ToolTip {
         id: tooltip
         visible: ma.containsMouse && (root.trayItem.tooltipTitle !== "" || root.trayItem.title !== "")
@@ -91,7 +91,7 @@ Rectangle {
         }
     }
 
-    // ── Interacción ──────────────────────────────────────────────────────
+    // Interacción
     MouseArea {
         id: ma
         anchors.fill: parent

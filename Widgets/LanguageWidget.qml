@@ -16,7 +16,7 @@ Rectangle {
 
     Behavior on color { ColorAnimation { duration: 100 } }
 
-    // ── Hyprland rawEvent — actualiza layout en tiempo real sin polling ────
+    // Hyprland rawEvent — actualiza layout en tiempo real sin polling
     // El evento "activelayout" se emite cada vez que cambia el layout activo.
     // Formato de data: "<device-name>,<layout-name>"
     Connections {
@@ -32,7 +32,7 @@ Rectangle {
         }
     }
 
-    // ── Fetch inicial del layout al arrancar ──────────────────────────────
+    // Fetch inicial del layout al arrancar
     // Solo se ejecuta una vez — el socket mantiene el estado actualizado de ahí en más.
     Process {
         id: initLayoutProc

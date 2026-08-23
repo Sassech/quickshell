@@ -9,7 +9,7 @@ import "../../Components"
 QtObject {
     id: root
 
-    // ── Estado del dispositivo WiFi ───────────────────────────────────────
+    // Estado del dispositivo WiFi
     property var    _nmWifiDev: null
 
     function _findWifiDev() {
@@ -35,7 +35,7 @@ QtObject {
     property var    _wifiPasswordByIndex: ({})
     property var    _wifiTargetNet:  null
 
-    // ── Red conectada (reactiva) ──────────────────────────────────────────
+    // Red conectada (reactiva)
     property var    _wifiConnectedNet: {
         var dev = root._nmWifiDev
         if (!dev) return null
@@ -47,25 +47,25 @@ QtObject {
     }
     property string _wifiConnectedSsid: _wifiConnectedNet ? _wifiConnectedNet.name : ""
 
-    // ── IP/Gateway/DNS (vía nmcli) ────────────────────────────────────────
+    // IP/Gateway/DNS (vía nmcli)
     property string _wifiIp:      ""
     property string _wifiGateway: ""
     property string _wifiDns:     ""
 
-    // ── Estado Ethernet (vía nmcli) ───────────────────────────────────────
+    // Estado Ethernet (vía nmcli)
     property bool   _ethConnected: false
     property string _ethIp:        ""
     property string _ethSpeed:     ""
 
-    // ── Password fetch shared state ───────────────────────────────────────
+    // Password fetch shared state
     property string _wifiPwFetchResult:    ""
     property int    wifiPwFetchResultIdx: -2
     property int    _wifiPwFetchIdx:       -1
 
-    // ── Señal para notificar password fetched al panel overlay ───────────
+    // Señal para notificar password fetched al panel overlay
     signal wifiPasswordFetched(int idx, string pw)
 
-    // ── Funciones WiFi ────────────────────────────────────────────────────
+    // Funciones WiFi
     function _wifiIsNormalDisconnectReason(reason) {
         // qmllint disable unqualified
         return reason === NMConnectionStateReason.None
@@ -178,7 +178,7 @@ QtObject {
             root._nmWifiDev.scannerEnabled = true
     }
 
-    // ── Connections: cambios en Networking ───────────────────────────────
+    // Connections: cambios en Networking
     property var _networkingConn: Connections {
         target: Networking
         function onWifiEnabledChanged() {
@@ -188,7 +188,7 @@ QtObject {
         }
     }
 
-    // ── Instantiator: observar cambios en cada red WiFi ───────────────────
+    // Instantiator: observar cambios en cada red WiFi
     property var _wifiNetworkInstantiator: Instantiator {
         model: root._nmWifiDev ? root._nmWifiDev.networks : null
         delegate: Connections {
@@ -221,7 +221,7 @@ QtObject {
         }
     }
 
-    // ── Timer: auto-stop scanner después de 15 s ──────────────────────────
+    // Timer: auto-stop scanner después de 15 s
     property var _wScanStopTimer: Timer {
         id: wScanStopTimer
         interval: 15000
@@ -230,7 +230,7 @@ QtObject {
         }
     }
 
-    // ── Proceso: info Ethernet (nmcli) ────────────────────────────────────
+    // Proceso: info Ethernet (nmcli)
     property var _wEthProc: LineProcess {
         id: wEthProc
         command: ["bash", "-c",
@@ -247,7 +247,7 @@ QtObject {
         }
     }
 
-    // ── Proceso: conectar red nueva con password (nmcli) ──────────────────
+    // Proceso: conectar red nueva con password (nmcli)
     property var _wConnectProc: Process {
         id: wConnectProc
         property string _buf: ""
@@ -272,7 +272,7 @@ QtObject {
         // qmllint enable signal-handler-parameters
     }
 
-    // ── Proceso: IP/Gateway/DNS para WiFi conectado (nmcli) ──────────────
+    // Proceso: IP/Gateway/DNS para WiFi conectado (nmcli)
     property var _wWifiInfoProc: LineProcess {
         id: wWifiInfoProc
         command: ["bash", "-c",
@@ -289,7 +289,7 @@ QtObject {
         }
     }
 
-    // ── Proceso: revelar PSK guardada (nmcli -s) ──────────────────────────
+    // Proceso: revelar PSK guardada (nmcli -s)
     property var _wSharedPwFetchProc: Process {
         id: wSharedPwFetchProc
         property string _buf: ""
@@ -304,7 +304,7 @@ QtObject {
         // qmllint enable signal-handler-parameters
     }
 
-    // ── Proceso: copiar password al portapapeles ──────────────────────────
+    // Proceso: copiar password al portapapeles
     property var _wMenuCopyFetchProc: Process {
         id: wMenuCopyFetchProc
         property string _buf: ""

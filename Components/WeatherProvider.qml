@@ -5,7 +5,7 @@ import Quickshell.Io
 QtObject {
     id: root
     
-    // ── Estado ────────────────────────────────────────────────────────────
+    // Estado
     property bool loading: true
     property bool hasData: false
     
@@ -14,7 +14,7 @@ QtObject {
     property bool geoSourceSystem: false
     property string cityName: "Cargando..."
     
-    // ── Datos del clima actual ────────────────────────────────────────────
+    // Datos del clima actual
     property double temperature: 0
     property double feelsLike: 0
     property double windSpeed: 0
@@ -24,22 +24,22 @@ QtObject {
     property string sunrise: "--:--"
     property string sunset: "--:--"
     
-    // ── Datos forecast ────────────────────────────────────────────────────
+    // Datos forecast
     property var hourlyData: []
     property var dailyData: []
     
-    // ── Senales personalizadas ────────────────────────────────────────────
+    // Senales personalizadas
     signal dataReady()
     
-    // ── Gate de visibilidad para el timer ────────────────────────────────
+    // Gate de visibilidad para el timer
     property bool _anyConsumerVisible: false
 
-    // ── Init ──────────────────────────────────────────────────────────────
+    // Init
     Component.onCompleted: {
         weatherProcess.running = true
     }
     
-    // ── Children (QtObject has no default property — must declare explicitly) ─
+    // Children (QtObject has no default property — must declare explicitly)
     property Timer _refreshTimer: Timer {
         interval: 600000
         running: root._anyConsumerVisible
@@ -51,7 +51,7 @@ QtObject {
         }
     }
     
-    // ── Proceso único ─────────────────────────────────────────────────────
+    // Proceso único
     // qs-helper weather resuelve las coordenadas (args > preferencias >
     // geo-IP) y consulta Open-Meteo con cache en disco. Un solo proceso
     // reemplaza los dos curls (geo + weather) anteriores.
@@ -76,7 +76,7 @@ QtObject {
         // qmllint enable signal-handler-parameters
     }
     
-    // ── Funciones publicas ───────────────────────────────────────────────
+    // Funciones publicas
     function fetchWeather() {
         loading = true
         weatherProcess.running = true

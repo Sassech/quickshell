@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// ── Tipos de resultado ────────────────────────────────────────────────────
+// Tipos de resultado
 type spotlightItem struct {
 	Type     string   `json:"type"`
 	Name     string   `json:"name"`
@@ -26,7 +26,7 @@ type spotlightItem struct {
 	score    int      `json:"-"` // ranking interno, nunca se emite (verificado: QML no consume score)
 }
 
-// ── Recencia (frecency) ───────────────────────────────────────────────────
+// Recencia (frecency)
 var frecencyPath = func() string {
 	return filepath.Join(homeDir, ".cache", "qs-frecency.json")
 }()
@@ -73,7 +73,7 @@ func recordFrecency(execStr string) {
 	saveFrecency(m)
 }
 
-// ── Helpers de output ────────────────────────────────────────────────────
+// Helpers de output
 func pythonRepr(s string) string {
 	var b strings.Builder
 	b.WriteByte('\'')
@@ -95,7 +95,7 @@ func shortPath(p string) string {
 	return strings.Replace(p, homeDir, "~", 1)
 }
 
-// ── Modo lista de apps (sin query) ────────────────────────────────────────
+// Modo lista de apps (sin query)
 func spotlightListApps(s *spotlightState) []spotlightItem {
 	apps := s.appList()
 	rec := s.frec
@@ -121,7 +121,7 @@ func spotlightListApps(s *spotlightState) []spotlightItem {
 	return items
 }
 
-// ── Ventanas (hyprctl clients) ────────────────────────────────────────────
+// Ventanas (hyprctl clients)
 type hyprClient struct {
 	Address   string `json:"address"`
 	Title     string `json:"title"`
@@ -174,7 +174,7 @@ func hyprWindows(query string) []spotlightItem {
 	return items
 }
 
-// ── Búsqueda de archivos (walker nativo, reemplaza fd) ────────────────────
+// Búsqueda de archivos (walker nativo, reemplaza fd)
 var fileExcludes = map[string]bool{
 	".git":               true,
 	".cache":             true,
@@ -392,7 +392,7 @@ func fileCandidates(query string) []spotlightItem {
 	return items
 }
 
-// ── Modo query ────────────────────────────────────────────────────────────
+// Modo query
 func spotlightSearch(query string, s *spotlightState) []spotlightItem {
 	queryLow := strings.ToLower(strings.TrimSpace(query))
 	results := []spotlightItem{}
@@ -507,7 +507,7 @@ func appendShellCommand(query string, results *[]spotlightItem) {
 	})
 }
 
-// ── Entry point del subcomando spotlight ─────────────────────────────────
+// Entry point del subcomando spotlight
 func runSpotlight(args []string) int {
 	loadIconCache()
 	defer saveIconCache()

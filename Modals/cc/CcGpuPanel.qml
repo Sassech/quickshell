@@ -3,7 +3,7 @@ import "../../Components"
 
 pragma ComponentBehavior: Bound
 
-// ── CcGpuPanel ───────────────────────────────────────────────────────────────
+// CcGpuPanel
 // Panel de detalle multi-GPU. Muestra cada GPU detectada por gpu-detail.sh:
 //   - dGPU (NVIDIA/AMD): 2 cards resumen + barras de shader/VRAM/freq/power
 //   - iGPU (Intel): fila compacta con freq, rango y estado RC6/throttle
@@ -21,14 +21,14 @@ Rectangle {
         border.width: 1
     }
 
-    // ── Inputs ────────────────────────────────────────────────────────────
+    // Inputs
     required property var  gpus
     required property bool gpuLoaded
 
-    // ── Outputs ───────────────────────────────────────────────────────────
+    // Outputs
     signal closeRequested()
 
-    // ── Helpers ──────────────────────────────────────────────────────────
+    // Helpers
     function tempColor(t) {
         if (t <= 0)  return Theme.muted2
         if (t >= 85) return Theme.error
@@ -55,13 +55,13 @@ Rectangle {
         return mb + " MB"
     }
 
-    // ── Layout ────────────────────────────────────────────────────────────
+    // Layout
     Column {
         id: gpuCol
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
         spacing: 10
 
-        // ── Header ────────────────────────────────────────────────────────
+        // Header
         Item {
             width: parent.width; height: 28
             Text {
@@ -83,7 +83,7 @@ Rectangle {
             }
         }
 
-        // ── Placeholder mientras carga ────────────────────────────────────
+        // Placeholder mientras carga
         Item {
             width: parent.width; height: 32
             visible: !root.gpuLoaded
@@ -94,7 +94,7 @@ Rectangle {
             }
         }
 
-        // ── Lista de GPUs ─────────────────────────────────────────────────
+        // Lista de GPUs
         Repeater {
             model: (root.gpuLoaded && root.gpus) ? root.gpus.length : 0
 
@@ -108,14 +108,14 @@ Rectangle {
                 property bool isIntel: gpu ? gpu.vendor === "intel" : false
                 property bool isActive: gpu ? (gpu.util >= 0) : false
 
-                // ── Separador entre GPUs ──────────────────────────────────
+                // Separador entre GPUs
                 Rectangle {
                     width: parent.width; height: 1
                     color: Theme.surface3
                     visible: gpuEntry.index > 0
                 }
 
-                // ══ dGPU (NVIDIA / AMD) ═══════════════════════════════════
+                // dGPU (NVIDIA / AMD)
                 Column {
                     width: parent.width
                     spacing: 8
@@ -312,7 +312,7 @@ Rectangle {
                     }
                 }
 
-                // ══ iGPU Intel — fila compacta ════════════════════════════
+                // iGPU Intel — fila compacta
                 Column {
                     width: parent.width
                     spacing: 6

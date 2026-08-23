@@ -10,7 +10,7 @@ import (
 	"syscall"
 )
 
-// ── Daemon JSON-lines ────────────────────────────────────────────────────
+// Daemon JSON-lines
 // spotRequest es un request JSON-lines leído de stdin.
 type spotRequest struct {
 	ID    string `json:"id"`

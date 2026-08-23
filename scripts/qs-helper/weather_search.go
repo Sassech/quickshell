@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// ── Geocodificación por nombre (Open-Meteo Geocoding API) ─────────────────
+// Geocodificación por nombre (Open-Meteo Geocoding API)
 
 const weatherSearchURL = "https://geocoding-api.open-meteo.com/v1/search?name=%s&count=8&language=es&format=json"
 

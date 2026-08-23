@@ -4,16 +4,14 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell.Services.Mpris
 
-// ─────────────────────────────────────────────────────────────────────────────
 // MusicPlayerOverlay — mini reproductor MPRIS estilo "Aurora Glass".
 // NO usa la paleta Theme (se regenera al cambiar el wallpaper): todos los
 // colores se declaran acá. Sin blur real en LayerShell — el glassmorphism
 // se simula con gradientes translúcidos.
-// ─────────────────────────────────────────────────────────────────────────────
 OverlayWindow {
     id: root
 
-    // ── Configuración concreta ────────────────────────────────────────────
+    // Configuración concreta
     entryId:        "musicPlayer"   // OverlayWindow auto-gobierna visibilidad vía OverlaysManager
     corner:         "bottom-right"
     overlayWidth:   355
@@ -27,7 +25,7 @@ OverlayWindow {
     borderColor:    "transparent"
     // mouseThrough queda en false: el overlay tiene botones interactivos
 
-    // ── Selección de player (MPRIS) ───────────────────────────────────────
+    // Selección de player (MPRIS)
     // El wallpaper de video (mpvpaper → mpv) toma el bus canónico
     // org.mpris.MediaPlayer2.mpv; el mpv real del usuario, al abrirse después,
     // queda como org.mpris.MediaPlayer2.mpv.instance-XXXX. Se banea el canónico
@@ -68,7 +66,7 @@ OverlayWindow {
         if (p && p.positionSupported) root.playerPos = p.position
     }
 
-    // ── Formateo de tiempo (ms → "m:ss") ──────────────────────────────────
+    // Formateo de tiempo (ms → "m:ss")
     function fmtMs(ms) {
         if (!ms || ms <= 0) return "0:00"
         const s = Math.floor(ms / 1000)
@@ -128,7 +126,7 @@ OverlayWindow {
         onTriggered: root._syncPos()
     }
 
-    // ── Contenido (slot por defecto → contentArea) ─────────────────────────
+    // Contenido (slot por defecto → contentArea)
     // Capa 1: borde luminoso en gradiente (azul → cian → púrpura → magenta).
     // border.color no acepta gradientes, así que el glow es una capa propia
     // detrás de la tarjeta (que deja 1px de margen en cada lado).
@@ -155,7 +153,7 @@ OverlayWindow {
         color:  Qt.rgba(0.08, 0.10, 0.22, 0.82)
         clip:   true
 
-        // ── Glassmorphism simulado (sin blur real) ─────────────────────────
+        // Glassmorphism simulado (sin blur real)
         // Brillo interior cian → púrpura → magenta a baja opacidad.
         Rectangle {
             anchors.fill: parent
@@ -177,7 +175,7 @@ OverlayWindow {
             opacity: 0.08
         }
 
-        // ── Arte ───────────────────────────────────────────────────────────
+        // Arte
         Rectangle {
             id: artBox
             x: 5; y: 5
@@ -202,7 +200,7 @@ OverlayWindow {
             }
         }
 
-        // ── Info + barra + controles (a la derecha del arte) ───────────────
+        // Info + barra + controles (a la derecha del arte)
         Item {
             anchors {
                 left: artBox.right

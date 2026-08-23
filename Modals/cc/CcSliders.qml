@@ -3,26 +3,26 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import "../../Components"
 
-// ── Sliders: volumen master, micrófono, brillo ────────────────────────────────
+// Sliders: volumen master, micrófono, brillo
 Column {
     id: root
     spacing: 0
 
-    // ── Required properties ───────────────────────────────────────────────
+    // Required properties
     required property real masterVolume
     required property bool masterMuted
     required property real micVolume
     required property bool micMuted
     required property int  brightness
 
-    // ── Signals ───────────────────────────────────────────────────────────
+    // Signals
     signal setMasterVolume(real v)
     signal toggleMasterMute()
     signal setMicVol(real v)
     signal toggleMicMute()
     signal setBrightness(int v)
 
-    // ── Slider volumen master ─────────────────────────────────────────────
+    // Slider volumen master
     CcSlider {
         value:      root.masterVolume
         maxValue:   1.5
@@ -36,7 +36,7 @@ Column {
         onIconClicked: root.toggleMasterMute()
     }
 
-    // ── Slider micrófono ──────────────────────────────────────────────────
+    // Slider micrófono
     CcSlider {
         value:      root.micVolume
         maxValue:   1.5
@@ -50,7 +50,7 @@ Column {
         onIconClicked: root.toggleMicMute()
     }
 
-    // ── Slider brillo ─────────────────────────────────────────────────────
+    // Slider brillo
     CcSlider {
         value:     root.brightness
         minValue:  1

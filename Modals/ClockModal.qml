@@ -24,7 +24,7 @@ QmModalBase {
     property bool use24hFormat: true
     property string _dateText: ""
 
-    // ── Timer para actualizar la hora en tiempo real ──────────────────────
+    // Timer para actualizar la hora en tiempo real
     Timer {
         id: clockTimer
         interval: 1000
@@ -73,12 +73,12 @@ QmModalBase {
         return days
     }
 
-    // ── UI ─────────────────────────────────────────────────────────────────
+    // UI
     RowLayout {
         anchors.fill: parent
         spacing: 0
 
-        // ── Columna izquierda: Notificaciones ─────────────────────────
+        // Columna izquierda: Notificaciones
         Item {
             Layout.fillHeight: true
             Layout.preferredWidth: 360
@@ -105,7 +105,7 @@ QmModalBase {
                 anchors.bottomMargin: 16
                 spacing: 10
 
-                // ── Header ────────────────────────────────────────────
+                // Header
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 0
@@ -162,7 +162,7 @@ QmModalBase {
                     }
                 }
 
-                // ── Área de contenido (vacío o lista) ────────────────
+                // Área de contenido (vacío o lista)
                 Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -362,7 +362,7 @@ QmModalBase {
             }
         }
 
-        // ── Columna derecha: Reloj + Calendario ───────────────────────
+        // Columna derecha: Reloj + Calendario
         ColumnLayout {
             Layout.fillHeight: true
             Layout.fillWidth: true
@@ -370,7 +370,7 @@ QmModalBase {
 
             Item { Layout.preferredHeight: 20 }
 
-            // ── Reloj grande ──────────────────────────────────────────
+            // Reloj grande
             Text {
                 id: clockText
                 Layout.alignment: Qt.AlignHCenter
@@ -400,7 +400,7 @@ QmModalBase {
                 Component.onCompleted: updateTime()
             }
 
-            // ── Fecha completa ────────────────────────────────────────
+            // Fecha completa
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: root._dateText
@@ -420,7 +420,7 @@ QmModalBase {
 
             Item { Layout.preferredHeight: 10 }
 
-            // ── Navegación del calendario ─────────────────────────────
+            // Navegación del calendario
             RowLayout {
                 Layout.fillWidth: true
                 Layout.leftMargin: 16
@@ -500,7 +500,7 @@ QmModalBase {
 
             Item { Layout.preferredHeight: 8 }
 
-            // ── Días de la semana ─────────────────────────────────────
+            // Días de la semana
             Row {
                 Layout.alignment: Qt.AlignHCenter
                 spacing: 0
@@ -521,7 +521,7 @@ QmModalBase {
 
             Item { Layout.preferredHeight: 4 }
 
-            // ── Grid del calendario ───────────────────────────────────
+            // Grid del calendario
             Grid {
                 id: calendarGrid
                 Layout.alignment: Qt.AlignHCenter
@@ -564,7 +564,7 @@ QmModalBase {
 
             Item { Layout.preferredHeight: 10 }
 
-            // ── Selector de formato ───────────────────────────────────
+            // Selector de formato
             RowLayout {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.bottomMargin: 14
@@ -605,7 +605,7 @@ QmModalBase {
         }
     }
 
-    // ── Persistencia de formato ───────────────────────────────────────────
+    // Persistencia de formato
     FileView {
         id: clockPrefsFile
         path: Paths.config + "/clock-prefs.json"

@@ -14,7 +14,7 @@ import "Modals/overlays"
 ShellRoot {
     id: root
 
-    // ── System Data Discovery — one-time startup chain ──
+    // System Data Discovery — one-time startup chain
 
     // Stage 1 — hwmon names → SysData._hwmonSmm/_hwmonAwcc/_hwmonCpu/_hwmonNvme
     Process {
@@ -131,7 +131,7 @@ ShellRoot {
         function onValuesChanged() { netRouteFile.reload() }
     }
 
-    // ── Notification policy config ─────────────────────────────────────────
+    // Notification policy config
     property var _categoryModes: ({
         media: "silent",
         system: "popup",
@@ -159,7 +159,7 @@ ShellRoot {
         "wifi", "network", "ethernet", "vpn", "bluetooth", "conectado", "desconectado"
     ]
 
-    // ── Notification popup config (from notifications.json) ───────────────────
+    // Notification popup config (from notifications.json)
     property int    _notifDismissMs:    4000
     property int    _notifAnimInMs:     200
     property int    _notifAnimOutMs:    200
@@ -168,13 +168,13 @@ ShellRoot {
     property int    _notifWidth:        400
     property string _notifPosition:     "top-right"
 
-    // ── Battery alert config (from notifications.json) ────────────────────────
+    // Battery alert config (from notifications.json)
     property int    _batCritical:       20
     property var    _batWarnThresholds: [40, 30]
     property int    _batReset:          45
     property int    _batDebounceMs:     1500
 
-    // ── Helpers ───────────────────────────────────────────────
+    // Helpers
     function getScreenFromMonName(monName) {
         const name = monName.trim()
         for (var i = 0; i < Quickshell.screens.length; i++) {
@@ -304,7 +304,7 @@ ShellRoot {
         root._categoryModes = next
     }
 
-    // ── notifications.json via FileView (reactive, no bash cat) ──────────────
+    // notifications.json via FileView (reactive, no bash cat)
     FileView {
         id: notifConfigFile
         path: Paths.config + "/notifications.json"
@@ -369,7 +369,7 @@ ShellRoot {
         notifConfigFile.reload()
     }
 
-    // ── Signals ───────────────────────────────────────────────
+    // Signals
     signal broadcastNotify(string title, string body, string icon, bool active, bool isMedia, var actions)
     signal broadcastCloseAll(var screen)
     signal broadcastWeather(var screen)
@@ -391,7 +391,7 @@ ShellRoot {
     signal broadcastScreenshot(var screen)
     signal broadcastClipboardCount(int n)
 
-    // ── Modal helpers ────────────────────────────────────────────────────
+    // Modal helpers
     // Patrón anti-bug de toggle: guard por screen + broadcastCloseAll + abrir/cerrar.
     function closeModalOnScreen(inst, screen) {
         if (inst.modelData !== screen) return
@@ -415,7 +415,7 @@ ShellRoot {
         inst._activePanel = panel
     }
 
-    // ── Top Bar ──────────────────────────────────────────────────────────
+    // Top Bar
     Variants {
         model: Quickshell.screens
 
@@ -435,7 +435,7 @@ ShellRoot {
         }
     }
 
-    // ── Bottom Bar ───────────────────────────────────────────────────────
+    // Bottom Bar
     Variants {
         model: Quickshell.screens
         BottomBar {
@@ -445,7 +445,7 @@ ShellRoot {
     }
 
 
-    // ── CLOCK MODAL ───────────────────────────────────────────────────────
+    // CLOCK MODAL
     Variants {
         model: Quickshell.screens
         ClockModal {
@@ -461,7 +461,7 @@ ShellRoot {
         }
     }
 
-    // ── WEATHER MODAL ─────────────────────────────────────────────────────
+    // WEATHER MODAL
     Variants {
         model: Quickshell.screens
         WeatherModal {
@@ -476,7 +476,7 @@ ShellRoot {
         }
     }
 
-    // ── CLIPBOARD MODAL ───────────────────────────────────────────────────
+    // CLIPBOARD MODAL
     Variants {
         model: Quickshell.screens
         ClipboardModal {
@@ -493,7 +493,7 @@ ShellRoot {
         }
     }
 
-    // ── IPC NATIVO (SUPER+V / SUPER+Y / SUPER+TAB / SUPER+A / SUPER+O / SUPER+SHIFT+S) ──
+    // IPC NATIVO (SUPER+V / SUPER+Y / SUPER+TAB / SUPER+A / SUPER+O / SUPER+SHIFT+S)
     // hyprland llama `qs ipc call shell <fn> [mon]` — sin FIFOs.
     IpcHandler {
         target: "shell"
@@ -529,7 +529,7 @@ ShellRoot {
         }
     }
 
-    // ── FOLDER BROWSER ────────────────────────────────────────────────────
+    // FOLDER BROWSER
     Variants {
         model: Quickshell.screens
         FolderBrowserModal {
@@ -548,7 +548,7 @@ ShellRoot {
         }
     }
 
-    // ── SCREENSHOT MODAL ──────────────────────────────────────────────────
+    // SCREENSHOT MODAL
 
     Variants {
         model: Quickshell.screens
@@ -573,12 +573,12 @@ ShellRoot {
         }
     }
 
-    // ── HISTORIAL DE NOTIFICACIONES ───────────────────────────────────────
+    // HISTORIAL DE NOTIFICACIONES
     ListModel {
         id: notifHistory
     }
 
-    // ── NOTIFICATION SERVER ───────────────────────────────────────────────
+    // NOTIFICATION SERVER
     NotificationServer {
         id: notifServer
         keepOnReload: true
@@ -612,7 +612,7 @@ ShellRoot {
         }
     }
 
-    // ── NOTIFICATION POPUP ────────────────────────────────────────────────
+    // NOTIFICATION POPUP
     Variants {
         model: Quickshell.screens
         NotificationPopup {
@@ -637,7 +637,7 @@ ShellRoot {
 
 
 
-    // ── CONTROL CENTER ────────────────────────────────────────────────────
+    // CONTROL CENTER
     Variants {
         model: Quickshell.screens
         ControlCenter {
@@ -676,7 +676,7 @@ ShellRoot {
         }
     }
 
-    // ── WATERMARK OVERLAY ─────────────────────────────────────────────────
+    // WATERMARK OVERLAY
     // Visibilidad gobernada por su OverlayEntry en OverlaysManager.
     Variants {
         model: Quickshell.screens
@@ -687,7 +687,7 @@ ShellRoot {
         }
     }
 
-    // ── PREVIEW OVERLAY (GIF decorativo) ──────────────────────────────────
+    // PREVIEW OVERLAY (GIF decorativo)
     // Visibilidad gobernada por su OverlayEntry en OverlaysManager.
     Variants {
         model: Quickshell.screens
@@ -698,7 +698,7 @@ ShellRoot {
         }
     }
 
-    // ── MUSIC PLAYER OVERLAY (MPRIS) ─────────────────────────────────────
+    // MUSIC PLAYER OVERLAY (MPRIS)
     // Visibilidad gobernada por su OverlayEntry en OverlaysManager.
     Variants {
         model: Quickshell.screens
@@ -709,7 +709,7 @@ ShellRoot {
         }
     }
 
-    // ── OVERLAYS CONTROL MODAL ───────────────────────────────────────────
+    // OVERLAYS CONTROL MODAL
     // Toggle con SUPER+O; cierra con broadcastCloseAll como el resto.
     // Estado de cada overlay gestionado por OverlaysManager.
     Variants {
@@ -726,7 +726,7 @@ ShellRoot {
         }
     }
 
-    // ── SCREENSHOT MODAL ──────────────────────────────────────────────────
+    // SCREENSHOT MODAL
     Variants {
         model: Quickshell.screens
         ScreenshotModal {
@@ -741,7 +741,7 @@ ShellRoot {
         }
     }
 
-    // ── VOLUME OSD ────────────────────────────────────────────────────────
+    // VOLUME OSD
     // Comando vía IPC (qs ipc call shell volume "increment 5" / "decrement 5" / "mute").
     // El OSD lee el estado reactivamente de Pipewire; aquí solo se ejecuta wpctl
     // y se dispara broadcastVolume() al terminar.
@@ -790,7 +790,7 @@ ShellRoot {
         }
     }
 
-    // ── BRIGHTNESS OSD ────────────────────────────────────────────────────
+    // BRIGHTNESS OSD
     // Comando vía IPC (qs ipc call shell brightness "increment 5" / "decrement 5").
     // Ejecuta brightnessctl y devuelve el pct resultante al OSD (BrightnessOsd
     // no es reactivo, necesita el valor exacto).
@@ -834,7 +834,7 @@ ShellRoot {
         }
     }
 
-    // ── BATTERY NOTIFICATIONS — UPower reactive ───────────────────────────
+    // BATTERY NOTIFICATIONS — UPower reactive
     property var _upBatDev:       UPower.displayDevice
     // Track last notified state to avoid duplicate notifications on startup/ráfagas
     property int _upBatLastState: -1

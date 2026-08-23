@@ -10,7 +10,7 @@ import (
 	"syscall"
 )
 
-// ── Daemon wallpaper-multi ───────────────────────────────────────────────
+// Daemon wallpaper-multi
 // Protocolo JSON-lines: {"id","folder","force"} → {"id","folder","items"}
 // (mismo id, para correlacionar sin depender del orden). Cache por carpeta
 // en memoria; solo re-escanéa si el mtime del dir cambió o se pide force.

@@ -22,12 +22,12 @@ PanelWindow {
     anchors.left:   true
     anchors.right:  true
 
-    // ── Provider (singleton) ──────────────────────────────────────────────
+    // Provider (singleton)
     WeatherHelpers {
         id: weatherHelpers
     }
 
-    // ── Bindings al provider ─────────────────────────────────────────────
+    // Bindings al provider
     property var currentWeather: ({
         temperature: WeatherProvider.temperature,
         feelsLike: WeatherProvider.feelsLike,
@@ -44,11 +44,11 @@ PanelWindow {
     property string sunrise: WeatherProvider.sunrise
     property string sunset: WeatherProvider.sunset
 
-    // ── Helpers ───────────────────────────────────────────────────────────
+    // Helpers
     function wmoIcon(code, day) { return weatherHelpers.wmoIcon(code, day) }
     function wmoDescription(code) { return weatherHelpers.wmoDescription(code) }
 
-    // ── UI State ─────────────────────────────────────────────────────────
+    // UI State
     property int  selectedHourIndex: 0
     property int  selectedDayIndex: 0
     property bool _searchMode: false
@@ -102,7 +102,7 @@ PanelWindow {
         return (nowMin - riseMin) / (setMin - riseMin)
     }
 
-    // ── Búsqueda de ciudad ───────────────────────────────────────────────
+    // Búsqueda de ciudad
     property string _searchQuery: ""
     property var    _searchResults: []
     property bool   _searching: false
@@ -199,7 +199,7 @@ PanelWindow {
         WeatherProvider.fetchWeather()
     }
 
-    // ── Background dismiss ───────────────────────────────────────────────
+    // Background dismiss
     MouseArea {
         anchors.fill: parent
         propagateComposedEvents: true
@@ -214,7 +214,7 @@ PanelWindow {
         }
     }
 
-    // ── Main card ────────────────────────────────────────────────────────
+    // Main card
     Rectangle {
         id: card
         anchors.centerIn: parent
@@ -247,7 +247,7 @@ PanelWindow {
             Text { anchors.centerIn: parent; text: "✕"; color: Theme.muted3; font.pixelSize: 12 }
         }
 
-        // ── Vista principal del clima ─────────────────────────────────────
+        // Vista principal del clima
         Column {
             id: mainCol
             anchors.left:    parent.left
@@ -259,7 +259,7 @@ PanelWindow {
             opacity: root._searchMode ? 0 : 1
             Behavior on opacity { NumberAnimation { duration: 120 } }
 
-            // ── Row 1: period label + edit city + refresh ─────────────────
+            // Row 1: period label + edit city + refresh
             Item {
                 width: parent.width; height: 18
 
@@ -315,7 +315,7 @@ PanelWindow {
                 }
             }
 
-            // ── Sun arc ───────────────────────────────────────────────────
+            // Sun arc
             Item {
                 width: parent.width; height: 130
 
@@ -403,7 +403,7 @@ PanelWindow {
                 }
             }
 
-            // ── Current summary ───────────────────────────────────────────
+            // Current summary
             Item {
                 width:  parent.width
                 height: summaryRow.implicitHeight
@@ -469,7 +469,7 @@ PanelWindow {
 
             Rectangle { width: parent.width; height: 1; color: Theme.surface2 }
 
-            // ── Hourly forecast ───────────────────────────────────────────
+            // Hourly forecast
             Column {
                 width: parent.width; spacing: 10
 
@@ -586,7 +586,7 @@ PanelWindow {
 
             Rectangle { width: parent.width; height: 1; color: Theme.surface2 }
 
-            // ── Daily forecast ────────────────────────────────────────────
+            // Daily forecast
             Column {
                 width: parent.width; spacing: 10
 
@@ -652,7 +652,7 @@ PanelWindow {
             Item { width: 1; height: 4 }
         }
 
-        // ── Vista de búsqueda de ciudad ───────────────────────────────────
+        // Vista de búsqueda de ciudad
         Column {
             id: searchCol
             anchors.left:    parent.left

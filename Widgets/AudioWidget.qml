@@ -16,7 +16,7 @@ Rectangle {
     readonly property real volume: root.sink?.audio?.volume ?? 0.75
     readonly property bool muted:  root.sink?.audio?.muted  ?? false
 
-    // ── Bind the sink node — REQUIRED for .audio.volume/.muted to be valid ──
+    // Bind the sink node — REQUIRED for .audio.volume/.muted to be valid
     PwObjectTracker {
         objects: [root.sink]
     }

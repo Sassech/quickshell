@@ -4,22 +4,20 @@ import Quickshell.Io
 import Quickshell.Networking
 import Quickshell.Services.UPower
 
-// ─────────────────────────────────────────────────────────────────────────────
 // SysData — Centralized system data provider.
 // CPU/RAM/GPU/Disk/Net/Fan via native QML pollers; Battery reactivo via UPower.
-// ─────────────────────────────────────────────────────────────────────────────
 QtObject {
     id: data
 
-    // ── UPower battery (reactive) ─────────────────────────────────────────
+    // UPower battery (reactive)
     readonly property var _upDev: UPower.displayDevice
 
-    // ── CPU ────────────────────────────────────────────────────────────────
+    // CPU
     property int cpuPercent: 0
     property int cpuTemp: 0
     property bool cpuAvailable: false
 
-    // ── RAM ────────────────────────────────────────────────────────────────
+    // RAM
     property int ramPercent: 0
     property real ramUsedGb: 0.0
     property real ramTotalGb: 0.0
@@ -31,7 +29,7 @@ QtObject {
     property real swapFreeGb:   0.0
     property bool ramAvailable: false
 
-    // ── GPU ────────────────────────────────────────────────────────────────
+    // GPU
     property int gpuPercent: -1
     property int gpuTemp: 0
     property string gpuName: ""
@@ -39,13 +37,13 @@ QtObject {
     property int gpuVramUsedMb: 0
     property int gpuVramTotalMb: 0
 
-    // ── Disk ───────────────────────────────────────────────────────────────
+    // Disk
     property int diskUsedGb: 0
     property int diskAvailGb: 0
     property int diskPercent: 0
     property bool diskAvailable: false
 
-    // ── Network ────────────────────────────────────────────────────────────
+    // Network
     // Radio / connection state — reactive via Quickshell.Networking
     readonly property var _wifiDev: {
         var devs = Networking.devices.values
@@ -80,7 +78,7 @@ QtObject {
     property real netDownSpeed: 0.0
     property real netUpSpeed: 0.0
 
-    // ── Fan ────────────────────────────────────────────────────────────────
+    // Fan
     property int fan1Rpm: 0
     property int fan2Rpm: 0
     property int fan1Percent: 0
@@ -90,7 +88,7 @@ QtObject {
     property string fanProfile: ""
     property bool fanAvailable: false
 
-    // ── Battery — reactivo via UPower ─────────────────────────────────────
+    // Battery — reactivo via UPower
     property int    batPercent:   _upDev ? Math.round(_upDev.percentage * 100) : 0
     property bool   batAvailable: _upDev ? _upDev.isPresent && _upDev.isLaptopBattery : false
     property bool   batCharging:  _upDev ? (_upDev.state === UPowerDeviceState.Charging ||
@@ -107,7 +105,7 @@ QtObject {
         return "Unknown"
     }
 
-    // ── Discovery cache (set once at startup by shell.qml) ─────────────────
+    // Discovery cache (set once at startup by shell.qml)
     property string _hwmonSmm:      ""   // dell_smm path
     property string _hwmonAwcc:     ""   // awcc/alienware_wmi path
     property string _hwmonCpu:      ""   // coretemp or k10temp path
@@ -119,12 +117,12 @@ QtObject {
     property var    _cpuFreqPaths:  []   // list of scaling_cur_freq paths (one per core)
     property bool   pollersReady:   false
 
-    // ── CC visibility gate — set by ControlCenter when it opens/closes ─────
+    // CC visibility gate — set by ControlCenter when it opens/closes
     // Pollers that are only needed while the ControlCenter is visible (fan,
     // GPU) gate on this flag so they stop when the panel is hidden.
     property bool anyCcVisible: false
 
-    // ── Extended CPU detail ─────────────────────────────────────────────────
+    // Extended CPU detail
     property string cpuModel:       ""
     property int    cpuNcores:      0
     property var    cpuCorePcts:    []
@@ -134,7 +132,7 @@ QtObject {
     property string cpuEpp:         ""
     property var    cpuCoreTemps:   []
 
-    // ── Extended disk detail ────────────────────────────────────────────────
+    // Extended disk detail
     property string diskNvmeModel:  ""
     property string diskNvmeFw:     ""
     property int    diskNvmeTemp:   0
@@ -144,14 +142,14 @@ QtObject {
     property int    homeAvailGb:    0
     property int    homePercent:    0
 
-    // ── Delta state (consumido por los pollers) ─────────────────────────────
+    // Delta state (consumido por los pollers)
     property var    _prevCpuStat:   null
     property var    _prevCoreStat:  []
     property real   _prevRxBytes:   -1
     property real   _prevTxBytes:   -1
     property var    _prevDiskSectors: null   // previous diskstats sectors for I/O delta
 
-    // ── Discovery parsers (called from shell.qml startup chain) ────────────
+    // Discovery parsers (called from shell.qml startup chain)
     function parseHwmonDiscovery(text) {
         const lines = text.trim().split('\n')
         for (const line of lines) {
@@ -194,7 +192,7 @@ QtObject {
         data.cpuNcores = parseInt(lines[1]) || 0
     }
 
-    // ── CPU delta helpers ───────────────────────────────────────────────────
+    // CPU delta helpers
     function parseCpuStatLine(parts) {
         // parts: array of strings from splitting a /proc/stat cpu line
         // returns {total, work}
@@ -232,8 +230,8 @@ QtObject {
         return null
     }
 
-    // ── Children (QtObject has no default property — must declare explicitly,
-    //    matching the established WeatherProvider.qml convention) ───────────
+    // Children (QtObject has no default property — must declare explicitly,
+    // matching the established WeatherProvider.qml convention)
 
     // cpuMaxFreqMhz / cpuGovernor / cpuEpp — static sysfs, cpu0 only.
     property FileView _cpuMaxFreqFile: FileView {
@@ -357,12 +355,10 @@ QtObject {
         onTriggered: diskStatsFile.reload()
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
     // Pollers nativos QML — los Timers de abajo gatean en pollersReady
     // (chain de descubrimiento de shell.qml).
-    // ═══════════════════════════════════════════════════════════════════════
 
-    // ── 2.1 RAM poller (FileView /proc/meminfo, 4s) ─────────────────────────
+    // 2.1 RAM poller (FileView /proc/meminfo, 4s)
     function parseMeminfo(text) {
         const lines = text.split('\n')
         let memTotal = 0, memFree = 0, memAvail = 0
@@ -422,7 +418,7 @@ QtObject {
         onTriggered: memInfoFile.reload()
     }
 
-    // ── 2.2 CPU usage poller (FileView /proc/stat, 4s) ──────────────────────
+    // 2.2 CPU usage poller (FileView /proc/stat, 4s)
     function parseCpuStat(text) {
         const lines = text.split('\n').filter(l => l.startsWith('cpu'))
         if (lines.length === 0) return
@@ -546,7 +542,7 @@ QtObject {
         cpuMaxFreqFile.reload()
     }
 
-    // ── 2.3 Fan poller (FileView hwmon sysfs, 5s) ────────────────────────────
+    // 2.3 Fan poller (FileView hwmon sysfs, 5s)
     property int _fanMax1: 3700
     property int _fanMax2: 4000
 
@@ -629,7 +625,7 @@ QtObject {
         onLoaded: data.fanProfile = text().trim()
     }
 
-    // ── 2.4 Network speed + state poller (FileView /proc/net/dev, 3s) ───────
+    // 2.4 Network speed + state poller (FileView /proc/net/dev, 3s)
     function parseNetDev(text) {
         if (!data._netIface) return
         const lines = text.split('\n')
@@ -667,7 +663,7 @@ QtObject {
         onTriggered: netDevFile.reload()
     }
 
-    // ── 2.5 GPU poller (Process nvidia-smi, 4s, sysfs fallback) ─────────────
+    // 2.5 GPU poller (Process nvidia-smi, 4s, sysfs fallback)
     function parseNvidiaSmi(text) {
         const out = text.trim()
         if (!out || out.toLowerCase().indexOf("failed") !== -1) {
@@ -773,7 +769,7 @@ QtObject {
         }
     }
 
-    // ── 2.6 Disk usage poller (Process df, 30s) ─────────────────────────────
+    // 2.6 Disk usage poller (Process df, 30s)
     function parseDf(text) {
         const lines = text.trim().split('\n')
         if (lines.length < 2) return

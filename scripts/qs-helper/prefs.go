@@ -9,7 +9,7 @@ import (
 	"strconv"
 )
 
-// ── Preferencias de la shell (config/preferences.json) ─────────────────────
+// Preferencias de la shell (config/preferences.json)
 
 type wallpaperPref struct {
 	Folder string `json:"folder"`

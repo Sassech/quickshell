@@ -16,14 +16,14 @@ Rectangle {
     property string timezone: ""
     property bool ntpSynced: true
 
-    // ── Reloj nativo (SystemClock — reactivo, sin Timer ni setters) ───────
+    // Reloj nativo (SystemClock — reactivo, sin Timer ni setters)
     // precision Seconds → dateChanged cada segundo.
     SystemClock {
         id: sysClock
         precision: SystemClock.Seconds
     }
 
-    // ── Computed properties — texto del reloj (bindings sobre sysClock) ───
+    // Computed properties — texto del reloj (bindings sobre sysClock)
     readonly property string _timeStr: {
         const h = sysClock.hours
         const m = sysClock.minutes
@@ -49,19 +49,19 @@ Rectangle {
         return utc.toLocaleTimeString(Qt.locale(), Locale.ShortFormat).slice(0, 5)
     }
 
-    // ── Valores del tooltip — derivados de sysClock.date (recomputan solos) ─
+    // Valores del tooltip — derivados de sysClock.date (recomputan solos)
     readonly property string _tooltipDate: Qt.formatDateTime(sysClock.date, "dddd, d 'de' MMMM 'de' yyyy")
     readonly property int  _weekOfYear:    _calcWeekOfYear(sysClock.date)
     readonly property int  _dayOfYear:     _calcDayOfYear(sysClock.date)
     readonly property int  _daysRemaining: _calcDaysRemaining(sysClock.date)
 
-    // ── Inicialización ─────────────────────────────────────────────────────
+    // Inicialización
     Component.onCompleted: {
         prefsFile.reload()
         loadTimeAndNtp()
     }
 
-    // ── Fix 1: FileView reemplaza loadPrefsProc ────────────────────────────
+    // Fix 1: FileView reemplaza loadPrefsProc
     FileView {
         id: prefsFile
         path: Paths.config + "/clock-prefs.json"
@@ -73,7 +73,7 @@ Rectangle {
         }
     }
 
-    // ── Reload prefs only when explicitly requested (no timer) ────────────
+    // Reload prefs only when explicitly requested (no timer)
     function requestPrefsReload() {
         prefsFile.reload()
     }
@@ -82,7 +82,7 @@ Rectangle {
         prefsFile.setText(JSON.stringify({use24h: root.use24h}))
     }
 
-    // ── Timezone + NTP (timedatectl — sin alternativa nativa en v0.3.0) ────
+    // Timezone + NTP (timedatectl — sin alternativa nativa en v0.3.0)
     // Un solo proceso: `timedatectl show` admite varias propiedades por llamada,
     // eliminando el segundo Process + el pipe a grep del NTP check.
     Process {
@@ -111,9 +111,9 @@ Rectangle {
         timeProc.running = true
     }
 
-    // ── Helpers tooltip (reciben sysClock.date — el tipo QML `date` es
+    // Helpers tooltip (reciben sysClock.date — el tipo QML `date` es
     // Date-compatible en JS, por eso new Date(now) replica el comportamiento
-    // original con el instante del SystemClock) ────────────────────────────
+    // original con el instante del SystemClock)
     function _calcWeekOfYear(now) {
         const d = new Date(now)
         const start = new Date(d.getFullYear(), 0, 1)
@@ -200,7 +200,7 @@ Rectangle {
         }
     }
 
-    // ── Click + Hover handler ────────────────────────────────────────────
+    // Click + Hover handler
     MouseArea {
         id: mouseArea
         anchors.fill: parent
@@ -209,7 +209,7 @@ Rectangle {
         onClicked: root.clicked()
     }
 
-    // ── Enriched Tooltip ───────────────────────────────────────────────────
+    // Enriched Tooltip
     Rectangle {
         id: tooltip
         visible: mouseArea.containsMouse

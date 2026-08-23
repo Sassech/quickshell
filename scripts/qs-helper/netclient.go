@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// ── Cliente HTTP compartido ────────────────────────────────────────────────
+// Cliente HTTP compartido
 
 // userAgent identifica el helper en los servicios HTTP consultados.
 const userAgent = "qs-helper/1.0 (quickshell)"
@@ -55,7 +55,7 @@ func httpGet(ctx context.Context, url string, maxBytes int64, ua string) ([]byte
 	return io.ReadAll(resp.Body)
 }
 
-// ── Cache en disco ─────────────────────────────────────────────────────────
+// Cache en disco
 
 // cacheDir es el directorio de cache del helper (~/.cache/qs-helper).
 var cacheDir = func() string {

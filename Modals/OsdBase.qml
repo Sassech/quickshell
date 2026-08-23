@@ -5,7 +5,7 @@ import Quickshell
 import Quickshell.Wayland
 import "../Components"
 
-// ── OsdBase — plantilla base para OSD transitorios (volumen, brillo) ───────
+// OsdBase — plantilla base para OSD transitorios (volumen, brillo)
 // PanelWindow bottom-center, slide-in y auto-dismiss con fade-out. El OSD
 // concreto hereda, bindea su contenido y define su `show()`, que termina
 // llamando `showCard()` de la base (QML no tiene super). La barra escala sobre
@@ -31,7 +31,7 @@ PanelWindow {
 
     mask: Region { item: osdCard }
 
-    // ── Comportamiento (overridable) ──────────────────────────────────────
+    // Comportamiento (overridable)
     property int cardWidth:  280
     property int cardHeight: 52
     property int dismissMs:  2500
@@ -39,7 +39,7 @@ PanelWindow {
     property int animOutMs:  200
     property int slideStart: 60
 
-    // ── Contenido (bindea el OSD concreto) ────────────────────────────────
+    // Contenido (bindea el OSD concreto)
     property int    value:          0
     property int    max:            100
     property string icon:           ""
@@ -51,7 +51,7 @@ PanelWindow {
     property int    labelWidth:     38
     property bool   showHundredTick: false
 
-    // ── API (rutina base; el OSD concreto define su show() y termina aquí) ──
+    // API (rutina base; el OSD concreto define su show() y termina aquí)
     function showCard() {
         if (!root.visible) {
             root.visible    = true
@@ -62,7 +62,7 @@ PanelWindow {
         dismissTimer.restart()
     }
 
-    // ── Timers & Animations ────────────────────────────────────────────────
+    // Timers & Animations
     Timer {
         id: dismissTimer
         interval: root.dismissMs
@@ -86,7 +86,7 @@ PanelWindow {
         }
     }
 
-    // ── OSD Card ────────────────────────────────────────────────────────────
+    // OSD Card
     Rectangle {
         id: osdCard
         anchors.horizontalCenter: parent.horizontalCenter

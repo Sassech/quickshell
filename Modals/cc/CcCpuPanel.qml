@@ -3,7 +3,7 @@ import "../../Components"
 
 pragma ComponentBehavior: Bound
 
-// ── CcCpuPanel ───────────────────────────────────────────────────────────────
+// CcCpuPanel
 // Panel de detalle de CPU: modelo, threads, frecuencia, gobernador,
 // 2 cards de resumen (uso + temp) y lista de núcleos con barra + temp.
 Rectangle {
@@ -20,7 +20,7 @@ Rectangle {
         border.width: 1
     }
 
-    // ── Inputs ────────────────────────────────────────────────────────────
+    // Inputs
     required property bool   cpuAvailable
     required property int    cpuPercent
     required property int    cpuTemp
@@ -32,10 +32,10 @@ Rectangle {
     required property var    cpuCoreTemps
     required property bool   cpuLoaded
 
-    // ── Outputs ───────────────────────────────────────────────────────────
+    // Outputs
     signal closeRequested()
 
-    // ── Helpers ──────────────────────────────────────────────────────────
+    // Helpers
     function tempColor(t) {
         if (t <= 0)  return Theme.muted2
         if (t >= 85) return Theme.error
@@ -71,13 +71,13 @@ Rectangle {
         return g
     }
 
-    // ── Layout ────────────────────────────────────────────────────────────
+    // Layout
     Column {
         id: cpuCol
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
         spacing: 10
 
-        // ── Header ────────────────────────────────────────────────────────
+        // Header
         Item {
             width: parent.width; height: 28
             Text {
@@ -99,7 +99,7 @@ Rectangle {
             }
         }
 
-        // ── Modelo + threads · freq · gov ─────────────────────────────────
+        // Modelo + threads · freq · gov
         Column {
             width: parent.width
             spacing: 2
@@ -124,7 +124,7 @@ Rectangle {
             }
         }
 
-        // ── 2 cards resumen: Uso + Temp ────────────────────────────────────
+        // 2 cards resumen: Uso + Temp
         Row {
             width: parent.width; spacing: 6
 
@@ -165,7 +165,7 @@ Rectangle {
             }
         }
 
-        // ── Lista de núcleos ──────────────────────────────────────────────
+        // Lista de núcleos
         Column {
             width: parent.width
             spacing: 4
@@ -245,7 +245,7 @@ Rectangle {
             }
         }
 
-        // ── Placeholder mientras carga ────────────────────────────────────
+        // Placeholder mientras carga
         Item {
             width: parent.width; height: 32
             visible: !root.cpuLoaded
