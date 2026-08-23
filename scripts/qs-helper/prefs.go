@@ -90,13 +90,13 @@ func runPrefsWeatherSet(args []string) int {
 		fmt.Fprintf(os.Stderr, "prefs: invalid float %q: %v\n", args[1], err)
 		return 1
 	}
-	auto_ := args[4] == "true"
+	isAuto := args[4] == "true"
 	p.Weather = weatherPref{
 		Lat:         lat,
 		Lon:         lon,
 		CityName:    args[2],
 		CountryName: args[3],
-		Auto:        auto_,
+		Auto:        isAuto,
 	}
 	if err := savePrefs(p); err != nil {
 		fmt.Fprintf(os.Stderr, "prefs-weather-set: %v\n", err)

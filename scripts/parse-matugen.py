@@ -258,4 +258,4 @@ label {{
             pass
         print(f"ERROR: No se pudo escribir {HYPRLOCK}: {e}", file=sys.stderr)
         sys.exit(1)
-    print(f"hyprlock.conf written")
+    print("hyprlock.conf written")
