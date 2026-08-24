@@ -70,7 +70,6 @@ Rectangle {
         }
     }
 
-    // Layout
     Row {
         id: labelRow
         anchors.centerIn: parent

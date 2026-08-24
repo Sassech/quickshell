@@ -3,9 +3,8 @@ import QtQuick
 import Quickshell.Services.SystemTray
 import "../Components"
 
-// Widget de System Tray usando el protocolo StatusNotifierItem (SNI)
-// Detecta automáticamente apps como Discord, Spotify, Telegram, etc.
-// Los íconos Passive se ocultan por defecto y se revelan con el botón ">".
+// Widget de System Tray usando el protocolo StatusNotifierItem (SNI) Detecta automáticamente apps como
+// Discord, Spotify, Telegram, etc. Los íconos Passive se ocultan por defecto y se revelan con el botón ">".
 Item {
     id: root
 

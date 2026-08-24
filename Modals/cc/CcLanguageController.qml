@@ -7,7 +7,6 @@ import "../../Components"
 QtObject {
     id: root
 
-    // Estado público
     property string _langLayout:        "—"
     property string _langLocale:        "—"
     property var    _langLayouts:       []   // [{label, code}]
@@ -16,7 +15,6 @@ QtObject {
     property string _langSearchPending: ""   // valor inmediato del campo de texto
     property string _langTab:           "keyboard"
 
-    // Filtros computados
     property var _filteredLayouts: {
         root._langLayouts; root._langSearch
         var q = (root._langSearch || "").toLowerCase()
@@ -50,9 +48,8 @@ QtObject {
         onTriggered: root._langSearch = root._langSearchPending
     }
 
-    // One-shot: layout actual desde Hyprland
-    // Lazy: no corre al nacer — ControlCenter.warmUp() lo dispara en la
-    // primera apertura del CC; rawEvent cubre los cambios posteriores.
+    // One-shot: layout actual desde Hyprland Lazy: no corre al nacer — ControlCenter.warmUp() lo dispara en
+    // la primera apertura del CC; rawEvent cubre los cambios posteriores.
     property var _langCurrentProc: Process {
         id: langCurrentProc
         running: false
@@ -139,7 +136,6 @@ QtObject {
         // qmllint enable signal-handler-parameters
     }
 
-    // API pública
     function langRefresh() {
         root._langSearchPending = ""
         root._langSearch        = ""

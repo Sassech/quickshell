@@ -9,7 +9,7 @@ import (
 	"strconv"
 )
 
-// Preferencias de la shell (config/preferences.json)
+// prefs: preferences.json
 
 type wallpaperPref struct {
 	Folder string `json:"folder"`
@@ -28,7 +28,7 @@ type prefs struct {
 	Weather   weatherPref   `json:"weather"`
 }
 
-// configDir resuelve el directorio de configuración de la shell.
+// configDir shell
 func configDir() string {
 	if d := os.Getenv("XDG_CONFIG_HOME"); d != "" {
 		return filepath.Join(d, "quickshell", "config")
@@ -36,12 +36,12 @@ func configDir() string {
 	return filepath.Join(homeDir, ".config", "quickshell", "config")
 }
 
-// prefsPath es la ruta completa a preferences.json.
+// prefsPath
 func prefsPath() string {
 	return filepath.Join(configDir(), "preferences.json")
 }
 
-// loadPrefs lee preferences.json; si falta o está inválido usa defaults.
+// loadPrefs: defaults si falta
 func loadPrefs() prefs {
 	p := prefs{}
 	if data, err := os.ReadFile(prefsPath()); err == nil {
@@ -58,7 +58,7 @@ func loadPrefs() prefs {
 	return p
 }
 
-// savePrefs escribe preferences.json preservando todos los campos (merge).
+// savePrefs: merge all fields
 func savePrefs(p prefs) error {
 	_ = os.MkdirAll(filepath.Dir(prefsPath()), 0o755)
 	data, err := json.MarshalIndent(p, "", "  ")
@@ -72,8 +72,7 @@ func savePrefs(p prefs) error {
 	return os.Rename(tmp, prefsPath())
 }
 
-// runPrefsWeatherSet implementa el subcomando prefs-weather-set.
-// Argumentos: lat lon cityName countryName auto(true|false)
+// runPrefsWeatherSet: lat lon city country auto
 func runPrefsWeatherSet(args []string) int {
 	if len(args) < 5 {
 		fmt.Fprintln(os.Stderr, "prefs-weather-set: faltan argumentos (lat lon ciudad pais auto)")

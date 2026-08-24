@@ -4,10 +4,8 @@ import Quickshell.Io
 import Quickshell.Services.Pipewire
 import "../Components"
 
-// VolumeOsd — OSD de volumen. Hereda OsdBase (ciclo de vida + layout) y bindea
-// su contenido: icono por mute/umbrales, label Mudo/%, barra sobre max=150
-// (admite boost >100%) con marcador de 100%. La lectura del sink es la única
-// lógica propia: Pipewire reactivo + fallback wpctl.
+// VolumeOsd — OSD de volumen. Hereda OsdBase (ciclo de vida + layout) y bindea su contenido: icono por mute/umbrales, label Mudo/%, barra
+// sobre max=150 (admite boost >100%) con marcador de 100%. La lectura del sink es la única lógica propia: Pipewire reactivo + fallback wpctl.
 OsdBase {
     id: root
 
@@ -24,7 +22,6 @@ OsdBase {
     iconColor:  root._muted ? Theme.muted2 : Theme.accent
     labelColor: root._muted ? Theme.muted2 : Theme.text
 
-    // Estado interno
     readonly property var sink: Pipewire.defaultAudioSink
     property int    _volumePct: 0
     property bool   _muted: false

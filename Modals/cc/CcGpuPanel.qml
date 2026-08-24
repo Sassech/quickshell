@@ -3,10 +3,8 @@ import "../../Components"
 
 pragma ComponentBehavior: Bound
 
-// CcGpuPanel
-// Panel de detalle multi-GPU. Muestra cada GPU detectada por gpu-detail.sh:
-//   - dGPU (NVIDIA/AMD): 2 cards resumen + barras de shader/VRAM/freq/power
-//   - iGPU (Intel): fila compacta con freq, rango y estado RC6/throttle
+// CcGpuPanel Panel de detalle multi-GPU. Muestra cada GPU detectada por gpu-detail.sh:   - dGPU (NVIDIA/AMD): 2 cards resumen + barras de
+// shader/VRAM/freq/power   - iGPU (Intel): fila compacta con freq, rango y estado RC6/throttle
 Rectangle {
     id: root
     implicitWidth: 320
@@ -14,21 +12,17 @@ Rectangle {
     radius: 14
     color: Theme.cardBg3
 
-    // Borde sutil
     Rectangle {
         anchors.fill: parent; radius: parent.radius; color: "transparent"
         border.color: Qt.rgba(Theme.accent2.r, Theme.accent2.g, Theme.accent2.b, 0.2)
         border.width: 1
     }
 
-    // Inputs
     required property var  gpus
     required property bool gpuLoaded
 
-    // Outputs
     signal closeRequested()
 
-    // Helpers
     function tempColor(t) {
         if (t <= 0)  return Theme.muted2
         if (t >= 85) return Theme.error
@@ -55,13 +49,11 @@ Rectangle {
         return mb + " MB"
     }
 
-    // Layout
     Column {
         id: gpuCol
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
         spacing: 10
 
-        // Header
         Item {
             width: parent.width; height: 28
             Text {
@@ -83,7 +75,6 @@ Rectangle {
             }
         }
 
-        // Placeholder mientras carga
         Item {
             width: parent.width; height: 32
             visible: !root.gpuLoaded
@@ -108,20 +99,17 @@ Rectangle {
                 property bool isIntel: gpu ? gpu.vendor === "intel" : false
                 property bool isActive: gpu ? (gpu.util >= 0) : false
 
-                // Separador entre GPUs
                 Rectangle {
                     width: parent.width; height: 1
                     color: Theme.surface3
                     visible: gpuEntry.index > 0
                 }
 
-                // dGPU (NVIDIA / AMD)
                 Column {
                     width: parent.width
                     spacing: 8
                     visible: !gpuEntry.isIntel && gpuEntry.gpu !== null
 
-                    // Nombre + sub-línea vendor · driver
                     Column {
                         width: parent.width
                         spacing: 2
@@ -143,7 +131,6 @@ Rectangle {
                         }
                     }
 
-                    // 2 cards: GPU % + Temp
                     Row {
                         width: parent.width; spacing: 6
 
@@ -185,12 +172,10 @@ Rectangle {
                         }
                     }
 
-                    // Barras de detalle: Shader / VRAM / Freq / Power
                     Column {
                         width: parent.width
                         spacing: 6
 
-                        // Shader
                         Item {
                             width: parent.width; height: 16
                             Text {
@@ -225,7 +210,6 @@ Rectangle {
                             }
                         }
 
-                        // VRAM
                         Item {
                             width: parent.width; height: 16
                             visible: gpuEntry.gpu ? gpuEntry.gpu.vramTotal > 0 : false
@@ -266,7 +250,6 @@ Rectangle {
                             }
                         }
 
-                        // Freq core (+ mem si hay)
                         Item {
                             width: parent.width; height: 16
                             visible: gpuEntry.gpu ? gpuEntry.gpu.freq > 0 : false
@@ -288,7 +271,6 @@ Rectangle {
                             }
                         }
 
-                        // Power
                         Item {
                             width: parent.width; height: 16
                             visible: gpuEntry.gpu ? gpuEntry.gpu.power > 0 : false
@@ -312,13 +294,11 @@ Rectangle {
                     }
                 }
 
-                // iGPU Intel — fila compacta
                 Column {
                     width: parent.width
                     spacing: 6
                     visible: gpuEntry.isIntel && gpuEntry.gpu !== null
 
-                    // Nombre corto
                     Row {
                         spacing: 6
                         Text {
@@ -340,7 +320,6 @@ Rectangle {
                         }
                     }
 
-                    // Freq actual / rango
                     Item {
                         width: parent.width; height: 16
                         Text {
@@ -375,7 +354,6 @@ Rectangle {
                         }
                     }
 
-                    // Rango min / max
                     Text {
                         visible: gpuEntry.gpu ? gpuEntry.gpu.freqMax > 0 : false
                         text: gpuEntry.gpu
@@ -384,11 +362,9 @@ Rectangle {
                         font.pixelSize: 9; color: Theme.muted2
                     }
 
-                    // Estado: RC6 + throttle + power state
                     Row {
                         spacing: 8
 
-                        // RC6
                         Row {
                             spacing: 4
                             visible: gpuEntry.gpu !== null
@@ -404,7 +380,6 @@ Rectangle {
                             }
                         }
 
-                        // Throttle
                         Row {
                             spacing: 4
                             visible: gpuEntry.gpu ? gpuEntry.gpu.throttle > 0 : false
@@ -418,7 +393,6 @@ Rectangle {
                             }
                         }
 
-                        // Power state
                         Text {
                             visible: gpuEntry.gpu ? gpuEntry.gpu.powerState !== "" : false
                             text: gpuEntry.gpu ? gpuEntry.gpu.powerState : ""

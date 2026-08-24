@@ -9,7 +9,6 @@ Rectangle {
     radius: 8
     color: Theme.surface2
 
-    // Properties
     readonly property bool batteryAvailable: SysData.batAvailable
     readonly property int  batteryLevel:     SysData.batPercent
     readonly property bool isCharging:       SysData.batCharging
@@ -31,7 +30,6 @@ Rectangle {
         return Theme.error
     }
 
-    // Content
     Row {
         anchors.centerIn: parent
         spacing: 5

@@ -44,7 +44,6 @@ PanelWindow {
     property string sunrise: WeatherProvider.sunrise
     property string sunset: WeatherProvider.sunset
 
-    // Helpers
     function wmoIcon(code, day) { return weatherHelpers.wmoIcon(code, day) }
     function wmoDescription(code) { return weatherHelpers.wmoDescription(code) }
 
@@ -199,7 +198,6 @@ PanelWindow {
         WeatherProvider.fetchWeather()
     }
 
-    // Background dismiss
     MouseArea {
         anchors.fill: parent
         propagateComposedEvents: true
@@ -214,7 +212,6 @@ PanelWindow {
         }
     }
 
-    // Main card
     Rectangle {
         id: card
         anchors.centerIn: parent
@@ -235,7 +232,6 @@ PanelWindow {
             color: root.accent
         }
 
-        // close button
         MouseArea {
             anchors.top:    parent.top
             anchors.right:  parent.right
@@ -247,7 +243,6 @@ PanelWindow {
             Text { anchors.centerIn: parent; text: "✕"; color: Theme.muted3; font.pixelSize: 12 }
         }
 
-        // Vista principal del clima
         Column {
             id: mainCol
             anchors.left:    parent.left
@@ -664,7 +659,6 @@ PanelWindow {
             opacity: root._searchMode ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: 120 } }
 
-            // Header de búsqueda
             Item {
                 width: parent.width; height: 22
 
@@ -707,7 +701,6 @@ PanelWindow {
                 }
             }
 
-            // Campo de búsqueda
             Rectangle {
                 id: searchFieldRect
                 width: parent.width
@@ -764,12 +757,10 @@ PanelWindow {
                 }
             }
 
-            // Botones de acción
             Row {
                 width: parent.width
                 spacing: 8
 
-                // Buscar
                 Rectangle {
                     id: searchActionBtn
                     width: (parent.width - 8) / 2
@@ -796,7 +787,6 @@ PanelWindow {
                     }
                 }
 
-                // Usar geo-IP
                 Rectangle {
                     id: autoLocBtn
                     width: (parent.width - 8) / 2
@@ -821,7 +811,6 @@ PanelWindow {
                 }
             }
 
-            // Lista de resultados
             ListView {
                 id: searchResultsList
                 width: parent.width
@@ -914,7 +903,6 @@ PanelWindow {
                 }
             }
 
-            // Estado vacío (sin resultados después de buscar)
             Text {
                 width: parent.width
                 visible: !root._searching && root._searchQuery !== "" && root._searchResults.length === 0

@@ -10,13 +10,11 @@ Rectangle {
     radius: 14
     color: Theme.cardBg3
 
-    // Borde sutil
     Rectangle {
         anchors.fill: parent; radius: parent.radius; color: "transparent"
         border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2); border.width: 1
     }
 
-    // Inputs
     required property bool  batAvailable
     required property real  batPct
     required property bool  batCharging
@@ -28,7 +26,6 @@ Rectangle {
     required property real  batTimeEmpty
     required property real  batTimeFull
 
-    // Outputs
     signal closeRequested()
 
     Column {
@@ -36,7 +33,6 @@ Rectangle {
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
         spacing: 6
 
-        // Header
         Item {
             width: parent.width; height: 28
             Text {
@@ -58,7 +54,6 @@ Rectangle {
             }
         }
 
-        // Charge bar
         Item {
             width: parent.width; height: 6
             Rectangle { anchors.fill: parent; radius: 3; color: Theme.surface3 }
@@ -74,7 +69,6 @@ Rectangle {
             }
         }
 
-        // Estado y potencia
         Row {
             spacing: 16
             Text {
@@ -98,7 +92,6 @@ Rectangle {
             }
         }
 
-        // Health / Capacity / Energy — mini cards
         Row {
             width: parent.width; spacing: 6
             visible: root.batAvailable
@@ -154,7 +147,6 @@ Rectangle {
             }
         }
 
-        // Tiempo restante
         Row {
             spacing: 8
             visible: !root.batFull && root.batAvailable

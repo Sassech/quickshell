@@ -3,9 +3,8 @@ import "../../Components"
 
 pragma ComponentBehavior: Bound
 
-// CcCpuPanel
-// Panel de detalle de CPU: modelo, threads, frecuencia, gobernador,
-// 2 cards de resumen (uso + temp) y lista de núcleos con barra + temp.
+// CcCpuPanel Panel de detalle de CPU: modelo, threads, frecuencia, gobernador, 2 cards de resumen (uso +
+// temp) y lista de núcleos con barra + temp.
 Rectangle {
     id: root
     implicitWidth: 320
@@ -13,14 +12,12 @@ Rectangle {
     radius: 14
     color: Theme.cardBg3
 
-    // Borde sutil
     Rectangle {
         anchors.fill: parent; radius: parent.radius; color: "transparent"
         border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)
         border.width: 1
     }
 
-    // Inputs
     required property bool   cpuAvailable
     required property int    cpuPercent
     required property int    cpuTemp
@@ -32,10 +29,8 @@ Rectangle {
     required property var    cpuCoreTemps
     required property bool   cpuLoaded
 
-    // Outputs
     signal closeRequested()
 
-    // Helpers
     function tempColor(t) {
         if (t <= 0)  return Theme.muted2
         if (t >= 85) return Theme.error
@@ -71,13 +66,11 @@ Rectangle {
         return g
     }
 
-    // Layout
     Column {
         id: cpuCol
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
         spacing: 10
 
-        // Header
         Item {
             width: parent.width; height: 28
             Text {
@@ -99,7 +92,6 @@ Rectangle {
             }
         }
 
-        // Modelo + threads · freq · gov
         Column {
             width: parent.width
             spacing: 2
@@ -124,7 +116,6 @@ Rectangle {
             }
         }
 
-        // 2 cards resumen: Uso + Temp
         Row {
             width: parent.width; spacing: 6
 
@@ -165,7 +156,6 @@ Rectangle {
             }
         }
 
-        // Lista de núcleos
         Column {
             width: parent.width
             spacing: 4
@@ -180,7 +170,6 @@ Rectangle {
                     width: cpuCol.width
                     height: 18
 
-                    // Número de núcleo
                     Text {
                         id: coreLabel
                         anchors { left: parent.left; verticalCenter: parent.verticalCenter }
@@ -189,7 +178,6 @@ Rectangle {
                         width: 10; horizontalAlignment: Text.AlignRight
                     }
 
-                    // Barra de uso
                     Item {
                         id: coreBarItem
                         anchors {
@@ -212,7 +200,6 @@ Rectangle {
                         }
                     }
 
-                    // Porcentaje de uso
                     Text {
                         id: corePctText
                         anchors { right: coreTempText.left; rightMargin: 6; verticalCenter: parent.verticalCenter }
@@ -225,7 +212,6 @@ Rectangle {
                         width: 26; horizontalAlignment: Text.AlignRight
                     }
 
-                    // Temperatura del núcleo
                     Text {
                         id: coreTempText
                         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
@@ -245,7 +231,6 @@ Rectangle {
             }
         }
 
-        // Placeholder mientras carga
         Item {
             width: parent.width; height: 32
             visible: !root.cpuLoaded

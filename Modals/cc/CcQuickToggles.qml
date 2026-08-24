@@ -5,7 +5,6 @@ import Quickshell.Services.UPower
 import "../../Components"
 
 // Controles rápidos (grid 2×3)
-// WiFi, Bluetooth, Power & Fans, Audio, Battery, Language
 Column {
     id: root
     spacing: 0
@@ -13,13 +12,11 @@ Column {
     // Panel state
     required property string activePanel
 
-    // Bluetooth
     required property var    btAdapter
     required property bool   btPowered
     required property int    btConnectedCount
     required property string btFirstConnectedName
 
-    // Battery
     required property bool   batAvailable
     required property real   batPct
     required property bool   batCharging
@@ -27,10 +24,8 @@ Column {
     required property real   batTimeFull
     required property real   batTimeEmpty
 
-    // Audio
     required property var    defaultSink
 
-    // Language
     required property string langLayout
     required property string langLocale
 
@@ -40,7 +35,6 @@ Column {
     required property var    fmtTimeFn
     required property var    audioFormatDescFn
 
-    // Signals
     signal openWifi()
     signal openBluetooth()
     signal openPower()
@@ -60,7 +54,6 @@ Column {
         rowSpacing: 6
         columnSpacing: 6
 
-        // WiFi
         CcToggleCard {
             active: SysData.netConnected || root.activePanel === "wifi"
             icon: {
@@ -84,7 +77,6 @@ Column {
             onClicked: () => root.openWifi()
         }
 
-        // Bluetooth
         CcToggleCard {
             active: (root.btConnectedCount > 0 && root.btPowered) || root.activePanel === "bluetooth"
             icon: root.btConnectedCount > 0 ? "󰂱"
@@ -102,7 +94,6 @@ Column {
             onClicked: () => root.openBluetooth()
         }
 
-        // Power & Fans
         CcToggleCard {
             active: root.activePanel === "power"
             icon: root.powerIconFn(PowerProfiles.profile)
@@ -121,7 +112,6 @@ Column {
             onClicked: () => root.openPower()
         }
 
-        // Audio
         CcToggleCard {
             active: root.activePanel === "audio"
             icon: "󰕾"
@@ -134,7 +124,6 @@ Column {
             onClicked: () => root.openAudio()
         }
 
-        // Battery
         CcToggleCard {
             active: root.activePanel === "battery"
             icon: {
@@ -171,7 +160,6 @@ Column {
             onClicked: () => root.openBattery()
         }
 
-        // Language
         CcToggleCard {
             active: root.activePanel === "language"
             icon: "󰌌"

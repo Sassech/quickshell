@@ -15,7 +15,6 @@ Rectangle {
     radius: 14
     color: Theme.cardBg3
 
-    // Borde sutil
     Rectangle {
         anchors.fill: parent; radius: parent.radius
         color: "transparent"
@@ -23,7 +22,6 @@ Rectangle {
         border.width: 1
     }
 
-    // Inputs
     required property var    nmWifiDev
     required property bool   wifiRadioOn
     required property bool   wifiScanning
@@ -38,7 +36,6 @@ Rectangle {
     required property string wifiIp
     required property string wifiGateway
     required property string wifiDns
-    // Outputs
     signal closeRequested()
     signal toggleRadio()
     signal rescan()
@@ -53,7 +50,6 @@ Rectangle {
     signal passwordFetched(int idx, string pw)
     signal statusMessage(string msg)
 
-    // Estado interno
     property int _fetchingIdx: -1
     property var _sortedNets: []
 
@@ -76,7 +72,6 @@ Rectangle {
     onNmWifiDevChanged: root._rebuildSortedNets()
     Component.onCompleted: root._rebuildSortedNets()
 
-    // Helpers
     function wifiSignalIcon(strength) {
         if (strength >= 0.80) return "󰤨"
         if (strength >= 0.60) return "󰤥"
@@ -97,13 +92,11 @@ Rectangle {
         return sec === WifiSecurityType.Open || sec === WifiSecurityType.Owe
     }
 
-    // Contenido
     Column {
         id: wifiDetailCol
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
         spacing: 6
 
-        // Header
         Item {
             width: parent.width; height: 32
 
@@ -169,7 +162,6 @@ Rectangle {
                     }
                 }
 
-                // Close button
                 Rectangle {
                     width: 26; height: 26; radius: 7
                     color: wCloseMA.containsMouse ? Theme.surface3 : Theme.surface2

@@ -11,15 +11,13 @@ QtObject {
     required property bool panelVisible
     required property bool panelActive
 
-    // Pipewire nodes
     property var defaultSink:   Pipewire.defaultAudioSink
     property var defaultSource: Pipewire.defaultAudioSource
 
     property var _pwTracker: PwObjectTracker { objects: [root.defaultSink, root.defaultSource, root._activeSink, root._activeSource] }
 
-    // Pipewire.defaultAudioSink/defaultSource no cambian de forma confiable al
-    // usar preferredDefaultAudioSink/Source — trackeamos nosotros el nodo y
-    // nombre activos para highlight, volumen, mute y bindings.
+    // Pipewire.defaultAudioSink/defaultSource no cambian de forma confiable al usar preferredDefaultAudioSink/Source — trackeamos nosotros el nodo
+    // y nombre activos para highlight, volumen, mute y bindings.
     property var    _activeSink:       defaultSink             // binding declarativo puro
     property var    _activeSource:     defaultSource           // binding declarativo puro
     // computed — se re-evalúan cuando defaultSink/defaultSource cambian
@@ -27,7 +25,6 @@ QtObject {
     property string _activeSinkName:   defaultSink?.name   ?? ""
     property string _activeSourceName: defaultSource?.name ?? ""
 
-    // Volumen/mute bindeados al nodo activo
     property real masterVolume: root._activeSink?.audio?.volume   ?? 0.75
     property bool masterMuted:  root._activeSink?.audio?.muted    ?? false
     property real micVolume:    root._activeSource?.audio?.volume ?? 0.75
@@ -77,11 +74,8 @@ QtObject {
             })
         }
 
-        // Combo-jack: Speaker y Headphones son perfiles ALSA excluyentes en
-        // este hardware, no puertos simultáneos del mismo sink. Si el perfil
-        // activo no expone uno de los dos como nodo real, lo agregamos como
-        // entrada "virtual": al hacer click dispara un cambio de perfil de
-        // tarjeta.
+        // Combo-jack: Speaker y Headphones son perfiles ALSA excluyentes en este hardware, no puertos simultáneos del mismo sink. Si el perfil activo
+        // no expone uno de los dos como nodo real, lo agregamos como entrada "virtual": al hacer click dispara un cambio de perfil de tarjeta.
         var wants = [
             { token: "speaker",    icon: "󰕾", label: "Altavoces" },
             { token: "headphones", icon: "󰋋", label: "Audífonos" }

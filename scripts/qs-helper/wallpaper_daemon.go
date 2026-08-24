@@ -10,10 +10,7 @@ import (
 	"syscall"
 )
 
-// Daemon wallpaper-multi
-// Protocolo JSON-lines: {"id","folder","force"} → {"id","folder","items"}
-// (mismo id, para correlacionar sin depender del orden). Cache por carpeta
-// en memoria; solo re-escanéa si el mtime del dir cambió o se pide force.
+// wallpaper-multi daemon JSON-lines: {"id","folder","force"}→{"id","folder","items"} (mismo id); cache en memoria por mtime/force.
 
 // wallRequest es un request JSON-lines del daemon wallpaper-multi.
 type wallRequest struct {
@@ -46,10 +43,7 @@ func newWallDaemonState() *wallDaemonState {
 	return &wallDaemonState{folders: map[string]*wallFolderCache{}}
 }
 
-// itemsFor devuelve los items de una carpeta. Re-listea solo si el mtime del
-// directorio cambió desde la última vez (nuevos archivos/borrados) o si se
-// pidió force. La clave del cache es el folder ORIGINAL (sin expandir ~),
-// para que QML matchee contra el path que ya tiene guardado en _tabs.
+// itemsFor: cache por folder original (sin ~) key para QML _tabs; re-listea solo si mtime cambió o force.
 func (s *wallDaemonState) itemsFor(folder string, force bool) ([]wallpaperItem, string) {
 	expanded := expandTilde(folder)
 	fi, err := os.Stat(expanded)
@@ -72,8 +66,7 @@ func (s *wallDaemonState) itemsFor(folder string, force bool) ([]wallpaperItem, 
 	return items, ""
 }
 
-// runWallpaperMultiDaemon atiende requests en JSON-lines hasta que se cierra
-// stdin o llega SIGTERM/SIGINT. stdout lleva SOLO respuestas; logs a stderr.
+// runWallpaperMultiDaemon: sirve JSON-lines hasta EOF/SIGTERM; stdout respuestas, stderr logs.
 func runWallpaperMultiDaemon() int {
 	_ = os.MkdirAll(thumbDir, 0o755)
 	st := newWallDaemonState()
@@ -108,8 +101,7 @@ func runWallpaperMultiDaemon() int {
 	}
 }
 
-// handleWallRequest procesa una línea JSON {"id","folder","force"}. Un error
-// de parseo solo descarta ese request, el daemon sigue vivo.
+// handleWallRequest: parsea JSON; error descarta request sin matar daemon.
 func handleWallRequest(line string, st *wallDaemonState, out *bufio.Writer) {
 	if strings.TrimSpace(line) == "" {
 		return

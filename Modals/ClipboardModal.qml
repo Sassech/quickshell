@@ -32,11 +32,8 @@ QmModalBase {
         }
     }
 
-    // Daemon JSON-lines (clipboard --daemon)
-    // Responde {"id","items"} con el MISMO id del request; _activeReqId
-    // descarta respuestas stale. El daemon cachea el listado de cliphist y
-    // reutiliza los thumbnails en disco, evitando re-ejecutar cliphist en
-    // cada apertura del modal.
+    // Daemon JSON-lines (clipboard --daemon) Responde {"id","items"} con el MISMO id del request; _activeReqId descarta respuestas stale. El
+    // daemon cachea el listado de cliphist y reutiliza los thumbnails en disco, evitando re-ejecutar cliphist en cada apertura del modal.
     property int    _reqSeq: 0
     property string _activeReqId: ""
     property bool   _daemonReady: false
@@ -134,9 +131,8 @@ QmModalBase {
                 root.close()
                 return
             }
-            // No recargar inmediatamente - los IDs cambian al copiar porque
-            // cliphist store detecta el cambio y crea nueva entrada
-            // El usuario puede recargar manualmente si necesita ver actualizaciones
+            // No recargar inmediatamente - los IDs cambian al copiar porque cliphist store detecta el cambio
+            // y crea nueva entrada El usuario puede recargar manualmente si necesita ver actualizaciones
             delayClose.start()
         }
         // qmllint enable signal-handler-parameters
@@ -191,14 +187,12 @@ QmModalBase {
 
     ListModel { id: displayModel }
 
-    // UI
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 16
         anchors.topMargin: 20
         spacing: 10
 
-        // Header
         RowLayout {
             spacing: 8
             Layout.fillWidth: true
@@ -222,7 +216,6 @@ QmModalBase {
 
             Item { Layout.fillWidth: true }
 
-            // Limpiar todo
             Rectangle {
                 Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 8
                 color: wipeMa.containsMouse ? Theme.error : Theme.warning
@@ -245,12 +238,10 @@ QmModalBase {
             }
         }
 
-        // Buscador
         Item {
             Layout.fillWidth: true
             Layout.preferredHeight: 40
 
-            // Foco visual (borde accent)
             Rectangle {
                 anchors.fill: parent
                 radius: 10
@@ -260,7 +251,6 @@ QmModalBase {
                 Behavior on border.color { ColorAnimation { duration: 150 } }
             }
 
-            // Icono lupa
             Text {
                 anchors.left: parent.left
                 anchors.leftMargin: 12
@@ -296,12 +286,10 @@ QmModalBase {
             }
         }
 
-        // Lista
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
-            // Empty / Loading state
             Column {
                 anchors.centerIn: parent
                 spacing: 8
@@ -339,7 +327,6 @@ QmModalBase {
                     }
                 }
 
-                // Resaltado de navegación por teclado
                 highlight: Rectangle {
                     radius: 8
                     color: Qt.rgba(1, 1, 1, 0.08)
@@ -378,7 +365,6 @@ QmModalBase {
                         anchors.bottomMargin: row.hasThumb ? 6 : 0
                         spacing: 8
 
-                        // Thumbnail de imagen
                         Image {
                             visible: row.hasThumb
                             source: row.hasThumb ? ("file://" + row.model.thumb) : ""
@@ -397,7 +383,6 @@ QmModalBase {
                             }
                         }
 
-                        // Icono de tipo (solo para texto)
                         Text {
                             visible: !row.hasThumb
                             text: row.model.isBinary ? "󰋼" : "󰆏"
@@ -406,7 +391,6 @@ QmModalBase {
                             Layout.preferredWidth: 16
                         }
 
-                        // Preview / dimensiones
                         Text {
                             Layout.fillWidth: true
                             text: row.model.preview

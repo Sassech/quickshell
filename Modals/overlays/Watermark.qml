@@ -1,13 +1,11 @@
 // qmllint disable uncreatable-type
 import QtQuick
 
-// Watermark — overlay estilo "Activar Windows" anclado abajo a la derecha.
-// Reutiliza OverlayWindow (mismo directorio, se resuelve por nombre) y declara
-// su contenido como hijo; el slot por defecto lo coloca en contentArea.
+// Watermark — overlay estilo "Activar Windows" anclado abajo a la derecha. Reutiliza OverlayWindow (mismo directorio, se resuelve por nombre)
+// y declara su contenido como hijo; el slot por defecto lo coloca en contentArea.
 OverlayWindow {
     id: root
 
-    // Configuración concreta
     entryId:        "watermark"     // OverlayWindow auto-gobierna visibilidad vía OverlaysManager
     corner:         "bottom-right"
     overlayWidth:   300

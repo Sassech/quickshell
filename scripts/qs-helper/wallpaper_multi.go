@@ -7,12 +7,7 @@ import (
 	"path/filepath"
 )
 
-// runWallpaperMulti procesa varias carpetas en UN SOLO proceso, generando los
-// thumbnails faltantes con un worker pool acotado (evita saturar CPU/memoria
-// con decenas de magick/ffmpeg simultáneos cuando hay varias carpetas con
-// hasta 60 imágenes cada una). Salida: JSON {folder: items[]}, usando como
-// clave el folder ORIGINAL (sin expandir el ~) para que QML matchee contra
-// el path que ya tiene guardado en _tabs.
+// runWallpaperMulti: UN proceso, worker pool acotado (no satura magick/ffmpeg), key folder original para QML _tabs.
 func runWallpaperMulti(folders []string) int {
 	if len(folders) == 0 {
 		fmt.Fprintln(os.Stderr, "wallpaper-multi: faltan carpetas")
@@ -46,9 +41,8 @@ func runWallpaperMulti(folders []string) int {
 		}
 	}
 
-	// Worker pool acotado via parallelRun: min(4, NumCPU). No escala con
-	// folders*60 — evita lanzar decenas de magick/ffmpeg simultáneos que
-	// saturarían CPU/memoria.
+	// Worker pool acotado via parallelRun: min(4, NumCPU). No escala con folders*60 — evita lanzar decenas de
+	// magick/ffmpeg simultáneos que saturarían CPU/memoria.
 	parallelRun(len(jobs), func(k int) {
 		j := jobs[k]
 		results[j.fi][j.pi].Thumb = makeWallpaperThumb(j.path)

@@ -18,7 +18,6 @@ QmModalBase {
     cardClip: true
     hasStripe: true
 
-    // API pública
     signal folderSelected(string path)
 
     property string initialPath: "~"
@@ -32,7 +31,6 @@ QmModalBase {
         visible = true
     }
 
-    // Estado
     property string currentPath: ""
     property string parentPath:  ""
     property bool   _loading:    false
@@ -52,7 +50,6 @@ QmModalBase {
         { label: "Videos",      icon: "󰿎", path: "~/Videos" },
     ]
 
-    // Proceso de listado
     Process {
         id: listProc
         property string targetPath: ""
@@ -101,13 +98,11 @@ QmModalBase {
         }
     }
 
-    // UI
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 0
         spacing: 0
 
-        // Header
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 56
@@ -119,7 +114,6 @@ QmModalBase {
                 anchors.rightMargin: 12
                 spacing: 8
 
-                // Icono
                 Text {
                     text: "󰉋"
                     font.pixelSize: 18
@@ -147,7 +141,6 @@ QmModalBase {
                     }
                 }
 
-                // Ruta actual
                 Text {
                     Layout.fillWidth: true
                     text: root._homePath ? root.currentPath.replace(root._homePath, "~") : root.currentPath
@@ -177,7 +170,6 @@ QmModalBase {
                 }
             }
 
-            // Separador
             Rectangle {
                 anchors.bottom: parent.bottom
                 anchors.left: parent.left
@@ -192,7 +184,6 @@ QmModalBase {
             Layout.fillHeight: true
             spacing: 0
 
-            // Sidebar accesos rápidos
             Rectangle {
                 Layout.preferredWidth: 160
                 Layout.fillHeight: true
@@ -271,7 +262,6 @@ QmModalBase {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
-                // Spinner
                 Column {
                     anchors.centerIn: parent
                     spacing: 10
@@ -289,7 +279,6 @@ QmModalBase {
                     }
                 }
 
-                // Vacío
                 Column {
                     anchors.centerIn: parent
                     spacing: 8

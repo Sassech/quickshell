@@ -216,7 +216,6 @@ QtObject {
         device.forget()
     }
 
-    // Timers BT
     property var _btScanTimer: Timer {
         id: btScanTimer
         interval: 13000
@@ -261,9 +260,8 @@ QtObject {
         id: btCodecRefreshTimer
         interval: 30000; repeat: true
         running: {
-            // Se bindea desde ControlCenter — la prop requerida no puede ir en un QtObject
-            // así que chequeamos directamente. El timer solo corre cuando hay acceso.
-            // La condición real se bindea via ControlCenter.
+            // Se bindea desde ControlCenter — la prop requerida no puede ir en un QtObject así que chequeamos directamente. El timer solo corre cuando hay
+            // acceso. La condición real se bindea via ControlCenter.
             false
         }
         onTriggered: {
@@ -280,7 +278,6 @@ QtObject {
         }
     }
 
-    // Connections: cambios en adaptador
     property var _btAdapterDevicesConn: Connections {
         target: root._btAdapter ? root._btAdapter.devices : null
         function onObjectInsertedPost(object, index) {
@@ -293,7 +290,6 @@ QtObject {
         }
     }
 
-    // Instantiator: observar cambios en cada dispositivo
     property var _btDeviceInstantiator: Instantiator {
         model: root._btAdapter ? root._btAdapter.devices : null
         delegate: Connections {
@@ -308,7 +304,6 @@ QtObject {
         }
     }
 
-    // Connections: dispositivo de acción activa
     property var _btActionDeviceConn: Connections {
         target: root._btActionDevice
         function onConnectedChanged() {
@@ -349,7 +344,6 @@ QtObject {
         }
     }
 
-    // Connections: dispositivo de auto-connect
     property var _btAutoConnDeviceConn: Connections {
         target: root._btAutoConnDevice
         function onConnectedChanged() {
@@ -367,7 +361,6 @@ QtObject {
         }
     }
 
-    // Handler: cambio de poder
     on_BtPwrdChanged: {
         if (!root._btPwrd) {
             root._btCodecData       = ({})
@@ -384,7 +377,6 @@ QtObject {
 
     on_BtAdapterChanged: { root.btRefreshDeviceLists() }
 
-    // Procesos Bluetooth: codec
     property var _btCodecProc: JsonProcess {
         id: btCodecProc
         command: ["bash", "-c", ""]

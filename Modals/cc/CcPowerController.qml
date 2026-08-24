@@ -6,10 +6,8 @@ import "../../Components"
 QtObject {
     id: root
 
-    // Estado público
     property var _fanProfiles: []   // [{id, label, icon}] leído de fan-control.sh
 
-    // Proceso de fan profiles
     property var _fanProfilesProc: LineProcess {
         id: fanProfilesProc
         command: ["bash", Paths.scripts + "/fan-control.sh", "list_profiles"]

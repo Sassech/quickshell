@@ -59,7 +59,7 @@ type thumbTask struct {
 	path    string
 }
 
-// generateThumbnail replica generate_thumbnail del Python.
+// generateThumbnail: decode+magick 72x72.
 func generateThumbnail(entryID, preview string) string {
 	thumbPath := filepath.Join(os.TempDir(), "qs-clip-"+entryID+".png")
 	if _, err := os.Stat(thumbPath); err == nil {
@@ -93,7 +93,7 @@ func generateThumbnail(entryID, preview string) string {
 	return ""
 }
 
-// generateFileThumbnail crea un thumb 72x72 del archivo referenciado.
+// generateFileThumbnail: thumb 72x72 de archivo.
 func generateFileThumbnail(entryID, path string) string {
 	thumbPath := filepath.Join(os.TempDir(), "qs-fthumb-"+entryID+".png")
 	if _, err := os.Stat(thumbPath); err == nil {
@@ -110,7 +110,7 @@ func generateFileThumbnail(entryID, path string) string {
 	return ""
 }
 
-// fileRefPath devuelve el path si la preview es una ruta absoluta existente.
+// fileRefPath: preview→path absoluto existente.
 func fileRefPath(preview string) string {
 	if strings.Contains(preview, "\n") || !strings.HasPrefix(preview, "/") {
 		return ""
@@ -121,7 +121,7 @@ func fileRefPath(preview string) string {
 	return ""
 }
 
-// cleanOldThumbs elimina thumbnails generados por el helper que superen maxAge.
+// cleanOldThumbs: borra thumbs >maxAge.
 func cleanOldThumbs(maxAge time.Duration) {
 	pattern := filepath.Join(os.TempDir(), "qs-clip-*.png")
 	files, _ := filepath.Glob(pattern)
@@ -133,7 +133,7 @@ func cleanOldThumbs(maxAge time.Duration) {
 	}
 }
 
-// runClipboard implementa el subcomando clipboard (one-shot).
+// runClipboard: one-shot JSON.
 func runClipboard() int {
 	cleanOldThumbs(7 * 24 * time.Hour)
 	out, _ := json.Marshal(clipboardEntries())
@@ -141,9 +141,7 @@ func runClipboard() int {
 	return 0
 }
 
-// clipboardEntries lista el portapapeles y genera los thumbnails faltantes.
-// Es la lógica compartida entre el modo one-shot y el daemon (clipboard
-// --daemon), que cachea su resultado en memoria entre refreshes.
+// clipboardEntries: lista + thumbs; compartido one-shot/daemon (cache memoria).
 func clipboardEntries() []clipEntry {
 	if !hasMagick() {
 		// Igual lista, sin thumbs de binarios.
@@ -223,7 +221,7 @@ func thumbnailForTask(t thumbTask) string {
 	return generateThumbnail(t.id, t.preview)
 }
 
-// clipboardList sin magick: solo lista.
+// clipboardList: sin thumbs.
 func clipboardList() []clipEntry {
 	ctx, cancel := contextTimeout(5 * time.Second)
 	defer cancel()
@@ -250,10 +248,7 @@ func clipboardList() []clipEntry {
 	return entries
 }
 
-// binaryToken extrae el token de formato de una preview binaria de cliphist:
-// "[[ binary data 102 KiB png 551x214 ]]" -> "png".
-// cliphist solo genera preview binaria para imágenes decodificables
-// (image.DecodeConfig), así que el token está en el 5º campo del split.
+// binaryToken: "[[ binary ... png ... ]]"→"png" (5º campo; solo imágenes decodificables).
 func binaryToken(preview string) string {
 	fields := strings.Fields(preview)
 	if len(fields) >= 6 && fields[0] == "[[" && fields[1] == "binary" {
@@ -262,8 +257,7 @@ func binaryToken(preview string) string {
 	return ""
 }
 
-// binaryMIME infiere el MIME de una preview binaria usando el token real de
-// cliphist (formato de imagen Go), no strings.Contains.
+// binaryMIME: token→MIME (no Contains).
 func binaryMIME(preview string) string {
 	switch binaryToken(preview) {
 	case "png":
@@ -289,7 +283,7 @@ func binaryMIME(preview string) string {
 	}
 }
 
-// findClipEntry busca en la salida de cliphist list la entrada con el ID dado.
+// findClipEntry: busca ID en list.
 func findClipEntry(id string, list []byte) (entry, preview string) {
 	scanner := bufio.NewScanner(bytes.NewReader(list))
 	for scanner.Scan() {
@@ -303,10 +297,7 @@ func findClipEntry(id string, list []byte) (entry, preview string) {
 	return "", ""
 }
 
-// lanzarWlCopy ejecuta wl-copy sin esperar su salida. wl-copy forkea al
-// background para mantener viva la selección y el hijo hereda el pipe de
-// stdout: esperar con Output()/CombinedOutput() cuelga hasta el EOF del
-// pipe. Solo Start() + liberar el handle replica el comportamiento bash.
+// lanzarWlCopy: Start+Release (wl-copy forkea; Output cuelga por pipe).
 func lanzarWlCopy(mime string, payload []byte) bool {
 	cmd := exec.Command("wl-copy")
 	if mime != "" {
@@ -323,9 +314,7 @@ func lanzarWlCopy(mime string, payload []byte) bool {
 	return true
 }
 
-// clipboardFileRef detecta referencias a archivo (gestor de archivos) y
-// devuelve MIME + payload para re-copiar: file:// → text/uri-list, formato
-// Nautilus → x-special/gnome-copied-files, ruta absoluta existente → file://.
+// clipboardFileRef: file://→uri-list, Nautilus→gnome-copied-files, path→file://.
 func clipboardFileRef(decoded []byte) (string, []byte, bool) {
 	text := strings.TrimSpace(string(decoded))
 
@@ -348,8 +337,7 @@ func clipboardFileRef(decoded []byte) (string, []byte, bool) {
 	return "", nil, false
 }
 
-// officeMIME detecta DOCX/XLSX/PPTX inspeccionando [Content_Types].xml del
-// ZIP (http.DetectContentType solo sabe que es application/zip).
+// officeMIME: ZIP [Content_Types].xml→DOCX/XLSX/PPTX (DetectContentType solo ve zip).
 func officeMIME(decoded []byte) string {
 	zr, err := zip.NewReader(bytes.NewReader(decoded), int64(len(decoded)))
 	if err != nil {
@@ -380,9 +368,7 @@ func officeMIME(decoded []byte) string {
 	return ""
 }
 
-// runClipboardCopy implementa el subcomando clipboard-copy <id>.
-// Exit codes replican clipboard-copy.sh: 1 ID vacío, 2 cliphist list falló,
-// 3 ID no encontrado, 4 decode/fallo de copia.
+// runClipboardCopy: exit 1 vacío,2 list fallo,3 no encontrado,4 decode/copy.
 func runClipboardCopy(id string) int {
 	if id == "" {
 		clipboardLog(copyErrPrefix + "ID vacío")
@@ -511,32 +497,29 @@ func handleHTMLMime(id string, decoded []byte, mimeType string) (bool, int) {
 	return true, 0
 }
 
-// Daemon clipboard (JSON-lines, cache en memoria)
+// Daemon clipboard JSON-lines cache memoria
 
-// clipRequest es un request JSON-lines del daemon clipboard.
+// clipRequest: JSON-lines daemon.
 type clipRequest struct {
 	ID  string `json:"id"`
 	Cmd string `json:"cmd"`
 }
 
-// clipResponse es la respuesta JSON-lines: devuelve el mismo id del request
-// para que el cliente descarte respuestas stale.
+// clipResponse: replica id (descarta stale).
 type clipResponse struct {
 	ID    string      `json:"id"`
 	Items []clipEntry `json:"items"`
 	Error string      `json:"error,omitempty"`
 }
 
-// clipDaemonState cachea la última lista. Un solo goroutine (el loop
-// principal del daemon) accede al estado, así que no hay races sin locks.
+// clipDaemonState: cache last list, single-goroutine sin locks.
 type clipDaemonState struct {
 	items   []clipEntry
 	dbMod   int64
 	hasList bool
 }
 
-// cliphistDBPath devuelve la ruta de la base de cliphist, usada como señal de
-// invalidación del cache (el mtime cambia cuando cliphist store/wipe escriben).
+// cliphistDBPath: cache invalidation por mtime db.
 func cliphistDBPath() string {
 	cacheHome := os.Getenv("XDG_CACHE_HOME")
 	if cacheHome == "" {
@@ -545,8 +528,7 @@ func cliphistDBPath() string {
 	return filepath.Join(cacheHome, "cliphist", "db")
 }
 
-// refresh devuelve la lista actual. Re-ejecuta cliphist solo si la base
-// cambió (o si nunca se listó); si no, sirve el cache en memoria.
+// refresh: re-lista solo si mtime cambió.
 func (s *clipDaemonState) refresh() []clipEntry {
 	if fi, err := os.Stat(cliphistDBPath()); err == nil {
 		if s.hasList && fi.ModTime().Unix() == s.dbMod {
@@ -563,8 +545,7 @@ func (s *clipDaemonState) refresh() []clipEntry {
 	return s.items
 }
 
-// runClipboardDaemon atiende requests en JSON-lines hasta que se cierra stdin
-// o llega SIGTERM/SIGINT. stdout lleva SOLO respuestas; logs a stderr.
+// runClipboardDaemon: JSON-lines hasta EOF/SIGTERM; stdout respuestas.
 func runClipboardDaemon() int {
 	cleanOldThumbs(7 * 24 * time.Hour)
 	st := &clipDaemonState{}
@@ -599,8 +580,7 @@ func runClipboardDaemon() int {
 	}
 }
 
-// handleClipRequest procesa una línea: "refresh" a secas (sin id) o JSON
-// {"id","cmd":"refresh"}. Un error de parseo solo descarta ese request.
+// handleClipRequest: "refresh" o JSON; parse error descarta.
 func handleClipRequest(line string, st *clipDaemonState, out *bufio.Writer) {
 	if strings.TrimSpace(line) == "" {
 		return

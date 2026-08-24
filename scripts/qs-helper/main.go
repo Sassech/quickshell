@@ -141,9 +141,8 @@ func isDir(p string) bool {
 	return err == nil && fi.IsDir()
 }
 
-// writeJSONLine serializa v como una línea JSON y la escribe en el buffer.
-// Los daemons JSON-lines la usan para responder por stdout; un error de
-// marshal solo se loguea a stderr sin matar el daemon.
+// writeJSONLine serializa v como una línea JSON y la escribe en el buffer. Los daemons JSON-lines la usan
+// para responder por stdout; un error de marshal solo se loguea a stderr sin matar el daemon.
 func writeJSONLine(out *bufio.Writer, v any) {
 	data, err := json.Marshal(v)
 	if err != nil {

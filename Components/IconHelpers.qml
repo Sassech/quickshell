@@ -1,10 +1,8 @@
 pragma Singleton
 import QtQuick
 
-// IconHelpers — singleton con funciones de ícono por umbrales
-// Centraliza los ternarios de umbrales duplicados entre CcSliders, VolumeOsd y
-// BrightnessOsd. Recibe la magnitud en la misma unidad que cada fuente emite
-// (volumen en fracción 0..1, brillo en pct 0..100) y devuelve el glyph.
+// IconHelpers — singleton con funciones de ícono por umbrales Centraliza los ternarios de umbrales duplicados entre CcSliders, VolumeOsd y BrightnessOsd. Recibe
+// la magnitud en la misma unidad que cada fuente emite (volumen en fracción 0..1, brillo en pct 0..100) y devuelve el glyph.
 QtObject {
     // Ícono por umbrales (volumen en fracción 0..1)
     function volIcon(vol, muted) {

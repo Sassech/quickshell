@@ -111,8 +111,7 @@ func saveIconCache() {
 	iconCacheDirty = false
 }
 
-// detectTheme lee ~/.config/gtk-3.0/settings.ini buscando el tema de íconos.
-// Usa bufio.Scanner con early exit para evitar cargar el archivo completo en memoria.
+// detectTheme: lee gtk-3.0/settings.ini con scanner early-exit.
 func detectTheme() string {
 	f, err := os.Open(filepath.Join(homeDir, ".config", "gtk-3.0", "settings.ini"))
 	if err != nil {
@@ -132,8 +131,7 @@ func detectTheme() string {
 	return ""
 }
 
-// initTheme arma la lista de temas candidatos: detectado primero, luego los
-// clásicos, sin duplicados.
+// initTheme: tema detectado primero, luego clásicos.
 func initTheme() {
 	if len(iconThemes) > 0 {
 		return
@@ -154,15 +152,14 @@ func exists(p string) bool {
 	return err == nil
 }
 
-// findIconPath replica find_icon_path con mejora de tema detectado.
+// findIconPath: replica con tema detectado.
 func findIconPath(iconName string) string {
 	if iconName == "" {
 		return ""
 	}
 	if p, ok := iconCache[iconName]; ok {
-		// Verificar que la entrada siga apuntando a un archivo existente:
-		// puede haber quedado stale (el ícono se desinstaló) y devolverla
-		// rompe el Image del QML con un glyph oculto.
+		// Verificar que la entrada siga apuntando a un archivo existente: puede haber quedado stale (el ícono se
+		// desinstaló) y devolverla rompe el Image del QML con un glyph oculto.
 		if _, err := os.Stat(p); err == nil {
 			return p
 		}

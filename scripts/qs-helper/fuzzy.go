@@ -12,26 +12,14 @@ const (
 	wordSepExtraPattern = "\\s-_()/;,"
 )
 
-// fuzzy_score replica fuzzy_score(query, name, extra) de spotlight-search.py.
-// Retorna 0-100. 0 = sin coincidencia.
-// Jerarquía exacta (el orden importa):
-//
-//	100 = prefijo exacto del nombre
-//	 70 = alguna palabra del nombre comienza con el query
-//	 65 = multi-token: todos los tokens del query matchean palabras del nombre
-//	 55 = el query es substring del nombre
-//	 50 = multi-token matchea con campos extra (keywords/genericname)
-//	 45 = el query es substring de los campos extra
-//	 40 = alguna palabra de los campos extra comienza con el query
-//	1-30 = match por subsecuencia en el nombre (requiere >=3 consecutivos)
-//	5-20 = tolerancia a typos por solapamiento de chars por palabra
+// fuzzyScore: replica spotlight-search.py, 0-100. Jerarquía (orden importa): 100 prefijo nombre, 70 word-prefix, 65 multi-token nombre, 55
+// substring nombre, 50 multi-token extra, 45 substring extra, 40 word-prefix extra, 1-30 subsec≥3, 5-20 typo.
 func fuzzyScore(query, name, extra string) int {
 	return fuzzyScoreImpl(query, name, extra, true)
 }
 
-// fuzzyScoreNoTypo es fuzzyScore pero sin el nivel de typos (wordCharScore).
-// Para búsqueda de archivos en $HOME el typo-tolerance es demasiado
-// ruidoso (cualquier nombre largo con las letras sueltas matchea).
+// fuzzyScoreNoTypo es fuzzyScore pero sin el nivel de typos (wordCharScore). Para búsqueda de archivos en
+// $HOME el typo-tolerance es demasiado ruidoso (cualquier nombre largo con las letras sueltas matchea).
 func fuzzyScoreNoTypo(query, name, extra string) int {
 	return fuzzyScoreImpl(query, name, extra, false)
 }

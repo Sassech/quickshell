@@ -23,7 +23,6 @@ QmModalBase {
     property bool   _loading: false
     property string _errorMsg: ""
 
-    // Tabs
     // Cada tab: { id, label, path, type }
     // type === "folder" | "search"
     // La tab "search" es siempre la última y no tiene X
@@ -33,16 +32,12 @@ QmModalBase {
     ]
     property int _activeTab: 0
 
-    // Caché en memoria de items ya cargados por carpeta (path -> items[]).
-    // Se llena por el preload masivo (wallpaper-multi --daemon) y por cada
+    // Caché en memoria de items ya cargados por carpeta (path -> items[]). Se llena por el preload masivo (wallpaper-multi --daemon) y por cada
     // carga individual, para que reactivar un tab ya visitado sea instantáneo.
     property var _folderCache: ({})
 
-    // Daemon JSON-lines (wallpaper-multi --daemon)
-    // Cada request lleva id = path de la carpeta; la respuesta replica ese id
-    // y escribe directo al _folderCache (sin depender del orden de llegada).
-    // El daemon mantiene el listado por carpeta en memoria (invalidación por
-    // mtime del directorio) y reutiliza los thumbnails ya generados en disco.
+    // Daemon JSON-lines (wallpaper-multi --daemon) Cada request lleva id = path de la carpeta; la respuesta replica ese id y escribe directo al _folderCache (sin depender
+    // del orden de llegada). El daemon mantiene el listado por carpeta en memoria (invalidación por mtime del directorio) y reutiliza los thumbnails ya generados en disco.
     property bool _daemonReady: false
     property bool _destroying: false
 
@@ -469,14 +464,12 @@ QmModalBase {
         _renamingIndex = -1
     }
 
-    // UI
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 16
         anchors.topMargin: 20
         spacing: 8
 
-        // Header
         RowLayout {
             Layout.fillWidth: true
             spacing: 8
@@ -555,7 +548,6 @@ QmModalBase {
                     root._tabs[root._activeTab].type === "search"
             }
 
-            // Botón cerrar
             Rectangle {
                 Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 8
                 color: closeMa.containsMouse ? Theme.surface3 : "transparent"
@@ -581,14 +573,12 @@ QmModalBase {
             Layout.fillWidth: true
             spacing: 0
 
-            // Tabs scrollables
             Row {
                 spacing: 2
 
                 Repeater {
                     model: root._tabs
 
-                    // Delegate de tab
                     Rectangle {
                         id: tabItem
                         required property var   modelData
@@ -673,7 +663,6 @@ QmModalBase {
                                 }
                             }
 
-                            // Botón X (solo en tabs de carpeta, visible en hover)
                             Rectangle {
                                 visible: !tabItem.isSearch && tabItem.isHovered && root._tabs.filter(function(t) { return t.type === "folder" }).length > 1
                                 width: 16; height: 16; radius: 4
@@ -727,7 +716,6 @@ QmModalBase {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            // Doble clic en tab de carpeta activo → renombrar
                             onDoubleClicked: {
                                 if (!tabItem.isSearch && tabItem.isActive && root._renamingIndex < 0) {
                                     root._renameValue = tabItem.modelData.label
@@ -757,7 +745,6 @@ QmModalBase {
                 }
             }
 
-            // Botón + para agregar carpeta
             Rectangle {
                 Layout.preferredWidth: 28
                 Layout.preferredHeight: 28
@@ -765,7 +752,6 @@ QmModalBase {
                 color: addTabMa.containsMouse ? Theme.surface2 : "transparent"
                 Behavior on color { ColorAnimation { duration: 100 } }
                 Layout.alignment: Qt.AlignVCenter
-                // Margen izquierdo manual con un Item separador
                 Text {
                     anchors.centerIn: parent
                     text: "+"
@@ -789,19 +775,16 @@ QmModalBase {
             Item { Layout.fillWidth: true }
         }
 
-        // Separador bajo tabs
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 1
             color: Theme.surface2
         }
 
-        // Contenido del tab activo
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
-            // Vista: carpeta
             ColumnLayout {
                 anchors.fill: parent
                 spacing: 0
@@ -811,7 +794,6 @@ QmModalBase {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
-                    // Sin imágenes
                     Column {
                         anchors.centerIn: parent
                         spacing: 10
@@ -836,7 +818,6 @@ QmModalBase {
                         }
                     }
 
-                    // Spinner de carga
                     Column {
                         anchors.centerIn: parent
                         spacing: 10
@@ -943,7 +924,6 @@ QmModalBase {
                                     verticalAlignment: Text.AlignVCenter
                                 }
 
-                                // Badge activo
                                 Rectangle {
                                     visible: wpCell.isActive
                                     anchors.top: parent.top
@@ -959,7 +939,6 @@ QmModalBase {
                                     }
                                 }
 
-                                // Badge video
                                 Rectangle {
                                     visible: wpCell.model.type === "video"
                                     anchors.bottom: parent.bottom
@@ -977,7 +956,6 @@ QmModalBase {
                                     }
                                 }
 
-                                // Hover overlay
                                 Rectangle {
                                     anchors.fill: thumb
                                     color: Theme.hover2
@@ -1006,13 +984,11 @@ QmModalBase {
                 }
             }
 
-            // Vista: búsqueda online (Bing)
             ColumnLayout {
                 anchors.fill: parent
                 spacing: 10
                 visible: root._activeTab < root._tabs.length && root._tabs[root._activeTab].type === "search"
 
-                // Fila de búsqueda
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
@@ -1059,7 +1035,6 @@ QmModalBase {
                     }
                 }
 
-                // Error de búsqueda
                 Text {
                     Layout.fillWidth: true
                     text: root._searchError
@@ -1069,12 +1044,10 @@ QmModalBase {
                     wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                 }
 
-                // Grid de resultados Bing
                 Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
-                    // Spinner
                     Column {
                         anchors.centerIn: parent
                         spacing: 10
@@ -1099,7 +1072,6 @@ QmModalBase {
                         }
                     }
 
-                    // Vacío
                     Column {
                         anchors.centerIn: parent
                         spacing: 10
@@ -1164,7 +1136,6 @@ QmModalBase {
                                 clip: true
                                 Behavior on border.color { ColorAnimation { duration: 100 } }
 
-                                // Thumbnail (hotlink CDN Bing)
                                 Image {
                                     id: bingThumb
                                     anchors.fill: parent
@@ -1188,7 +1159,6 @@ QmModalBase {
                                     }
                                 }
 
-                                // Overlay inferior: resolución
                                 Rectangle {
                                     anchors.bottom: parent.bottom
                                     anchors.left: parent.left
@@ -1226,7 +1196,6 @@ QmModalBase {
                                     }
                                 }
 
-                                // Overlay de descarga/aplicación en progreso
                                 Rectangle {
                                     anchors.fill: parent
                                     radius: 10

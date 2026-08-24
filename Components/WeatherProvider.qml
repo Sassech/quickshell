@@ -5,7 +5,6 @@ import Quickshell.Io
 QtObject {
     id: root
     
-    // Estado
     property bool loading: true
     property bool hasData: false
     
@@ -51,10 +50,8 @@ QtObject {
         }
     }
     
-    // Proceso único
-    // qs-helper weather resuelve las coordenadas (args > preferencias >
-    // geo-IP) y consulta Open-Meteo con cache en disco. Un solo proceso
-    // reemplaza los dos curls (geo + weather) anteriores.
+    // qs-helper weather resuelve las coordenadas (args > preferencias > geo-IP) y consulta Open-Meteo con
+    // cache en disco. Un solo proceso reemplaza los dos curls (geo + weather) anteriores.
     property Process _weatherProcess: Process {
         id: weatherProcess
         command: [Paths.scripts + "/qs-helper/qs-helper", "weather"]
@@ -76,7 +73,6 @@ QtObject {
         // qmllint enable signal-handler-parameters
     }
     
-    // Funciones publicas
     function fetchWeather() {
         loading = true
         weatherProcess.running = true

@@ -23,13 +23,11 @@ PanelWindow {
     anchors.left: true
     anchors.right: true
 
-    // Estado
     property bool   _searching: false
     property int    selectedIndex: 0
     property string activeTab: "all"
 
-    // Daemon JSON-lines (spotlight --daemon): las respuestas llegan con el id
-    // del request que las originó; _activeReqId descarta respuestas stale.
+    // Daemon JSON-lines (spotlight --daemon): las respuestas llegan con el id del request que las originó; _activeReqId descarta respuestas stale.
     // _pendingQuery retiene la búsqueda si el daemon aún no está listo.
     property int    _reqSeq: 0
     property string _activeReqId: ""
@@ -96,11 +94,8 @@ PanelWindow {
 
     onActiveTabChanged: rebuildFiltered()
 
-    // Búsqueda
-    // Daemon persistente (spotlight --daemon): mantiene scanApps + icon cache
-    // calientes en memoria para eliminar el overhead por invocación de
-    // ~100-200ms. Protocolo JSON-lines por request id: stdin manda {"id",
-    // "query"} y stdout responde {"id","items"} con el MISMO id.
+    // Búsqueda Daemon persistente (spotlight --daemon): mantiene scanApps + icon cache calientes en memoria para eliminar el overhead por
+    // invocación de ~100-200ms. Protocolo JSON-lines por request id: stdin manda {"id", "query"} y stdout responde {"id","items"} con el MISMO id.
     Process {
         id: daemon
         running: true
@@ -207,10 +202,8 @@ PanelWindow {
         const idx = Math.min(selectedIndex, filteredModel.count - 1)
         const item = filteredModel.get(idx)
 
-        // Registrar frecencia del lanzamiento (solo apps): el daemon la
-        // consume por mtime en el próximo request (refreshFrecency).
-        // startDetached: el --record es un spawn rápido y no debe morir
-        // con una recarga de Quickshell entre el lanzamiento y la escritura.
+        // Registrar frecencia del lanzamiento (solo apps): el daemon la consume por mtime en el próximo request (refreshFrecency). startDetached: el
+        // --record es un spawn rápido y no debe morir con una recarga de Quickshell entre el lanzamiento y la escritura.
         if (item.type === "app" && item.exec) {
             recordProc.command = [Paths.scripts + "/qs-helper/qs-helper",
                                   "spotlight", "--record", item.exec]
@@ -246,9 +239,7 @@ PanelWindow {
         if (visible) searchInput.forceActiveFocus()
     }
 
-    // UI
 
-    // Overlay oscuro — click fuera cierra
     Rectangle {
         anchors.fill: parent
         color: Theme.scrim
@@ -259,7 +250,6 @@ PanelWindow {
         }
     }
 
-    // Card
     Rectangle {
         id: card
 
@@ -289,7 +279,6 @@ PanelWindow {
 
         Behavior on height { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
-        // Sombra
         Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.bottom
@@ -309,7 +298,6 @@ PanelWindow {
             anchors.right: parent.right
             anchors.top: parent.top
 
-            // Barra de búsqueda
             Item {
                 id: searchBar
                 width: parent.width
@@ -328,7 +316,6 @@ PanelWindow {
                         Layout.leftMargin: -4
                         Layout.rightMargin: -4
 
-                        // Icono lupa / spinner
                         Text {
                             anchors.left: parent.left
                             anchors.leftMargin: 12
@@ -345,7 +332,6 @@ PanelWindow {
                             }
                         }
 
-                        // Foco visual
                         Rectangle {
                             anchors.fill: parent
                             radius: 8
@@ -379,7 +365,6 @@ PanelWindow {
                             Keys.onReturnPressed: root.launchSelected()
                             Keys.onEnterPressed:  root.launchSelected()
 
-                            // Navegación grilla: ←→↑↓
                             Keys.onLeftPressed: {
                                 if (root.selectedIndex > 0) {
                                     root.selectedIndex--
@@ -440,7 +425,6 @@ PanelWindow {
                 }
             }
 
-            // Barra de pestañas
             Item {
                 id: tabBar
                 width: parent.width
@@ -509,7 +493,6 @@ PanelWindow {
                 }
             }
 
-            // Grilla de resultados
             Item {
                 width: parent.width
                 height: Math.min(Math.ceil(filteredModel.count / root._cols), root._maxRows)
@@ -551,7 +534,6 @@ PanelWindow {
                         ListView.onReused:  iconImage.source = (gridCell.model.iconPath !== "")
                                             ? ("file://" + gridCell.model.iconPath) : ""
 
-                        // Fondo hover/selected
                         Rectangle {
                             anchors.centerIn: parent
                             width:  72
@@ -562,7 +544,6 @@ PanelWindow {
                                    : (cellHover.containsMouse ? Theme.surface2 : "transparent")
                             Behavior on color { ColorAnimation { duration: 80 } }
 
-                            // Borde de selección
                             Rectangle {
                                 anchors.fill: parent
                                 radius: parent.radius
@@ -576,7 +557,6 @@ PanelWindow {
                                 anchors.centerIn: parent
                                 spacing: 6
 
-                                // Ícono
                                 Item {
                                     width: 48; height: 48
                                     anchors.horizontalCenter: parent.horizontalCenter
@@ -603,7 +583,6 @@ PanelWindow {
                                     }
                                 }
 
-                                // Nombre
                                 Text {
                                     width: 68
                                     anchors.horizontalCenter: parent.horizontalCenter
@@ -633,7 +612,6 @@ PanelWindow {
                 }
             }
 
-            // Sin resultados / ayuda
             Item {
                 width: parent.width
                 height: 72

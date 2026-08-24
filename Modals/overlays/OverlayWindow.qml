@@ -4,18 +4,8 @@ import Quickshell
 import Quickshell.Wayland
 import "../../Components"
 
-// OverlayWindow — template reutilizable para overlays flotantes (fade + slide).
-// PanelWindow anclado a un corner, sin exclusión, con máscara recortada a la
-// tarjeta. El overlay concreto declara su contenido como hijos (slot default).
-//
-// Opciones clave:
-//   entryId      → id en OverlaysManager. Si se setea, el template centraliza
-//                  visibilidad (arranque + toggle en vivo) y capa (onTop del
-//                  entry); si queda vacío, el overlay maneja show()/hide().
-//   mouseThrough → true = mascara de input vacia: los clicks pasan a la ventana
-//                  de abajo (overlays decorativos como Watermark/Preview).
-//   onTop        → capa para overlays NO manejados (entryId vacio): true =
-//                  Overlay (sobre ventanas); false = Bottom (detras).
+// OverlayWindow — template flotante fade+slide (PanelWindow corner, mask a card, slot default). entryId→visibilidad+capa vía OverlaysManager
+// (vacío=manual show/hide); mouseThrough→mask vacía (Watermark/Preview); onTop→Overlay/Bottom solo si no manejado.
 PanelWindow {
     id: root
 
@@ -48,20 +38,14 @@ PanelWindow {
     readonly property QtObject _ownEntry:   OverlaysManager.get(root.entryId)
     readonly property bool _managed: root.entryId !== ""
 
-    // Capa efectiva: manejados → sigue al entry (con guard contra entryId
-    // inexistente); no manejados → la property onTop declarada.
-    // (qmllint disable below: _ownEntry es QtObject genérico; el tipo real es
-    // OverlayEntry y el guard de runtime ya valida onTop/enabled.)
-    // qmllint disable missing-property
+    // Capa efectiva: manejados→entry.onTop (guard entryId), no manejados→onTop. (qmllint disable: _ownEntry
+    // QtObject genérico; guard valida onTop/enabled) qmllint disable missing-property
     readonly property bool _effectiveOnTop: root._managed && root._ownEntry
         ? root._ownEntry.onTop
         : root.onTop
 
-    // Fix capa: el binding WlrLayershell.layer por sí solo no re-mapea la
-    // surface en zwlr_layer_shell (el compositor fija la capa al mapear).
-    // Se fuerza hide→show cuando _effectiveOnTop cambia estando visible.
-    // Además se defiere el show inicial hasta OverlaysManager._loaded para
-    // evitar el fogonazo Overlay→Bottom en el primer frame.
+    // Fix capa: WlrLayershell.layer no re-mapea solo → hide→show en _effectiveOnTop;
+    // show inicial diferido a OverlaysManager._loaded (evita flash Overlay→Bottom).
     function _restackForLayer() {
         if (!root.visible) return
         hideOutAnim.stop()
@@ -107,9 +91,7 @@ PanelWindow {
         }
     }
 
-    // Unico punto de reaplicado de capa: _effectiveOnTop ya observa
-    // _ownEntry.onTop (manejados) y root.onTop (no manejados). Evita
-    // duplicar onOnTopChanged que dispararia doble restack.
+    // Único restack: _effectiveOnTop observa ambos; evita doble onOnTopChanged.
     on_EffectiveOnTopChanged: root._restackForLayer()
     // qmllint enable missing-property
 
@@ -119,10 +101,7 @@ PanelWindow {
     readonly property int  _slideOffset:    overlayWidth + 16 + 24
     readonly property int  _slideStart:     _barOnRight ? _slideOffset : -_slideOffset
 
-    // Offsets efectivos: manejados → los del OverlayEntry (persistidos);
-    // no manejados → los declarados en el propio .qml.
-    // (qmllint disable below: _ownEntry es QtObject genérico; el guard de
-    // runtime _managed && _ownEntry ya valida el acceso.)
+    // Offsets: manejados→OverlayEntry, no manejados→qml. (qmllint disable: QtObject; guard _managed validado)
     // qmllint disable missing-property
     readonly property int _effTopOffset:    root._managed && root._ownEntry ? root._ownEntry.topOffset    : root.topOffset
     readonly property int _effBottomOffset: root._managed && root._ownEntry ? root._ownEntry.bottomOffset : root.bottomOffset
@@ -130,19 +109,8 @@ PanelWindow {
     readonly property int _effRightOffset:  root._managed && root._ownEntry ? root._ownEntry.rightOffset  : root.rightOffset
     // qmllint enable missing-property
 
-    // Flujo de tamaño implícito para la card (guía "Item Size and Position" de
-    // quickshell): NO usar contentArea.childrenRect.height — la doc lo marca
-    // como anti-patrón (binding loop oculto: childrenRect depende de la posición
-    // de los hijos, que a su vez pueden depender del tamaño de la card). En su
-    // lugar la card se dimensiona con el mayor implicitHeight de su contenido:
-    // el hijo del slot declara su propio tamaño implícito y la card lo consume.
-    // Los overlays con overlayHeight fijo ni llegan aquí (la card usa ese valor).
-    // Iteramos `children` (no `data`): `data` acepta cualquier QObject (incluye
-    // Timer/Connections no visuales, sin implicitHeight → Math.max devuelve NaN)
-    // y además NO tiene señal NOTIFY en QQuickItem, por lo que un binding que la
-    // lee genera el warning "depends on non-bindable properties: QQuickItem::data"
-    // en cada reevaluación. `children` sólo trae Items visuales y sí es bindable
-    // (childrenChanged), así el binding trackea altas/bajas correctamente.
+    // Sizing card: no childrenRect (anti-patrón binding loop); max implicitHeight del slot. `data` incluye non-visuals (NaN) y no es bindable
+    // (warning QQuickItem::data); `children` solo visuals y bindable (childrenChanged).
     readonly property int _contentImplicitHeight: {
         let h = 0
         for (const child of contentArea.children) h = Math.max(h, child.implicitHeight)
@@ -179,23 +147,17 @@ PanelWindow {
     }
     // qmllint enable unqualified unresolved-type
 
-    // Mascara de input: por defecto solo la tarjeta es clickeable; con
-    // mouseThrough se anula para que los clics pasen a la ventana de abajo.
-    // En modo edición la tarjeta captura input aunque el overlay sea
-    // decorativo (mouseThrough: true) para poder arrastrarlo.
-    // (No usar Region {} inline en un ternario: QML no instancia objetos
-    // dentro de una expresión.) Usamos dos Region nombradas y elegimos una.
+    // Input mask: solo card clickeable; mouseThrough la anula. Edición captura siempre.
+    // No Region{} inline en ternario (no instancia); dos Regions nombradas.
     Region { id: _mouseThroughRegion }
     Region { id: _cardRegion; item: overlayCard }
     mask: (OverlaysManager.editPosition || !root.mouseThrough) ? _cardRegion : _mouseThroughRegion
 
-    // API pública
     function show() {
         root._animateIn()
     }
 
-    // Lógica real de entrada. Separada para que un hijo que sobreescriba
-    // show() (con otros argumentos) pueda llamarla vía root._animateIn().
+    // Entrada real: separada para hijos que sobreescriben show() → root._animateIn().
     function _animateIn() {
         hideOutAnim.stop()
         autoHideTimer.stop()
@@ -221,7 +183,6 @@ PanelWindow {
         onTriggered: root.hide()
     }
 
-    // Animaciones
     ParallelAnimation {
         id: showInAnim
         NumberAnimation {
@@ -270,7 +231,7 @@ PanelWindow {
 
         implicitHeight: root._contentImplicitHeight + root._contentMargin * 2
 
-        // Franja de acento del lado anclado
+        // Franja acento lado anclado
         Rectangle {
             visible: root.showAccent
             width: 3
@@ -285,9 +246,7 @@ PanelWindow {
             }
         }
 
-        // Área de contenido: llena la tarjeta para que los overlays puedan
-        // anclar directo (parent = la card completa, p. ej. NotificationPopup).
-        // Los overlays simples posicionan su contenido con margins explícitos.
+        // contentArea llena card: overlays anclan a parent completo; simples usan margins.
         Item {
             id: contentArea
             anchors.fill: parent
@@ -303,25 +262,14 @@ PanelWindow {
             border.width: 2
         }
 
-        // Drag de posición (modo edición)
-        // DragHandler (no MouseArea): mantiene el grab del puntero aunque el
-        // cursor salga de la tarjeta. Con MouseArea, como el compositor
-        // reposiciona la capa con ~1 frame de latencia, el cursor supera a la
-        // tarjeta, sale de ella y pierde los eventos → el arrastre se percibía
-        // "lento"/atascado. Con el grab global el drag sigue al cursor de forma
-        // continua. target: null porque NO queremos que mueva la tarjeta: la
-        // posición la gobiernan los offsets del entry (margins de la ventana).
-        // Solo los overlays gestionados (entryId) son arrastrables: los no
-        // manejados caen al guard _managed.
+        // Drag edición: DragHandler mantiene grab con latencia 1 frame (MouseArea lo pierde); target:null mueve offsets, no card. Solo gestionados.
         DragHandler {
             id: positionDrag
             target: null
             enabled: OverlaysManager.editPosition
             cursorShape: Qt.SizeAllCursor
             acceptedButtons: Qt.LeftButton
-            // Tomar y retener el grab del puntero durante el arrastre:
-            // permite robar el grab a otros handlers de tipo distinto y evita
-            // perder los eventos al salir del área de la tarjeta.
+            // Grab persistente: roba a handlers distintos, evita pérdida al salir de card.
             grabPermissions: DragHandler.CanTakeOverFromHandlersOfDifferentType
                            | DragHandler.ApprovesTakeOverByAnything
             property real pressX: 0
@@ -334,24 +282,17 @@ PanelWindow {
             onActiveChanged: {
                 if (positionDrag.active) {
                     if (!root._managed || !root._ownEntry) return
-                    // Referencia RELATIVA al punto de presión (centroid.position
-                    // es relativo a la tarjeta). Qt entrega cada evento contra
-                    // la posición ACTUAL de la ventana, así que el delta contra
-                    // el press ES el delta global real — autocorrige sin
-                    // duplicar.
+                    // centroid relativo a card; delta vs press = delta global (autocorrige latencia, no duplica).
                     pressX = centroid.position.x; pressY = centroid.position.y
                     root._dragged = false
-                    // (qmllint disable below: _ownEntry es QtObject genérico;
-                    // el guard de runtime _managed && _ownEntry ya valida.)
-                    // qmllint disable missing-property
+                    // (qmllint disable below: _ownEntry es QtObject genérico; el guard de runtime _managed &&
+                    // _ownEntry ya valida.) qmllint disable missing-property
                     const e = root._ownEntry
                     pressTop = e.topOffset; pressBottom = e.bottomOffset
                     pressLeft = e.leftOffset; pressRight = e.rightOffset
                     // qmllint enable missing-property
                 } else if (root._dragged) {
-                    // Persistir solo si hubo arrastre real. El modo edición NO
-                    // se apaga solo: se activa/desactiva desde el botón
-                    // "Mover overlays" en OverlaysControl (plan inicial).
+                    // Persistir solo si hubo drag real; edición se apaga en OverlaysControl.
                     OverlaysManager.persistNow()
                 }
             }
@@ -362,15 +303,10 @@ PanelWindow {
                 if (dx !== 0 || dy !== 0) root._dragged = true
                 // qmllint disable missing-property
                 const e = root._ownEntry
-                // Delta contra el offset INICIAL: si se aplicara contra el
-                // actual, el movimiento se contaría dos veces cuando el
-                // compositor reposiciona con latencia (overshoot, "se vuelve
-                // loco"). Contra el press, cada evento corrige al cursor real.
+                // Delta vs offset INICIAL (no actual → evita doble conteo por latencia compositor).
                 if (root.corner.endsWith("right"))  e.rightOffset = pressRight - dx
                 else                                e.leftOffset  = pressLeft  + dx
-                // OJO: corner "bottom-right" endsWith("right") pero NO
-                // endsWith("bottom") — para el eje vertical hay que mirar el
-                // INICIO del corner (startsWith), no el final.
+                // OJO: vertical usa startsWith("bottom"), no endsWith (bottom-right).
                 if (root.corner.startsWith("bottom")) e.bottomOffset = pressBottom - dy
                 else                                  e.topOffset    = pressTop    + dy
                 // qmllint enable missing-property

@@ -16,9 +16,8 @@ Rectangle {
 
     Behavior on color { ColorAnimation { duration: 100 } }
 
-    // Hyprland rawEvent — actualiza layout en tiempo real sin polling
-    // El evento "activelayout" se emite cada vez que cambia el layout activo.
-    // Formato de data: "<device-name>,<layout-name>"
+    // Hyprland rawEvent — actualiza layout en tiempo real sin polling El evento "activelayout" se emite cada
+    // vez que cambia el layout activo. Formato de data: "<device-name>,<layout-name>"
     Connections {
         target: Hyprland
         function onRawEvent(event) {

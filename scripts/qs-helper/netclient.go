@@ -14,27 +14,25 @@ import (
 	"time"
 )
 
-// Cliente HTTP compartido
+// HTTP compartido
 
-// userAgent identifica el helper en los servicios HTTP consultados.
+// userAgent helper
 const userAgent = "qs-helper/1.0 (quickshell)"
 
-// httpClient compartido con timeout: ninguna llamada debe colgar el helper.
+// httpClient con timeout
 var httpClient = &http.Client{Timeout: 15 * time.Second}
 
-// httpGetBytes hace GET con el UA genérico del helper; maxBytes > 0 limita el
-// body (defensa contra endpoints que devuelven gigas en un error).
+// httpGetBytes: GET UA genérico; maxBytes limita gigas.
 func httpGetBytes(url string, maxBytes int64) ([]byte, error) {
 	return httpGet(context.Background(), url, maxBytes, userAgent)
 }
 
-// httpGetWithUA hace GET con un User-Agent real de navegador (Bing bloquea
-// las peticiones del helper con el UA genérico).
+// httpGetWithUA: UA navegador (Bing bloquea genérico).
 func httpGetWithUA(url string, maxBytes int64) ([]byte, error) {
 	return httpGet(context.Background(), url, maxBytes, browserUA)
 }
 
-// httpGet es el GET común con UA configurable y límite de body.
+// httpGet: UA configurable + límite.
 func httpGet(ctx context.Context, url string, maxBytes int64, ua string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -55,9 +53,9 @@ func httpGet(ctx context.Context, url string, maxBytes int64, ua string) ([]byte
 	return io.ReadAll(resp.Body)
 }
 
-// Cache en disco
+// Cache disco
 
-// cacheDir es el directorio de cache del helper (~/.cache/qs-helper).
+// cacheDir ~/.cache/qs-helper
 var cacheDir = func() string {
 	if d, err := os.UserCacheDir(); err == nil && d != "" {
 		return filepath.Join(d, "qs-helper")
@@ -65,8 +63,7 @@ var cacheDir = func() string {
 	return filepath.Join(homeDir, ".cache", "qs-helper")
 }()
 
-// cacheKey normaliza un identificador a un nombre de archivo seguro.
-// Identificadores largos (URLs) se cortan con un hash corto al final.
+// cacheKey: id→filename seguro (URLs cortadas+hash).
 func cacheKey(id string) string {
 	var b strings.Builder
 	for _, r := range id {
@@ -86,8 +83,7 @@ func cacheKey(id string) string {
 	return s
 }
 
-// cacheRead devuelve los datos cacheados si existen y son más nuevos que ttl
-// (ttl <= 0 = aceptar cualquier edad, para el fallback a cache vencido).
+// cacheRead: datos si ttl ok (≤0 acepta vencido).
 func cacheRead(key string, ttl time.Duration) ([]byte, bool) {
 	p := filepath.Join(cacheDir, cacheKey(key)+".json")
 	fi, err := os.Stat(p)
@@ -108,7 +104,7 @@ func cacheRead(key string, ttl time.Duration) ([]byte, bool) {
 	return data, true
 }
 
-// cacheWrite persiste datos en el cache (escritura atómica vía tmp+Rename).
+// cacheWrite: tmp+Rename atómico.
 func cacheWrite(key string, data []byte) {
 	_ = os.MkdirAll(cacheDir, 0o755)
 	p := filepath.Join(cacheDir, cacheKey(key)+".json")
@@ -119,9 +115,7 @@ func cacheWrite(key string, data []byte) {
 	_ = os.Rename(tmp, p)
 }
 
-// cacheGet devuelve data fresca: del cache si aplica, si no llama fresh() y
-// persiste el resultado. Si fresh() falla pero existe cache vencido, lo
-// devuelve con stale=true (mejor un dato viejo que nada).
+// cacheGet: cache si aplica→fresh()→stale fallback.
 func cacheGet(key string, ttl time.Duration, fresh func() ([]byte, error)) (data []byte, stale bool, err error) {
 	if data, ok := cacheRead(key, ttl); ok {
 		return data, false, nil
@@ -137,8 +131,7 @@ func cacheGet(key string, ttl time.Duration, fresh func() ([]byte, error)) (data
 	return data, false, nil
 }
 
-// logTo escribe un mensaje en /tmp/qs-<name>.log (mismo patrón que
-// clipboardLog, para no repetir el helper).
+// logTo: /tmp/qs-<name>.log.
 func logTo(name, msg string) {
 	f, err := os.OpenFile(filepath.Join(os.TempDir(), "qs-"+name+".log"),
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)

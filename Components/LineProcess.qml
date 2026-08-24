@@ -2,9 +2,8 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell.Io
 
-// LineProcess — Process con stdout línea a línea
-// Captura stdout en un buffer; en onExited limpia el buffer y emite lines(arr)
-// con el split("\n") del contenido capturado. El handler decide la transformación.
+// LineProcess — Process con stdout línea a línea Captura stdout en un buffer; en onExited limpia el buffer y
+// emite lines(arr) con el split("\n") del contenido capturado. El handler decide la transformación.
 Process {
     id: root
     property string buffer: ""

@@ -8,12 +8,10 @@ Item {
     id: root
     implicitHeight: 44
 
-    // Signals
     signal showConfirm(string label, var cmd)
     signal runCmd(var cmd)
     signal close()
 
-    // Power actions row — centered
     Row {
         anchors.centerIn: parent
         spacing: 8

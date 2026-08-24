@@ -55,7 +55,6 @@ Rectangle {
     readonly property int  _dayOfYear:     _calcDayOfYear(sysClock.date)
     readonly property int  _daysRemaining: _calcDaysRemaining(sysClock.date)
 
-    // Inicialización
     Component.onCompleted: {
         prefsFile.reload()
         loadTimeAndNtp()
@@ -82,9 +81,8 @@ Rectangle {
         prefsFile.setText(JSON.stringify({use24h: root.use24h}))
     }
 
-    // Timezone + NTP (timedatectl — sin alternativa nativa en v0.3.0)
-    // Un solo proceso: `timedatectl show` admite varias propiedades por llamada,
-    // eliminando el segundo Process + el pipe a grep del NTP check.
+    // Timezone + NTP (timedatectl — sin alternativa nativa en v0.3.0) Un solo proceso: `timedatectl show`
+    // admite varias propiedades por llamada, eliminando el segundo Process + el pipe a grep del NTP check.
     Process {
         id: timeProc
         running: false
@@ -111,9 +109,8 @@ Rectangle {
         timeProc.running = true
     }
 
-    // Helpers tooltip (reciben sysClock.date — el tipo QML `date` es
-    // Date-compatible en JS, por eso new Date(now) replica el comportamiento
-    // original con el instante del SystemClock)
+    // Helpers tooltip (reciben sysClock.date — el tipo QML `date` es Date-compatible en JS, por eso new
+    // Date(now) replica el comportamiento original con el instante del SystemClock)
     function _calcWeekOfYear(now) {
         const d = new Date(now)
         const start = new Date(d.getFullYear(), 0, 1)
@@ -138,7 +135,6 @@ Rectangle {
         anchors.horizontalCenterOffset: 4
         spacing: 6
 
-        // Time section: HH:mm + seconds
         Row {
             spacing: 1
             anchors.verticalCenter: parent.verticalCenter
@@ -163,7 +159,6 @@ Rectangle {
             }
         }
 
-        // Separator dot
         Rectangle {
             width: 3
             height: 3
@@ -172,7 +167,6 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
         }
 
-        // Date section
         Text {
             id: dateText
             color: Theme.muted1
@@ -181,7 +175,6 @@ Rectangle {
             text: root._dateStr
         }
 
-        // UTC indicator
         Rectangle {
             width: utcText.implicitWidth + 6
             height: 14
@@ -200,7 +193,6 @@ Rectangle {
         }
     }
 
-    // Click + Hover handler
     MouseArea {
         id: mouseArea
         anchors.fill: parent
@@ -209,7 +201,6 @@ Rectangle {
         onClicked: root.clicked()
     }
 
-    // Enriched Tooltip
     Rectangle {
         id: tooltip
         visible: mouseArea.containsMouse

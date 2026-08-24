@@ -10,7 +10,6 @@ Item {
     // Inputs desde ControlCenter
     required property string activePanel          // "wifi"|"bluetooth"|"audio"|"power"|"battery"|"language"|"cpu"|"ram"|"gpu"|""
 
-    // WiFi
     required property var    nmWifiDev
     required property bool   wifiRadioOn
     required property bool   wifiScanning
@@ -25,7 +24,6 @@ Item {
     required property string wifiIp
     required property string wifiGateway
     required property string wifiDns
-    // Bluetooth
     required property var    btAdapter
     required property bool   btAvailable
     required property bool   btPwrd
@@ -38,15 +36,12 @@ Item {
     required property int    btNearbyCount
     required property var    btCodecData
 
-    // Audio
     required property var audioSinks
     required property var audioSources
 
-    // Power
     required property var    fanProfiles
     required property string fanProfile
 
-    // Battery
     required property bool  batAvailable
     required property real  batPct
     required property bool  batCharging
@@ -58,7 +53,6 @@ Item {
     required property real  batTimeEmpty
     required property real  batTimeFull
 
-    // CPU
     required property bool   cpuAvailable
     required property int    cpuPercent
     required property int    cpuTemp
@@ -70,7 +64,6 @@ Item {
     required property var    cpuCoreTemps
     required property bool   cpuLoaded
 
-    // RAM
     required property bool ramAvailable
     required property int  ramPercent
     required property real ramUsedGb
@@ -82,11 +75,9 @@ Item {
     required property real swapTotalGb
     required property real swapFreeGb
 
-    // GPU
     required property var  gpus
     required property bool gpuLoaded
 
-    // Language
     required property var    filteredLayouts
     required property var    filteredLocales
     required property string langLayout
@@ -94,7 +85,6 @@ Item {
     required property string langTab
     required property string langSearch
 
-    // Outputs
     signal closePanel()
 
     // WiFi signals
@@ -143,7 +133,6 @@ Item {
     // Visibilidad
     visible: root.activePanel !== ""
 
-    // Backdrop
     Rectangle {
         anchors.fill: parent
         color: Qt.rgba(0, 0, 0, 0.35)
@@ -162,18 +151,13 @@ Item {
             top: parent.top
             topMargin: 150
         }
-        // Tamaño implícito del panel visible.
-        // El loop sobre children.visible fallaba con Loaders porque el item se
-        // instancia de forma asíncrona: el binding se evaluaba antes de que el
-        // Loader completara la carga y visible fuera true.
-        // Solución: leer implicitWidth/implicitHeight del Loader activo por id,
-        // con Qt.binding para re-evaluar cuando statusChanged dispare.
+        // Tamaño implícito del panel visible. El loop sobre children.visible fallaba con Loaders porque el item se instancia de forma asíncrona: el binding se evaluaba antes
+        // de que el Loader completara la carga y visible fuera true. Solución: leer implicitWidth/implicitHeight del Loader activo por id, con Qt.binding para re-evaluar cuando statusChanged dispare.
         width:  _activeLoader ? _activeLoader.implicitWidth  : 0
         height: _activeLoader ? _activeLoader.implicitHeight : 0
 
-        // Re-evalúa cuando el Loader activo termina de instanciar su item.
-        // Un timer de un solo disparo diferido asegura que el binding se
-        // re-evalúa DESPUÉS de que el Loader completa la carga asíncrona.
+        // Re-evalúa cuando el Loader activo termina de instanciar su item. Un timer de un solo disparo
+        // diferido asegura que el binding se re-evalúa DESPUÉS de que el Loader completa la carga asíncrona.
         property int _loaderRevision: 0
         readonly property Loader _activeLoader: {
             const _ = root.activePanel

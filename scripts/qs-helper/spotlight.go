@@ -62,11 +62,7 @@ func saveFrecency(m frecencyMap) {
 	_ = os.Rename(tmp, frecencyPath)
 }
 
-// recordFrecency implementa `spotlight --record <exec>`.
-// No se invoca desde QML hoy; es el mecanismo que un caller usaría para
-// registrar un lanzamiento. El daemon (spotlight --daemon) NO necesita
-// invocarlo: refresca frecency por mtime del archivo en cada request
-// (refreshFrecency), así que un `--record` externo se ve sin reiniciar.
+// recordFrecency: spotlight --record <exec>; daemon lo ve por mtime sin reiniciar.
 func recordFrecency(execStr string) {
 	m := loadFrecency()
 	m[execStr]++
@@ -95,7 +91,7 @@ func shortPath(p string) string {
 	return strings.Replace(p, homeDir, "~", 1)
 }
 
-// Modo lista de apps (sin query)
+// Lista apps sin query
 func spotlightListApps(s *spotlightState) []spotlightItem {
 	apps := s.appList()
 	rec := s.frec
@@ -121,7 +117,7 @@ func spotlightListApps(s *spotlightState) []spotlightItem {
 	return items
 }
 
-// Ventanas (hyprctl clients)
+// Ventanas hyprctl clients
 type hyprClient struct {
 	Address   string `json:"address"`
 	Title     string `json:"title"`
@@ -174,7 +170,7 @@ func hyprWindows(query string) []spotlightItem {
 	return items
 }
 
-// Búsqueda de archivos (walker nativo, reemplaza fd)
+// Búsqueda archivos (walker nativo)
 var fileExcludes = map[string]bool{
 	".git":               true,
 	".cache":             true,
@@ -183,20 +179,20 @@ var fileExcludes = map[string]bool{
 	"node_modules":       true,
 }
 
-// fileCand es un candidato rankeado (directo o subsecuencia).
+// fileCand: candidato rankeado.
 type fileCand struct {
 	path  string
 	score int
 }
 
-// bfsDir es un directorio pendiente de procesar en la BFS.
+// bfsDir: dir pendiente BFS.
 type bfsDir struct {
 	dir   string
 	rel   string // relativo a homeDir, precomputado al encolar
 	depth int
 }
 
-// fileWalker ejecuta la búsqueda BFS compartida entre workers.
+// fileWalker: BFS compartido.
 type fileWalker struct {
 	q        string
 	mu       sync.Mutex
@@ -219,7 +215,7 @@ func newFileWalker(q string) *fileWalker {
 	return w
 }
 
-// addDirect registra un candidato directo y corta la búsqueda al llegar a 12.
+// addDirect: registra y corta a 12.
 func (w *fileWalker) addDirect(c fileCand) {
 	w.mu.Lock()
 	w.direct = append(w.direct, c)
@@ -229,11 +225,7 @@ func (w *fileWalker) addDirect(c fileCand) {
 	w.mu.Unlock()
 }
 
-// pop saca el próximo dir a procesar, bloqueando mientras la cola esté vacía.
-// El pop y el incremento de inflight ocurren bajo EL MISMO lock: el goroutine
-// de terminación nunca observa "cola vacía + inflight 0" en el medio.
-// Pop desde el final (LIFO, O(1)) — el orden DFS es aceptable para búsqueda
-// con deadline de 2s; evita el shift O(n) del pop frontal.
+// pop: saca dir bloqueando si cola vacía; pop+inflight bajo mismo lock (evita race terminación); LIFO O(1).
 func (w *fileWalker) pop() (bfsDir, bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -253,7 +245,7 @@ func (w *fileWalker) pop() (bfsDir, bool) {
 	return it, true
 }
 
-// isExcluded decide si un entry (por nombre y ruta relativa) debe saltarse.
+// isExcluded: filtra por exclusiones.
 func isExcluded(rel, name string) bool {
 	if fileExcludes[name] || strings.HasPrefix(name, ".") {
 		return true
@@ -264,7 +256,7 @@ func isExcluded(rel, name string) bool {
 	return false
 }
 
-// scanDir procesa un dir: enqueuea subdirectorios y rankea archivos.
+// scanDir: encolaa subdirs, rankea files.
 func (w *fileWalker) scanDir(it bfsDir) {
 	entries, err := os.ReadDir(it.dir)
 	if err != nil {
@@ -301,7 +293,7 @@ func (w *fileWalker) enqueueDir(it bfsDir, name string) {
 	w.mu.Unlock()
 }
 
-// rankFile clasifica un archivo como match directo o subsecuencia.
+// rankFile: directo vs subsec.
 func (w *fileWalker) rankFile(full, name string) {
 	lower := strings.ToLower(name)
 	if strings.Contains(lower, w.q) {
@@ -317,7 +309,7 @@ func (w *fileWalker) rankFile(full, name string) {
 	}
 }
 
-// worker consume dirs de la cola hasta parar o agotar el deadline.
+// worker: consume hasta stop/deadline.
 func (w *fileWalker) worker() {
 	for {
 		if w.stop.Load() || time.Now().After(w.deadline) {
@@ -335,8 +327,7 @@ func (w *fileWalker) worker() {
 	}
 }
 
-// run lanza los workers y espera a que la cola se vacíe, sin dirs en vuelo,
-// o a un corte temprano (stop/deadline).
+// run: workers hasta vaciar o stop/deadline.
 func (w *fileWalker) run() {
 	const maxWorkers = 8
 	var wg sync.WaitGroup
@@ -392,7 +383,7 @@ func fileCandidates(query string) []spotlightItem {
 	return items
 }
 
-// Modo query
+// Query mode
 func spotlightSearch(query string, s *spotlightState) []spotlightItem {
 	queryLow := strings.ToLower(strings.TrimSpace(query))
 	results := []spotlightItem{}
@@ -410,7 +401,7 @@ func spotlightSearch(query string, s *spotlightState) []spotlightItem {
 	return results
 }
 
-// appendCalcResult antepone el resultado de calculadora, si la query es una.
+// appendCalcResult: prepend calc si aplica.
 func appendCalcResult(query string, results *[]spotlightItem) {
 	if val, ok := tryCalc(query); ok {
 		*results = append(*results, spotlightItem{
@@ -424,7 +415,7 @@ func appendCalcResult(query string, results *[]spotlightItem) {
 	}
 }
 
-// appendAppMatches agrega apps (top 10 por score, boost de recencia).
+// appendAppMatches: top10 + boost frecency.
 func appendAppMatches(queryLow string, results *[]spotlightItem, s *spotlightState) {
 	if queryLow == "" {
 		return
@@ -467,7 +458,7 @@ func appendAppMatches(queryLow string, results *[]spotlightItem, s *spotlightSta
 	}
 }
 
-// appendFileMatches agrega archivos (solo si hay espacio y query >= 2).
+// appendFileMatches: solo si espacio y len>=2.
 func appendFileMatches(query, queryLow string, results *[]spotlightItem) {
 	if queryLow == "" || len([]rune(queryLow)) < 2 || len(*results) >= 12 {
 		return
@@ -480,7 +471,7 @@ func appendFileMatches(query, queryLow string, results *[]spotlightItem) {
 	}
 }
 
-// appendWindowMatches agrega ventanas de hyprctl.
+// appendWindowMatches: hyprctl.
 func appendWindowMatches(query, queryLow string, results *[]spotlightItem) {
 	if queryLow == "" {
 		return
@@ -490,7 +481,7 @@ func appendWindowMatches(query, queryLow string, results *[]spotlightItem) {
 	}
 }
 
-// appendShellCommand agrega el comando de shell al final (si no es calc).
+// appendShellCommand: fallback shell si no calc.
 func appendShellCommand(query string, results *[]spotlightItem) {
 	if query == "" || calcRe.MatchString(query) {
 		return
@@ -507,7 +498,7 @@ func appendShellCommand(query string, results *[]spotlightItem) {
 	})
 }
 
-// Entry point del subcomando spotlight
+// Entry spotlight
 func runSpotlight(args []string) int {
 	loadIconCache()
 	defer saveIconCache()

@@ -14,15 +14,8 @@ import (
 	"time"
 )
 
-// Comprobación de actualizaciones del sistema (updates-check)
-// Detecta los gestores de paquetes instalados (dnf/apt/pacman/snap/flatpak) en
-// runtime con exec.LookPath y cuenta las actualizaciones disponibles de cada
-// uno. El resultado se cachea en ~/.cache/qs-helper/updates.json con TTL de 1h
-// para que la shell pueda consultarlo seguido sin martillar los gestores.
-//
-// Semántica de salida: exit 0 siempre que haya datos (aunque haya updates);
-// exit 1 solo en fallo real (cache vencido/ausente y todos los gestores
-// presentes fallaron). En ese caso el JSON lleva el campo "error".
+// updates-check: detecta dnf/apt/pacman/snap/flatpak (LookPath), cuenta updates,
+// cachea ~/.cache/qs-helper/updates.json 1h. Exit 0 si hay datos, 1 solo si fallan todos (JSON error).
 
 type updatesResult struct {
 	Total     int            `json:"total"`
@@ -33,12 +26,10 @@ type updatesResult struct {
 
 const updatesCacheTTL = time.Hour
 
-// updatesLockPath serializa el chequeo entre instancias (un overlay por
-// pantalla): solo un proceso corre dnf/flatpak a la vez, el resto espera y
-// lee del cache fresco.
+// updatesLockPath: serializa chequeo entre overlays (flock).
 var updatesLockPath = filepath.Join(cacheDir, ".updates.lock")
 
-// lockUpdates adquiere un lock exclusivo; devuelve la función que lo libera.
+// lockUpdates: flock exclusivo → release().
 func lockUpdates() (release func()) {
 	_ = os.MkdirAll(cacheDir, 0o755)
 	f, err := os.OpenFile(updatesLockPath, os.O_CREATE|os.O_RDWR, 0o644)
@@ -61,9 +52,7 @@ func lockUpdates() (release func()) {
 	}
 }
 
-// runCmd ejecuta un comando con timeout (los gestores pueden tardar en
-// refrescar metadatos). Devuelve stdout y el código de salida; -1 si no pudo
-// ejecutarse o se agotó el tiempo. stderr se descarta (ruido de los gestores).
+// runCmd: ejecuta con timeout, devuelve stdout+code (-1 timeout/fallo); stderr descartado.
 func runCmd(timeout time.Duration, name string, args ...string) ([]byte, int) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -79,7 +68,7 @@ func runCmd(timeout time.Duration, name string, args ...string) ([]byte, int) {
 	return out.Bytes(), 0
 }
 
-// countLines cuenta líneas no vacías de la salida.
+// countLines: líneas no vacías.
 func countLines(data []byte) int {
 	n := 0
 	for _, l := range strings.Split(string(data), "\n") {
@@ -90,8 +79,7 @@ func countLines(data []byte) int {
 	return n
 }
 
-// countLinesSkipPrefix cuenta líneas no vacías que no empiecen con el prefijo
-// (salta encabezados tipo "Listing..." de apt o la fila de títulos de snap).
+// countLinesSkipPrefix: salta encabezados por prefijo.
 func countLinesSkipPrefix(data []byte, prefix string) int {
 	n := 0
 	for _, l := range strings.Split(string(data), "\n") {
@@ -103,7 +91,7 @@ func countLinesSkipPrefix(data []byte, prefix string) int {
 	return n
 }
 
-// mgrCheck describe cómo consultar un gestor de paquetes.
+// mgrCheck: descriptor gestor.
 type mgrCheck struct {
 	name  string
 	bin   string
@@ -111,8 +99,7 @@ type mgrCheck struct {
 	count func(out []byte, code int) (int, bool) // (n, ok); ok=false → error
 }
 
-// checkUpdates consulta cada gestor instalado y devuelve el conteo por gestor
-// más los errores por gestor (no fatales salvo que falle todas).
+// checkUpdates: consulta gestores instalados → conteos+errores.
 func checkUpdates() (map[string]int, []string) {
 	checks := []mgrCheck{
 		{
@@ -187,7 +174,7 @@ func checkUpdates() (map[string]int, []string) {
 	return managers, errs
 }
 
-// buildUpdatesResult compone el JSON de salida a partir del chequeo.
+// buildUpdatesResult: arma JSON.
 func buildUpdatesResult(managers map[string]int, errs []string) ([]byte, error) {
 	total := 0
 	for _, n := range managers {
@@ -204,9 +191,7 @@ func buildUpdatesResult(managers map[string]int, errs []string) ([]byte, error) 
 	return json.Marshal(r)
 }
 
-// runUpdatesCheck implementa `updates-check`.
-// Fast path: cache fresco → se imprime sin tocar los gestores.
-// Slow path: lock (serializa instancias) + relectura + chequeo fresco.
+// runUpdatesCheck: fast path cache fresco, slow path lock+chequeo.
 func runUpdatesCheck() int {
 	if data, ok := cacheRead("updates", updatesCacheTTL); ok {
 		fmt.Println(string(data))

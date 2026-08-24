@@ -25,7 +25,6 @@ Rectangle {
     Component.onCompleted: WeatherProvider._anyConsumerVisible = true
     Component.onDestruction: WeatherProvider._anyConsumerVisible = false
 
-    // Contenido
     Row {
         id: weatherRow
         anchors.centerIn:              parent

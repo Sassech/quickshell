@@ -9,11 +9,8 @@ Row {
     // Player state
     property MprisPlayer _cachedPlayer: null
 
-    // El wallpaper de video (mpvpaper → mpv) toma el bus canónico
-    // org.mpris.MediaPlayer2.mpv; el mpv real del usuario, al abrirse después,
-    // queda como org.mpris.MediaPlayer2.mpv.instance-XXXX. Se banea el canónico
-    // SOLO cuando coexiste una instancia real: entonces el canónico es el
-    // wallpaper (Playing en loop perpetuo) y el instance es el mpv del usuario.
+    // El wallpaper de video (mpvpaper → mpv) toma el bus canónico org.mpris.MediaPlayer2.mpv; el mpv real del usuario, al abrirse después, queda como org.mpris.MediaPlayer2.mpv.instance-XXXX. Se banea
+    // el canónico SOLO cuando coexiste una instancia real: entonces el canónico es el wallpaper (Playing en loop perpetuo) y el instance es el mpv del usuario.
     function _isBanned(p) {
         if ((p.busName ?? "") !== "org.mpris.MediaPlayer2.mpv") return false
         const players = Mpris.players.values ?? []
@@ -51,7 +48,6 @@ Row {
         return title || artist || "No media"
     }
 
-    // Inicialización
     Component.onCompleted: Qt.callLater(root._updateCachedPlayer)
 
     // Reacciona a cambios en la lista de players
@@ -67,9 +63,8 @@ Row {
         function onTrackChanged()     { root._updateCachedPlayer() }
     }
 
-    // Escucha cada player individualmente — cubre cambios de playbackState que
-    // onValuesChanged no detecta (e.g. Brave pasa de Paused a Playing sin
-    // re-registrarse en la lista).
+    // Escucha cada player individualmente — cubre cambios de playbackState que onValuesChanged no detecta
+    // (e.g. Brave pasa de Paused a Playing sin re-registrarse en la lista).
     Instantiator {
         model: Mpris.players
         delegate: Connections {

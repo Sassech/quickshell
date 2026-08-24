@@ -5,11 +5,8 @@ import Quickshell
 import Quickshell.Wayland
 import "../Components"
 
-// OverlaysControl — modal del sistema para gestionar los overlays flotantes.
-//
-// Data-driven: renderiza una fila por entrada de OverlaysManager.overlays
-// (Repeater). Agregar un overlay nuevo NO requiere tocar este archivo — solo
-// agregar la OverlayEntry en el manager.
+// OverlaysControl — modal del sistema para gestionar los overlays flotantes. Data-driven: renderiza una fila por entrada de
+// OverlaysManager.overlays (Repeater). Agregar un overlay nuevo NO requiere tocar este archivo — solo agregar la OverlayEntry en el manager.
 QmModalBase {
     id: root
 
@@ -20,7 +17,6 @@ QmModalBase {
     focusCard: true
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
 
-    // Contenido
     ColumnLayout {
         id: ocCol
         anchors {
@@ -44,7 +40,6 @@ QmModalBase {
             color: Theme.muted2
         }
 
-        // Separador
         Rectangle {
             Layout.fillWidth: true
             Layout.topMargin: 8
@@ -53,7 +48,6 @@ QmModalBase {
             color: Theme.surface2
         }
 
-        // Modo edición de posición
         RowLayout {
             Layout.fillWidth: true
             Layout.preferredHeight: 32
@@ -66,9 +60,8 @@ QmModalBase {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     OverlaysManager.editPosition = !OverlaysManager.editPosition
-                    // Al activar el modo edición se cierra el modal para
-                    // arrastrar directo; para apagarlo se vuelve a abrir el
-                    // modal y se desactiva el botón (plan inicial).
+                    // Al activar el modo edición se cierra el modal para arrastrar directo; para apagarlo se
+                    // vuelve a abrir el modal y se desactiva el botón (plan inicial).
                     if (OverlaysManager.editPosition) root.close()
                 }
 
@@ -242,8 +235,7 @@ QmModalBase {
         }
     }
 
-    // Componente interno: switch custom
-    // Estilo hand-rolled del proyecto (Behavior + thumb animado), sin
+    // Componente interno: switch custom Estilo hand-rolled del proyecto (Behavior + thumb animado), sin
     // QtQuick.Controls para no introducir dependencia nueva.
     component ToggleSwitch: Item {
         id: sw

@@ -4,12 +4,8 @@ import Quickshell
 import Quickshell.Wayland
 import "../Components"
 
-// QmModalBase — plantilla para modales de pantalla completa.
-// PanelWindow fullscreen + backdrop scrim + card centrada (o anclada) +
-// consumo de clicks + cierre con Escape. El contenido va en el slot
-// `default property alias content` (los hijos escriben sus items directo).
-// Alturas: cardHeight > 0 → fija; fixedHeight → cardFixedHeight;
-//          default → min(cardFixedHeight, screen.height * cardHeightFactor).
+// QmModalBase — plantilla para modales de pantalla completa. PanelWindow fullscreen + backdrop scrim + card centrada (o anclada) + consumo de clicks + cierre con Escape. El contenido
+// va en el slot `default property alias content` (los hijos escriben sus items directo). Alturas: cardHeight > 0 → fija; fixedHeight → cardFixedHeight; default → min(cardFixedHeight, screen.height * cardHeightFactor).
 PanelWindow {
     id: root
 
@@ -31,7 +27,6 @@ PanelWindow {
     property int cardRightMargin: 12
     property int cardLeftMargin: 0
 
-    // Backdrop
     property bool showScrim: true
     property real scrimOpacity: 1.0
     property color scrimColor: Theme.scrim
@@ -66,7 +61,6 @@ PanelWindow {
         }
     }
 
-    // Card
     Rectangle {
         id: card
         width: root.cardWidth
@@ -83,9 +77,8 @@ PanelWindow {
             if (root.escapeEnabled) root.close()
         }
 
-        // Posicionamiento según cardAnchor (x/y en vez de anchors: evita la
-        // combinación inválida left+right+horizontalCenter y preserva el
-        // comportamiento original de cada esquema).
+        // Posicionamiento según cardAnchor (x/y en vez de anchors: evita la combinación inválida
+        // left+right+horizontalCenter y preserva el comportamiento original de cada esquema).
         x: root.cardAnchor === "left" ? root.cardLeftMargin
          : root.cardAnchor === "topRight" ? parent.width - card.width - root.cardRightMargin
          : (parent.width - card.width) / 2

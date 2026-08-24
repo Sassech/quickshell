@@ -12,21 +12,17 @@ Rectangle {
     radius: 14
     color: Theme.cardBg3
 
-    // Borde sutil
     Rectangle {
         anchors.fill: parent; radius: parent.radius; color: "transparent"
         border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2); border.width: 1
     }
 
-    // Inputs
     required property var    fanProfiles    // [{id, label, icon}] — no usado, mantenido por compatibilidad
     required property string fanProfile     // SysData.fanProfile — no usado
 
-    // Outputs
     signal closeRequested()
     signal setPower(var profile)
 
-    // Helpers
     function _powerLabel(profile) {
         if (profile === PowerProfile.Performance) return "Performance"
         if (profile === PowerProfile.PowerSaver)  return "Power saver"
@@ -43,7 +39,6 @@ Rectangle {
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
         spacing: 10
 
-        // Header
         Item {
             width: parent.width; height: 28
             Text {

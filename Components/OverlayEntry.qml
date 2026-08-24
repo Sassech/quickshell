@@ -2,11 +2,8 @@
 import QtQuick
 import QtQml
 
-// OverlayEntry — un registro de overlay dentro de OverlaysManager.overlays.
-// Data-driven: todo lo que el modal y el shell necesitan sobre un overlay vive
-// aquí (metadatos + estado), además de la fuente del componente que lo instancia.
-// Agregar un overlay nuevo = crear su .qml + una entrada OverlayEntry aquí; no
-// se toca ni OverlaysControl ni shell.qml.
+// OverlayEntry — un registro de overlay dentro de OverlaysManager.overlays. Data-driven: todo lo que el modal y el shell necesitan sobre un overlay vive aquí (metadatos + estado), además
+// de la fuente del componente que lo instancia. Agregar un overlay nuevo = crear su .qml + una entrada OverlayEntry aquí; no se toca ni OverlaysControl ni shell.qml.
 QtObject {
     id: root
 

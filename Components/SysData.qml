@@ -9,15 +9,12 @@ import Quickshell.Services.UPower
 QtObject {
     id: data
 
-    // UPower battery (reactive)
     readonly property var _upDev: UPower.displayDevice
 
-    // CPU
     property int cpuPercent: 0
     property int cpuTemp: 0
     property bool cpuAvailable: false
 
-    // RAM
     property int ramPercent: 0
     property real ramUsedGb: 0.0
     property real ramTotalGb: 0.0
@@ -29,7 +26,6 @@ QtObject {
     property real swapFreeGb:   0.0
     property bool ramAvailable: false
 
-    // GPU
     property int gpuPercent: -1
     property int gpuTemp: 0
     property string gpuName: ""
@@ -37,13 +33,11 @@ QtObject {
     property int gpuVramUsedMb: 0
     property int gpuVramTotalMb: 0
 
-    // Disk
     property int diskUsedGb: 0
     property int diskAvailGb: 0
     property int diskPercent: 0
     property bool diskAvailable: false
 
-    // Network
     // Radio / connection state — reactive via Quickshell.Networking
     readonly property var _wifiDev: {
         var devs = Networking.devices.values
@@ -78,7 +72,6 @@ QtObject {
     property real netDownSpeed: 0.0
     property real netUpSpeed: 0.0
 
-    // Fan
     property int fan1Rpm: 0
     property int fan2Rpm: 0
     property int fan1Percent: 0
@@ -117,9 +110,7 @@ QtObject {
     property var    _cpuFreqPaths:  []   // list of scaling_cur_freq paths (one per core)
     property bool   pollersReady:   false
 
-    // CC visibility gate — set by ControlCenter when it opens/closes
-    // Pollers that are only needed while the ControlCenter is visible (fan,
-    // GPU) gate on this flag so they stop when the panel is hidden.
+    // CC visible gate: fan/GPU solo si CC abierto.
     property bool anyCcVisible: false
 
     // Extended CPU detail
@@ -149,7 +140,7 @@ QtObject {
     property real   _prevTxBytes:   -1
     property var    _prevDiskSectors: null   // previous diskstats sectors for I/O delta
 
-    // Discovery parsers (called from shell.qml startup chain)
+    // Discovery parsers (shell.qml).
     function parseHwmonDiscovery(text) {
         const lines = text.trim().split('\n')
         for (const line of lines) {
@@ -192,7 +183,7 @@ QtObject {
         data.cpuNcores = parseInt(lines[1]) || 0
     }
 
-    // CPU delta helpers
+    // Helpers delta CPU
     function parseCpuStatLine(parts) {
         // parts: array of strings from splitting a /proc/stat cpu line
         // returns {total, work}
@@ -230,10 +221,9 @@ QtObject {
         return null
     }
 
-    // Children (QtObject has no default property — must declare explicitly,
-    // matching the established WeatherProvider.qml convention)
+    // Children QtObject: alias explícito (sin default property).
 
-    // cpuMaxFreqMhz / cpuGovernor / cpuEpp — static sysfs, cpu0 only.
+    // cpuMaxFreq/governor/epp: sysfs estático cpu0.
     property FileView _cpuMaxFreqFile: FileView {
         id: cpuMaxFreqFile
         path: "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq"
@@ -252,10 +242,7 @@ QtObject {
         onLoaded: data.cpuEpp = text().trim()
     }
 
-    // Per-core temps — one FileView per path, no shell process per poll.
-    // Each delegate watches its sysfs file; reloads are ALSO driven by the 4s
-    // _cpuTimer as a safety net because hwmon sysfs files don't reliably emit
-    // inotify events (value is computed on read, not pushed by the kernel).
+    // Per-core temps: FileView por path; _cpuTimer 4s como backup (hwmon sysfs no emite inotify fiable).
     property Instantiator _coreTempInstantiator: Instantiator {
         id: coreTempInstantiator
         model: data._coreTempPaths
@@ -275,7 +262,7 @@ QtObject {
         }
     }
 
-    // Helper: reload all per-core temp FileViews (called by _cpuTimer).
+    // Reload temps por core (llamado por _cpuTimer).
     function _reloadCoreTemps() {
         if (data._coreTempPaths.length === 0) return
         for (let i = 0; i < coreTempInstantiator.count; ++i) {
@@ -284,7 +271,7 @@ QtObject {
         }
     }
 
-    // NVMe detail.
+    // NVMe model/fw/temp.
     property FileView _nvmeModelFile: FileView {
         id: nvmeModelFile
         path: "/sys/class/nvme/nvme0/model"
@@ -322,11 +309,7 @@ QtObject {
         }
     }
 
-    // Disk I/O sampler — single FileView + periodic reload, delta vs previous
-    // read. Same pattern as the RAM poller: /proc/diskstats is monotonic, so
-    // the delta over the 2s interval gives MB/s. Quickshell v0.3.0 skips
-    // reload() when file content is unchanged, so a two-shot sampler would
-    // stall on idle disks — this variant keeps the last known values instead.
+    // Disk I/O: FileView /proc/diskstats monotonic, delta/2s → MB/s; mantiene last values (v0.3.0 skip si sin cambios).
     property FileView _diskStatsFile: FileView {
         id: diskStatsFile
         path: "/proc/diskstats"
@@ -345,7 +328,7 @@ QtObject {
         }
     }
 
-    // Continuous I/O sampling while CC is visible — single FileView + reload.
+    // I/O sampling continuo (solo CC visible).
     property Timer _diskIoTimer: Timer {
         id: diskIoTimer
         interval: 2000
@@ -355,10 +338,9 @@ QtObject {
         onTriggered: diskStatsFile.reload()
     }
 
-    // Pollers nativos QML — los Timers de abajo gatean en pollersReady
-    // (chain de descubrimiento de shell.qml).
+    // Pollers (gatean en pollersReady).
 
-    // 2.1 RAM poller (FileView /proc/meminfo, 4s)
+    // RAM poller /proc/meminfo 4s
     function parseMeminfo(text) {
         const lines = text.split('\n')
         let memTotal = 0, memFree = 0, memAvail = 0
@@ -402,9 +384,7 @@ QtObject {
     property FileView _memInfoFile: FileView {
         id: memInfoFile
         path: "/proc/meminfo"
-        // Carga inicial inmediata — no esperar al timer ni a pollersReady.
-        // /proc/meminfo siempre existe; una lectura temprana no hace daño
-        // y garantiza que el widget de RAM muestra datos desde el arranque.
+        // Carga inmediata /proc/meminfo (no esperar pollersReady; widget RAM desde arranque).
         Component.onCompleted: this.reload()
         onLoaded: data.parseMeminfo(text())
     }
@@ -418,7 +398,7 @@ QtObject {
         onTriggered: memInfoFile.reload()
     }
 
-    // 2.2 CPU usage poller (FileView /proc/stat, 4s)
+    // CPU poller /proc/stat 4s
     function parseCpuStat(text) {
         const lines = text.split('\n').filter(l => l.startsWith('cpu'))
         if (lines.length === 0) return
@@ -449,17 +429,14 @@ QtObject {
         onLoaded: data.parseCpuStat(text())
     }
 
-    // CPU package temperature — hwmon coretemp/k10temp temp1_input ÷ 1000.
+    // CPU temp package: hwmon temp1_input/1000.
     property FileView _cpuTempFile: FileView {
         id: cpuTempFile
         path: data._hwmonCpu ? (data._hwmonCpu + "temp1_input") : ""
         onLoaded: data.cpuTemp = Math.round((parseInt(text().trim()) || 0) / 1000)
     }
 
-    // Average scaling_cur_freq across all cores (REQ-02 "MUST average").
-    // Strategy: one-shot Process at startup discovers all cpu*/cpufreq/scaling_cur_freq
-    // paths and stores them in _cpuFreqPaths; then an Instantiator creates one
-    // FileView per path (no shell process per poll tick).
+    // Avg scaling_cur_freq (REQ-02): Process one-shot descubre paths → Instantiator FileView por core.
     property Process _cpuFreqDiscoveryProc: Process {
         id: cpuFreqDiscoveryProc
         command: ["sh", "-c",
@@ -472,7 +449,7 @@ QtObject {
         }
     }
 
-    // Trigger discovery once pollersReady fires.
+    // Dispara discovery de freq paths al activar pollersReady.
     property Connections _cpuFreqDiscoveryTrigger: Connections {
         target: data
         function onPollersReadyChanged() {
@@ -481,10 +458,10 @@ QtObject {
         }
     }
 
-    // Accumulator — reset each poll cycle before the Instantiator reloads all FileViews.
+    // Acumulador freq: reset por ciclo antes de reload.
     property var _cpuFreqRawValues: []
 
-    // One FileView per core path. Each reload() reads the sysfs file with no fork.
+    // FileView por core: reload sin fork.
     property Instantiator _cpuFreqInstantiator: Instantiator {
         id: cpuFreqInstantiator
         model: data._cpuFreqPaths
@@ -506,7 +483,7 @@ QtObject {
         }
     }
 
-    // Helper: trigger a full freq refresh (reloads all per-core FileViews).
+    // Reload todas freqs.
     function _reloadCpuFreqs() {
         if (data._cpuFreqPaths.length === 0) return
         data._cpuFreqRawValues.splice(0)   // vaciar sin reasignar
@@ -530,8 +507,7 @@ QtObject {
         }
     }
 
-    // Public trigger — refresco inmediato de todos los detalles de CPU
-    // (usado por el panel CPU del ControlCenter).
+    // Refresh inmediato detalles CPU (panel CC).
     function refreshCpuDetail() {
         cpuStatFile.reload()
         cpuTempFile.reload()
@@ -542,7 +518,7 @@ QtObject {
         cpuMaxFreqFile.reload()
     }
 
-    // 2.3 Fan poller (FileView hwmon sysfs, 5s)
+    // Fan poller hwmon sysfs 5s
     property int _fanMax1: 3700
     property int _fanMax2: 4000
 
@@ -625,7 +601,7 @@ QtObject {
         onLoaded: data.fanProfile = text().trim()
     }
 
-    // 2.4 Network speed + state poller (FileView /proc/net/dev, 3s)
+    // Net poller /proc/net/dev 3s
     function parseNetDev(text) {
         if (!data._netIface) return
         const lines = text.split('\n')
@@ -663,7 +639,7 @@ QtObject {
         onTriggered: netDevFile.reload()
     }
 
-    // 2.5 GPU poller (Process nvidia-smi, 4s, sysfs fallback)
+    // GPU: nvidia-smi loop 4s, fallback sysfs
     function parseNvidiaSmi(text) {
         const out = text.trim()
         if (!out || out.toLowerCase().indexOf("failed") !== -1) {
@@ -750,9 +726,7 @@ QtObject {
         // qmllint enable signal-handler-parameters
     }
 
-    // Sysfs fallback — only exercised when nvidia-smi is absent/fails.
-    // Vendor/busy%/VRAM only (no freq-based % fallback): design.md marks the
-    // full AMD/Intel sysfs path as dead code on this NVIDIA-only Alienware hw.
+    // Fallback sysfs solo si nvidia-smi falla (vendor/busy/VRAM; AMD/Intel dead code).
     property Process _gpuSysfsProc: Process {
         id: gpuSysfsProc
         command: {
@@ -769,7 +743,7 @@ QtObject {
         }
     }
 
-    // 2.6 Disk usage poller (Process df, 30s)
+    // Disk poller df 30s
     function parseDf(text) {
         const lines = text.trim().split('\n')
         if (lines.length < 2) return

@@ -6,9 +6,8 @@ import Quickshell.Wayland
 import Quickshell.Io
 import "../Components"
 
-// ScreenshotModal — selector de captura de pantalla
-// Posición: top-center   Atajo: SUPER+SHIFT+S
-// Opciones: pantalla completa | ventana activa | área seleccionada
+// ScreenshotModal — selector de captura de pantalla Posición: top-center   Atajo: SUPER+SHIFT+S Opciones:
+// pantalla completa | ventana activa | área seleccionada
 PanelWindow {
     id: root
 
@@ -26,7 +25,6 @@ PanelWindow {
 
     implicitHeight: screen.height
 
-    // Estado interno
     property bool _running: false
 
     // Abrir / cerrar
@@ -60,7 +58,6 @@ PanelWindow {
         }
     }
 
-    // Proceso de captura
     Process {
         id: captureProc
         running: false
@@ -103,7 +100,6 @@ PanelWindow {
         }
     }
 
-    // Animaciones
     NumberAnimation {
         id: fadeIn
         target: card
@@ -156,7 +152,6 @@ PanelWindow {
         opacity: 0
         layer.enabled: true
 
-        // Borde sutil
         Rectangle {
             anchors.fill: parent
             radius: parent.radius
@@ -197,7 +192,6 @@ PanelWindow {
                 }
             }
 
-            // Separador
             Rectangle {
                 Layout.fillWidth: true
                 implicitHeight: 1
@@ -274,7 +268,6 @@ PanelWindow {
             }
             spacing: 12
 
-            // Icono
             Rectangle {
                 implicitWidth: 36; implicitHeight: 36
                 radius: 9

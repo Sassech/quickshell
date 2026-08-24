@@ -45,9 +45,8 @@ Rectangle {
         }
     }
 
-    // Resolver icono con soporte para ?path= custom icons
-    // Algunas apps (ej. Spotify) envían iconos como "image://icon/spotify-linux-32?path=/usr/share/spotify/icons"
-    // Quickshell no soporta custom icon paths, así que lo resolvemos manualmente.
+    // Resolver icono con soporte para ?path= custom icons Algunas apps (ej. Spotify) envían iconos como "image://icon/spotify-
+    // linux-32?path=/usr/share/spotify/icons" Quickshell no soporta custom icon paths, así que lo resolvemos manualmente.
     property string _resolvedIcon: {
         const raw = root.trayItem.icon ?? ""
         if (raw.includes("?path=")) {
@@ -91,7 +90,6 @@ Rectangle {
         }
     }
 
-    // Interacción
     MouseArea {
         id: ma
         anchors.fill: parent

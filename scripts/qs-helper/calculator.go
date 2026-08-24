@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// calcRe replica el gate del Python: solo dígitos, espacios y operadores.
+// calcRe: gate python dígitos/op.
 var calcRe = regexp.MustCompile(`^[\d\s+\-*/().^%,]+$`)
 
 type calcToken struct {
@@ -16,8 +16,7 @@ type calcToken struct {
 	op    string // "+", "-", "*", "/", "//", "%", "**", "neg", "pos"
 }
 
-// shuntingYard convierte la expresión infija a RPN y la evalúa.
-// Precedencia Python: ** (derecha-asoc) > unario > * / // % > + -
+// shuntingYard: infija→RPN, prec Python **>unario>* / // %>+ -.
 func evalCalc(expr string) (float64, error) {
 	// Normalización igual que Python: ^ -> **, , -> .
 	expr = strings.ReplaceAll(expr, "^", "**")
@@ -84,8 +83,7 @@ func isOpStart(c byte) bool {
 	return c == '*' || c == '/' || c == '%'
 }
 
-// classifySign clasifica +/− como binario o unario según el contexto:
-// unario si es el primer token o el previo es operador/lparen.
+// classifySign: unario si inicio o tras op/lparen.
 func classifySign(tokens []calcToken, c byte) string {
 	if len(tokens) > 0 {
 		last := tokens[len(tokens)-1].kind
@@ -162,7 +160,7 @@ func toRPN(tokens []calcToken) ([]calcToken, error) {
 	return flushOps(output, ops)
 }
 
-// pushOperator apila un operador, drenando antes los de mayor precedencia.
+// pushOperator: drena mayor prec.
 func pushOperator(t calcToken, output, ops []calcToken) ([]calcToken, []calcToken) {
 	for len(ops) > 0 {
 		top := ops[len(ops)-1]
@@ -189,7 +187,7 @@ func flushOps(output, ops []calcToken) ([]calcToken, error) {
 	return output, nil
 }
 
-// shouldPop indica si el operador en el tope debe salir antes que cur.
+// shouldPop: tope antes que cur.
 func shouldPop(top, cur string) bool {
 	// Python: 2**-2 = 2 ** (-2). Un unario a la derecha de ** es parte del
 	// exponente y NO saca el **; a la izquierda (-2**2 = -(2**2)) sí lo saca.
@@ -249,7 +247,7 @@ func evalRPN(output []calcToken) (float64, error) {
 	return stack[0], nil
 }
 
-// popBinary saca los dos topes de la pila como (a, b), con a el operando izquierdo.
+// popBinary: saca (a,b).
 func popBinary(stack []float64) (a, b float64, rest []float64, ok bool) {
 	if len(stack) < 2 {
 		return 0, 0, stack, false
@@ -258,8 +256,7 @@ func popBinary(stack []float64) (a, b float64, rest []float64, ok bool) {
 	return a, b, stack[:len(stack)-2], true
 }
 
-// applyBinary aplica un operador binario con semántica Python
-// (floor division y floored modulo).
+// applyBinary: semántica Python floor.
 func applyBinary(op string, a, b float64) (float64, error) {
 	switch op {
 	case "+":
@@ -291,7 +288,7 @@ func applyBinary(op string, a, b float64) (float64, error) {
 	return 0, strconv.ErrSyntax
 }
 
-// formatCalcResult normaliza como Python: 4.0 -> 4, y formatea floats.
+// formatCalcResult: 4.0→4.
 func formatCalcResult(val float64) string {
 	if val == math.Trunc(val) && !math.IsInf(val, 0) && math.Abs(val) < 1e15 {
 		return strconv.FormatInt(int64(val), 10)
@@ -299,8 +296,7 @@ func formatCalcResult(val float64) string {
 	return strconv.FormatFloat(val, 'g', -1, 64)
 }
 
-// tryCalc evalúa el query si es una expresión de calculadora válida.
-// Retorna (val, ok). ok=false si no es calc o falla la eval.
+// tryCalc: eval si válida; ok=false si no.
 func tryCalc(query string) (string, bool) {
 	if !calcRe.MatchString(query) || query == "" {
 		return "", false

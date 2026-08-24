@@ -14,7 +14,7 @@ import "Modals/overlays"
 ShellRoot {
     id: root
 
-    // System Data Discovery — one-time startup chain
+    // Discovery chain (hwmon→temps→root→cpu→gpu→pollersReady)
 
     // Stage 1 — hwmon names → SysData._hwmonSmm/_hwmonAwcc/_hwmonCpu/_hwmonNvme
     Process {
@@ -48,14 +48,8 @@ ShellRoot {
         // qmllint enable signal-handler-parameters
     }
 
-    // Stage 3 — root block device → SysData._rootDevice
-    // NOTE: deviates from the originally suggested one-pass sed pipeline —
-    // that version double-stripped trailing digits, turning "nvme0n1p6" into
-    // "nvme0n" instead of "nvme0n1" (verified against this machine's real
-    // /dev/nvme0n1p6 root partition). Two sequential sed invocations keep the
-    // "strip pN suffix" and "strip bare trailing digit" cases mutually
-    // exclusive so NVMe (nvme0n1pX), SATA/virtio (sdaX/vdaX) and MMC
-    // (mmcblkXpY) devices all resolve correctly.
+    // Stage 3 — root block device → SysData._rootDevice NOTE: sed en 2 pasos (no 1): evita double-strip
+    // nvme0n1p6→nvme0n; pN y dígito sueltos son excluyentes (NVMe nvme0n1pX, SATA sdaX/vdaX, MMC mmcblkXpY).
     Process {
         id: rootDeviceDiscovery
         running: false
@@ -94,9 +88,7 @@ ShellRoot {
         // qmllint enable signal-handler-parameters
     }
 
-    // Watchdog: si el discovery chain falla silenciosamente (GPU no presente,
-    // permisos, etc.) y pollersReady nunca llega a true, los pollers quedan
-    // congelados para siempre. Este timer garantiza que se activan a los 8s.
+    // Watchdog: si discovery no completa, fuerza pollersReady a los 8s.
     Timer {
         interval: 8000
         running: !SysData.pollersReady
@@ -109,8 +101,7 @@ ShellRoot {
         }
     }
 
-    // Default network interface — pure FileView read, no subprocess needed.
-    // Reloads when the network device list changes so _netIface stays current.
+    // Default iface: FileView /proc/net/route, reload en Networking.devices change.
     FileView {
         id: netRouteFile
         path: "/proc/net/route"
@@ -131,7 +122,7 @@ ShellRoot {
         function onValuesChanged() { netRouteFile.reload() }
     }
 
-    // Notification policy config
+    // Notif policy
     property var _categoryModes: ({
         media: "silent",
         system: "popup",
@@ -159,7 +150,7 @@ ShellRoot {
         "wifi", "network", "ethernet", "vpn", "bluetooth", "conectado", "desconectado"
     ]
 
-    // Notification popup config (from notifications.json)
+    // Notif popup config
     property int    _notifDismissMs:    4000
     property int    _notifAnimInMs:     200
     property int    _notifAnimOutMs:    200
@@ -168,13 +159,12 @@ ShellRoot {
     property int    _notifWidth:        400
     property string _notifPosition:     "top-right"
 
-    // Battery alert config (from notifications.json)
+    // Battery config
     property int    _batCritical:       20
     property var    _batWarnThresholds: [40, 30]
     property int    _batReset:          45
     property int    _batDebounceMs:     1500
 
-    // Helpers
     function getScreenFromMonName(monName) {
         const name = monName.trim()
         for (var i = 0; i < Quickshell.screens.length; i++) {
@@ -196,9 +186,7 @@ ShellRoot {
     }
 
     function _getFocusedScreen() {
-        // Fallback cuando el script no retorna un nombre válido.
-        // Quickshell.screens no garantiza orden, así que devolvemos
-        // el primero disponible (el script siempre debería retornar algo).
+        // Fallback: screens sin orden → primero disponible.
         for (var i = 0; i < Quickshell.screens.length; i++) {
             if (Quickshell.screens[i] !== undefined)
                 return Quickshell.screens[i]
@@ -304,7 +292,7 @@ ShellRoot {
         root._categoryModes = next
     }
 
-    // notifications.json via FileView (reactive, no bash cat)
+    // notifications.json FileView reactivo
     FileView {
         id: notifConfigFile
         path: Paths.config + "/notifications.json"
@@ -369,7 +357,6 @@ ShellRoot {
         notifConfigFile.reload()
     }
 
-    // Signals
     signal broadcastNotify(string title, string body, string icon, bool active, bool isMedia, var actions)
     signal broadcastCloseAll(var screen)
     signal broadcastWeather(var screen)
@@ -391,8 +378,7 @@ ShellRoot {
     signal broadcastScreenshot(var screen)
     signal broadcastClipboardCount(int n)
 
-    // Modal helpers
-    // Patrón anti-bug de toggle: guard por screen + broadcastCloseAll + abrir/cerrar.
+    // Modal helpers: guard screen + broadcastCloseAll
     function closeModalOnScreen(inst, screen) {
         if (inst.modelData !== screen) return
         inst.visible = false
@@ -406,8 +392,7 @@ ShellRoot {
             else inst.visible = true
         }
     }
-    // Abre el Control Center directo en un panel (no es toggle: el CC
-    // siempre se muestra al invocar un panel específico).
+    // Abre CC directo en panel (no toggle).
     function openControlPanel(inst, screen, panel) {
         if (inst.modelData !== screen) return
         root.broadcastCloseAll(screen)
@@ -415,7 +400,6 @@ ShellRoot {
         inst._activePanel = panel
     }
 
-    // Top Bar
     Variants {
         model: Quickshell.screens
 
@@ -429,7 +413,7 @@ ShellRoot {
             onControlCenterClicked:  screen => root.broadcastControlCenter(screen)
             Connections {
                 target: root
-                // Actualiza el badge del ClipboardWidget sin timer de polling
+                // Badge Clipboard sin polling
                 function onBroadcastClipboardCount(n) { topBarInst.updateClipboardCount(n) }
             }
         }
@@ -483,7 +467,7 @@ ShellRoot {
             id: clipboardModalInst
             property var modelData
             screen: modelData
-            // Propaga el conteo actualizado al widget del topbar (elimina timer 30s)
+            // Propaga conteo a topbar
             onCountChanged: n => root.broadcastClipboardCount(n)
             Connections {
                 target: root
@@ -493,19 +477,17 @@ ShellRoot {
         }
     }
 
-    // IPC NATIVO (SUPER+V / SUPER+Y / SUPER+TAB / SUPER+A / SUPER+O / SUPER+SHIFT+S)
-    // hyprland llama `qs ipc call shell <fn> [mon]` — sin FIFOs.
+    // IPC `qs ipc call shell <fn> [mon]` (sin FIFOs)
     IpcHandler {
         target: "shell"
-        // cada función debe tipar sus argumentos explícitamente o no se registra
+        // args tipados obligatorio
         function clipboard(mon: string): void { root.fifoScreenReader(mon, root.broadcastClipboard) }
         function wallpaper(mon: string): void { root.fifoScreenReader(mon, root.broadcastWallpaperPicker) }
         function overview(): void { root.broadcastOverview(root._getFocusedScreen()) }
         function spotlight(mon: string): void { root.fifoScreenReader(mon, root.broadcastSpotlight) }
         function overlays(mon: string): void { root.fifoScreenReader(mon, root.broadcastOverlaysControl) }
         function screenshot(mon: string): void { root.fifoScreenReader(mon, root.broadcastScreenshot) }
-        // volume/brightness: ejecuta wpctl/brightnessctl vía Process (reemplaza los
-        // scripts FIFO persistentes; el OSD lee el estado reactivamente).
+        // volume/brightness: Process wpctl/brightnessctl (OSD reactivo)
         function volume(cmd: string): void { root._volumeCmd(cmd) }
         function brightness(cmd: string): void { root._brightnessCmd(cmd) }
     }
@@ -593,7 +575,7 @@ ShellRoot {
             const category = root.classifyExternalNotification(notification, urgent)
             console.log("[notif] insert", notification.summary, notification.body)
 
-            // Agregar al historial (siempre, sin filtro de modo)
+            // Historial siempre
             notifHistory.insert(0, {
                 notifSummary: notification.summary ?? "",
                 notifBody:    notification.body    ?? "",
@@ -604,8 +586,7 @@ ShellRoot {
 
             const mode = urgent ? "popup" : root.getCategoryMode(category, "popup")
             if (mode !== "popup") return
-            // notification.actions es QList<NotificationAction*> — tipo válido en runtime;
-            // el linter no resuelve genéricos QList<T*> expuestos así (no QQmlListProperty).
+            // notification.actions QList<NotificationAction*> (qmllint no resuelve genérico)
             // qmllint disable unresolved-type
             root.broadcastNotify(notification.summary, notification.body, icon, urgent, category === "media", notification.actions)
             // qmllint enable unresolved-type
@@ -709,9 +690,8 @@ ShellRoot {
         }
     }
 
-    // OVERLAYS CONTROL MODAL
-    // Toggle con SUPER+O; cierra con broadcastCloseAll como el resto.
-    // Estado de cada overlay gestionado por OverlaysManager.
+    // OVERLAYS CONTROL MODAL Toggle con SUPER+O; cierra con broadcastCloseAll como el resto. Estado de cada
+    // overlay gestionado por OverlaysManager.
     Variants {
         model: Quickshell.screens
         OverlaysControl {
@@ -741,10 +721,7 @@ ShellRoot {
         }
     }
 
-    // VOLUME OSD
-    // Comando vía IPC (qs ipc call shell volume "increment 5" / "decrement 5" / "mute").
-    // El OSD lee el estado reactivamente de Pipewire; aquí solo se ejecuta wpctl
-    // y se dispara broadcastVolume() al terminar.
+    // VOLUME OSD: IPC volume → wpctl, broadcastVolume (Pipewire reactivo)
     function _volumeCmd(cmd) {
         const parts = (cmd ?? "").trim().split(/\s+/)
         const op = parts[0]
@@ -790,10 +767,7 @@ ShellRoot {
         }
     }
 
-    // BRIGHTNESS OSD
-    // Comando vía IPC (qs ipc call shell brightness "increment 5" / "decrement 5").
-    // Ejecuta brightnessctl y devuelve el pct resultante al OSD (BrightnessOsd
-    // no es reactivo, necesita el valor exacto).
+    // BRIGHTNESS OSD: IPC brightness → brightnessctl, devuelve pct (no reactivo)
     function _brightnessCmd(cmd) {
         const parts = (cmd ?? "").trim().split(/\s+/)
         const op = parts[0]
@@ -834,14 +808,14 @@ ShellRoot {
         }
     }
 
-    // BATTERY NOTIFICATIONS — UPower reactive
+    // Battery UPower
     property var _upBatDev:       UPower.displayDevice
-    // Track last notified state to avoid duplicate notifications on startup/ráfagas
+    // Track last state (evita dup startup)
     property int _upBatLastState: -1
-    // Track last notified low-battery threshold (0 = none, 40 / 30 / 20)
+    // Track last low threshold
     property int _upBatLastLow:   0
 
-    // Debounce timer — state changes can fire in bursts (HW quirk)
+    // Debounce burst HW
     Timer {
         id: _batStateDebounce
         interval: root._batDebounceMs
@@ -855,7 +829,7 @@ ShellRoot {
         const s   = dev.state
         const pct = Math.round(dev.percentage * 100)
 
-        // Skip if same state as last notification (avoids startup false-positives)
+        // Skip mismo estado (no startup false)
         if (s === root._upBatLastState) return
         root._upBatLastState = s
 
@@ -885,13 +859,13 @@ ShellRoot {
         target: root._upBatDev ?? null
 
         function onReadyChanged() {
-            // Capture initial state silently — no notification on startup
+            // Captura inicial silente
             if (root._upBatDev && root._upBatDev.ready)
                 root._upBatLastState = root._upBatDev.state
         }
 
         function onStateChanged() {
-            // Debounce: restart timer, actual handling runs after 1.5 s of silence
+            // Debounce 1.5s
             _batStateDebounce.restart()
         }
 
@@ -900,11 +874,11 @@ ShellRoot {
             const dev = root._upBatDev
             if (!dev) return
             const s = dev.state
-            // Only alert while discharging
+            // Solo discharging
             if (s !== UPowerDeviceState.Discharging && s !== UPowerDeviceState.PendingDischarge) return
             const pct = Math.round(dev.percentage * 100)
 
-            // Notify once per threshold crossing, reset when charging
+            // 1 vez por threshold
             if (pct <= root._batCritical && root._upBatLastLow < root._batCritical) {
                 root._upBatLastLow = root._batCritical
                 root.broadcastNotify(
@@ -913,7 +887,7 @@ ShellRoot {
                     "battery-caution", true, false, []
                 )
             } else {
-                // Warn thresholds (sorted descending, e.g. [40, 30])
+                // Warn thresholds desc
                 const thresholds = root._batWarnThresholds
                 for (let i = 0; i < thresholds.length; i++) {
                     const t = thresholds[i]

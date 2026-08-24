@@ -14,9 +14,8 @@ PanelWindow {
 
     function updateClipboardCount(n) { clipboardWidget.updateCount(n) }
     
-    // Aliases al WeatherProvider (instance lives in Weather widget)
-    // Weather widget already has its own WeatherProvider; no duplicate here.
-    // TopBar only needs to relay clicks to the modal.
+    // Aliases al WeatherProvider (instance lives in Weather widget) Weather widget already has its own
+    // WeatherProvider; no duplicate here. TopBar only needs to relay clicks to the modal.
     
     anchors {
         top: true
@@ -30,7 +29,6 @@ PanelWindow {
         anchors.fill: parent
         anchors.margins: 5
         
-        // Left section — Workspaces
         Row {
             id: leftSection
             anchors {
@@ -60,7 +58,6 @@ PanelWindow {
             }
         }
         
-        // Center section — Tray, Clock, Media
         Row {
             id: centerSection
             anchors.centerIn: parent
@@ -89,7 +86,6 @@ PanelWindow {
             }
         }
         
-        // Right section — System monitors + Power
         Row {
             id: rightSection
             anchors {

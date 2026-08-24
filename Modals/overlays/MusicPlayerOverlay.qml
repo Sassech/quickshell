@@ -4,14 +4,11 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell.Services.Mpris
 
-// MusicPlayerOverlay — mini reproductor MPRIS estilo "Aurora Glass".
-// NO usa la paleta Theme (se regenera al cambiar el wallpaper): todos los
-// colores se declaran acá. Sin blur real en LayerShell — el glassmorphism
-// se simula con gradientes translúcidos.
+// MusicPlayerOverlay — mini reproductor MPRIS estilo "Aurora Glass". NO usa la paleta Theme (se regenera al cambiar el wallpaper): todos los
+// colores se declaran acá. Sin blur real en LayerShell — el glassmorphism se simula con gradientes translúcidos.
 OverlayWindow {
     id: root
 
-    // Configuración concreta
     entryId:        "musicPlayer"   // OverlayWindow auto-gobierna visibilidad vía OverlaysManager
     corner:         "bottom-right"
     overlayWidth:   355
@@ -25,13 +22,8 @@ OverlayWindow {
     borderColor:    "transparent"
     // mouseThrough queda en false: el overlay tiene botones interactivos
 
-    // Selección de player (MPRIS)
-    // El wallpaper de video (mpvpaper → mpv) toma el bus canónico
-    // org.mpris.MediaPlayer2.mpv; el mpv real del usuario, al abrirse después,
-    // queda como org.mpris.MediaPlayer2.mpv.instance-XXXX. Se banea el canónico
-    // SOLO cuando coexiste una instancia real: entonces el canónico es el
-    // wallpaper (Playing en loop perpetuo) y el instance es el mpv del usuario.
-    // La música real va por mpd/Spotify/Brave, que usan otro identity.
+    // Selección de player (MPRIS) El wallpaper de video (mpvpaper → mpv) toma el bus canónico org.mpris.MediaPlayer2.mpv; el mpv real del usuario, al abrirse después, queda como org.mpris.MediaPlayer2.mpv.instance-XXXX. Se banea el canónico SOLO
+    // cuando coexiste una instancia real: entonces el canónico es el wallpaper (Playing en loop perpetuo) y el instance es el mpv del usuario. La música real va por mpd/Spotify/Brave, que usan otro identity.
     property var mprisPlayer: null
     property real playerPos: 0
 
@@ -83,16 +75,13 @@ OverlayWindow {
 
     Connections {
         target: Mpris.players
-        // Señales del ObjectModel: solo inserción/remoción de players. NO hay
-        // señal de cambio de playbackState (valuesChanged no se dispara cuando
-        // un player existente pasa a Playing), así que el Timer de 1s abajo
-        // re-evalúa la prioridad en vivo.
+        // Señales del ObjectModel: solo inserción/remoción de players. NO hay señal de cambio de playbackState (valuesChanged no se dispara cuando un
+        // player existente pasa a Playing), así que el Timer de 1s abajo re-evalúa la prioridad en vivo.
         function onObjectInsertedPost() { root._pickPlayer() }
         function onObjectRemovedPost()  { root._pickPlayer() }
     }
 
-    // Escucha señales individuales de cada player (playbackState, track).
-    // Cubre el gap del ObjectModel: valuesChanged NO se dispara cuando un
+    // Escucha señales individuales de cada player (playbackState, track). Cubre el gap del ObjectModel: valuesChanged NO se dispara cuando un
     // player existente cambia su estado — por eso el Instantiator es necesario.
     Instantiator {
         model: Mpris.players
@@ -126,10 +115,8 @@ OverlayWindow {
         onTriggered: root._syncPos()
     }
 
-    // Contenido (slot por defecto → contentArea)
-    // Capa 1: borde luminoso en gradiente (azul → cian → púrpura → magenta).
-    // border.color no acepta gradientes, así que el glow es una capa propia
-    // detrás de la tarjeta (que deja 1px de margen en cada lado).
+    // Contenido (slot por defecto → contentArea) Capa 1: borde luminoso en gradiente (azul → cian → púrpura → magenta). border.color no acepta
+    // gradientes, así que el glow es una capa propia detrás de la tarjeta (que deja 1px de margen en cada lado).
     Rectangle {
         id: borderGlow
         anchors.fill: parent

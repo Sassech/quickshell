@@ -2,10 +2,8 @@
 import QtQuick
 import "../Components"
 
-// BrightnessOsd — OSD de brillo. Hereda OsdBase (ciclo de vida + layout) y
-// bindea su contenido: icono por umbrales, label con %, barra sobre 100.
-// El comando vía IPC (qs ipc call shell brightness ...) entrega el pct;
-// show(pct) lo recibe y llama showCard() de la base.
+// BrightnessOsd — OSD de brillo. Hereda OsdBase (ciclo de vida + layout) y bindea su contenido: icono por umbrales, label con %, barra sobre
+// 100. El comando vía IPC (qs ipc call shell brightness ...) entrega el pct; show(pct) lo recibe y llama showCard() de la base.
 OsdBase {
     id: root
 

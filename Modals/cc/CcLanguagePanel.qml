@@ -13,13 +13,11 @@ Rectangle {
     radius: 14
     color: Theme.cardBg3
 
-    // Borde sutil
     Rectangle {
         anchors.fill: parent; radius: parent.radius; color: "transparent"
         border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2); border.width: 1
     }
 
-    // Inputs
     required property var    filteredLayouts
     required property var    filteredLocales
     required property string langLayout
@@ -27,7 +25,6 @@ Rectangle {
     required property string langTab
     required property string langSearch
 
-    // Outputs
     signal closeRequested()
     signal tabChanged(string tab)
     signal searchChanged(string query)
@@ -45,7 +42,6 @@ Rectangle {
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
         spacing: 8
 
-        // Header
         Item {
             width: parent.width; height: 28
             Text {
@@ -207,7 +203,6 @@ Rectangle {
             }
         }
 
-        // Locale tab: locale list
         Item {
             visible: root.langTab === "locale"
             width: parent.width

@@ -73,17 +73,14 @@ QmModalBase {
         return days
     }
 
-    // UI
     RowLayout {
         anchors.fill: parent
         spacing: 0
 
-        // Columna izquierda: Notificaciones
         Item {
             Layout.fillHeight: true
             Layout.preferredWidth: 360
 
-            // Borde derecho separador
             Rectangle {
                 anchors.right: parent.right
                 anchors.top: parent.top
@@ -105,7 +102,6 @@ QmModalBase {
                 anchors.bottomMargin: 16
                 spacing: 10
 
-                // Header
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 0
@@ -118,7 +114,6 @@ QmModalBase {
                         Layout.fillWidth: true
                     }
 
-                    // Botón limpiar todo
                     Rectangle {
                         implicitWidth: 82
                         implicitHeight: 28
@@ -167,7 +162,6 @@ QmModalBase {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
-                    // Estado vacío
                     Column {
                         anchors.centerIn: parent
                         spacing: 8
@@ -187,7 +181,6 @@ QmModalBase {
                         }
                     }
 
-                    // Lista con scroll
                     Flickable {
                         id: notifFlick
                         anchors.fill: parent
@@ -196,7 +189,6 @@ QmModalBase {
                         contentHeight: notifColumn.implicitHeight
                         flickableDirection: Flickable.VerticalFlick
 
-                        // Scroll suave con rueda
                         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                         Column {
@@ -217,7 +209,6 @@ QmModalBase {
                                     color: Theme.surface2
                                     clip: true
 
-                                    // Franja accent izquierda
                                     Rectangle {
                                         width: 3
                                         height: parent.height
@@ -237,7 +228,6 @@ QmModalBase {
                                         }
                                         spacing: 10
 
-                                        // Icono
                                         Item {
                                             width: 32
                                             height: 32
@@ -271,7 +261,6 @@ QmModalBase {
                                             }
                                         }
 
-                                        // Texto
                                         Column {
                                             spacing: 2
                                             anchors.verticalCenter: parent.verticalCenter
@@ -307,7 +296,6 @@ QmModalBase {
                                         }
                                     }
 
-                                    // Hover overlay
                                     Rectangle {
                                         anchors.fill: parent
                                         radius: parent.radius
@@ -362,7 +350,6 @@ QmModalBase {
             }
         }
 
-        // Columna derecha: Reloj + Calendario
         ColumnLayout {
             Layout.fillHeight: true
             Layout.fillWidth: true
@@ -370,7 +357,6 @@ QmModalBase {
 
             Item { Layout.preferredHeight: 20 }
 
-            // Reloj grande
             Text {
                 id: clockText
                 Layout.alignment: Qt.AlignHCenter
@@ -400,7 +386,6 @@ QmModalBase {
                 Component.onCompleted: updateTime()
             }
 
-            // Fecha completa
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: root._dateText
@@ -500,7 +485,6 @@ QmModalBase {
 
             Item { Layout.preferredHeight: 8 }
 
-            // Días de la semana
             Row {
                 Layout.alignment: Qt.AlignHCenter
                 spacing: 0
@@ -521,7 +505,6 @@ QmModalBase {
 
             Item { Layout.preferredHeight: 4 }
 
-            // Grid del calendario
             Grid {
                 id: calendarGrid
                 Layout.alignment: Qt.AlignHCenter
@@ -564,7 +547,6 @@ QmModalBase {
 
             Item { Layout.preferredHeight: 10 }
 
-            // Selector de formato
             RowLayout {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.bottomMargin: 14

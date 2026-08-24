@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// Clima vía Open-Meteo con geo-IP opcional
+// Open-Meteo + geo-IP
 
 type weatherGeo struct {
 	Lat  float64 `json:"lat"`
@@ -16,8 +16,7 @@ type weatherGeo struct {
 	City string  `json:"city"`
 }
 
-// weatherOutput mantiene el shape que consume el QML existente: current,
-// hourly y daily son EXACTAMENTE las claves de la respuesta open-meteo.
+// weatherOutput: shape QML (current/hourly/daily = keys open-meteo).
 type weatherOutput struct {
 	Geo     weatherGeo      `json:"geo"`
 	Current json.RawMessage `json:"current"`
@@ -26,14 +25,14 @@ type weatherOutput struct {
 	Stale   bool            `json:"stale,omitempty"`
 }
 
-// weatherURL es la misma consulta que usaba WeatherProvider.qml con curl.
+// weatherURL: misma query WeatherProvider.qml.
 const weatherURL = "https://api.open-meteo.com/v1/forecast?latitude=%f&longitude=%f" +
 	"&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day" +
 	"&hourly=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,surface_pressure,relative_humidity_2m,visibility,precipitation_probability,is_day" +
 	"&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset" +
 	"&forecast_days=7&wind_speed_unit=kmh&temperature_unit=celsius&timezone=auto"
 
-// geoInfo consulta la geo-localización por IP (cache 24h).
+// geoInfo: IP→geo cache 24h.
 func geoInfo() (weatherGeo, error) {
 	var g weatherGeo
 	data, _, err := cacheGet("geoip", 24*time.Hour, func() ([]byte, error) {
@@ -57,8 +56,7 @@ func geoInfo() (weatherGeo, error) {
 	return weatherGeo{Lat: resp.Lat, Lon: resp.Lon, City: resp.City}, nil
 }
 
-// runWeather implementa el subcomando weather [lat] [lon].
-// Prioridad de coordenadas: args > preferencias (manual) > geo-IP.
+// runWeather: args>manual prefs>geo-IP.
 func runWeather(args []string) int {
 	var g weatherGeo
 

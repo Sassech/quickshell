@@ -8,14 +8,12 @@ Column {
     id: root
     spacing: 0
 
-    // Required properties
     required property real masterVolume
     required property bool masterMuted
     required property real micVolume
     required property bool micMuted
     required property int  brightness
 
-    // Signals
     signal setMasterVolume(real v)
     signal toggleMasterMute()
     signal setMicVol(real v)

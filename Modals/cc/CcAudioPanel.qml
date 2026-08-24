@@ -11,7 +11,6 @@ Rectangle {
     radius: 14
     color: Theme.cardBg3
 
-    // Borde sutil
     Rectangle {
         anchors.fill: parent; radius: parent.radius
         color: "transparent"
@@ -19,22 +18,18 @@ Rectangle {
         border.width: 1
     }
 
-    // Inputs
     required property var audioSinks
     required property var audioSources
 
-    // Outputs
     signal closeRequested()
     signal setDefaultSink(var entry)
     signal setDefaultSource(var entry)
 
-    // Contenido
     Column {
         id: audioDevCol
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
         spacing: 8
 
-        // Header con título y close button
         Item {
             width: parent.width; height: 28
             Text {
@@ -56,7 +51,6 @@ Rectangle {
             }
         }
 
-        // Salidas
         Text {
             text: "Salidas de audio"
             font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.muted1
@@ -121,7 +115,6 @@ Rectangle {
             }
         }
 
-        // Entradas
         Text {
             text: "Entradas de audio"
             font.pixelSize: 10; font.weight: Font.DemiBold; color: Theme.muted1

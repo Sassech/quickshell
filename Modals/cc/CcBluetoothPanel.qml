@@ -16,7 +16,6 @@ Rectangle {
     radius: 14
     color: Theme.cardBg3
 
-    // Borde sutil
     Rectangle {
         anchors.fill: parent; radius: parent.radius
         color: "transparent"
@@ -24,7 +23,6 @@ Rectangle {
         border.width: 1
     }
 
-    // Inputs
     required property var    btAdapter
     required property bool   btAvailable
     required property bool   btPwrd
@@ -37,7 +35,6 @@ Rectangle {
     required property int    btNearbyCount
     required property var    btCodecData
 
-    // Outputs
     signal closeRequested()
     signal togglePower()
     signal toggleScan()
@@ -48,12 +45,10 @@ Rectangle {
     signal forgetDevice(var device)
     signal setCodec(string mac, string profile)
 
-    // Helpers
     function _deviceName(device) {
         return device.name || device.deviceName || device.address
     }
 
-    // Estado de forget pendiente (clave: MAC del dispositivo)
     property var    _pendingForget:    ({})   // { "AA:BB:CC" : true }
     property string _forgetPendingMac: ""
 
@@ -69,13 +64,11 @@ Rectangle {
         }
     }
 
-    // Contenido
     Column {
         id: btDetailCol
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
         spacing: 8
 
-        // Header
         Item {
             width: parent.width; height: 32
 
@@ -104,7 +97,6 @@ Rectangle {
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                 spacing: 8
 
-                // Scan button
                 Rectangle {
                     visible: root.btAvailable && root.btPwrd
                     width: 26; height: 26; radius: 7
@@ -127,7 +119,6 @@ Rectangle {
                     }
                 }
 
-                // Power toggle
                 Rectangle {
                     visible: root.btAvailable
                     width: 40; height: 22; radius: 11
@@ -145,7 +136,6 @@ Rectangle {
                     }
                 }
 
-                // Close button
                 Rectangle {
                     width: 26; height: 26; radius: 7
                     color: btCloseMA.containsMouse ? Theme.surface3 : Theme.surface2
@@ -160,7 +150,6 @@ Rectangle {
             }
         }
 
-        // Status message
         Text {
             visible: root.btWorking || root.btStatusMsg !== ""
             text: root.btWorking ? "Trabajando…" : root.btStatusMsg
@@ -169,7 +158,6 @@ Rectangle {
                  : root.btStatusMsg.startsWith("✓") ? Theme.success : Theme.error
         }
 
-        // No adapter
         Item {
             visible: !root.btAvailable
             width: parent.width; height: 40
@@ -180,7 +168,6 @@ Rectangle {
             }
         }
 
-        // Off message
         Item {
             visible: root.btAvailable && !root.btPwrd
             width: parent.width; height: 36
@@ -191,12 +178,10 @@ Rectangle {
             }
         }
 
-        // Device lists
         Column {
             visible: root.btAvailable && root.btPwrd
             width: parent.width; spacing: 4
 
-            // Paired label
             Text {
                 visible: root.btPairedCount > 0
                 text: "Dispositivos emparejados"
@@ -373,7 +358,6 @@ Rectangle {
                         }
                     }
 
-                    // Codec panel
                     Rectangle {
                         visible: btPairedEntry.hasCodec
                         width: parent.width; height: 34; radius: 7
@@ -436,7 +420,6 @@ Rectangle {
                 font.pixelSize: 10; color: Theme.muted1
             }
 
-            // Nearby section
             Item { visible: root.btNearbyCount > 0; width: parent.width; height: 8 }
 
             Text {

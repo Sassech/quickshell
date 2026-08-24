@@ -69,8 +69,7 @@ func makeWallpaperThumb(path string) string {
 	return ""
 }
 
-// collectWallpaperFiles lista el directorio, ordena por nombre (case-insensitive)
-// y filtra por extensiones de imagen/video (solo video si mpvpaper está disponible).
+// collectWallpaperFiles: lista ordenada, filtra por ext; video solo si mpvpaper.
 func collectWallpaperFiles(dir string, mpv bool) []string {
 	items, err := os.ReadDir(dir)
 	if err != nil {
@@ -92,8 +91,7 @@ func collectWallpaperFiles(dir string, mpv bool) []string {
 	return images
 }
 
-// buildWallpaperItems construye los items JSON en paralelo, cortando a 60
-// (mismo comportamiento que el Python, pero con thumbs concurrentes).
+// buildWallpaperItems: paralelo, cap 60.
 func buildWallpaperItems(images []string) []wallpaperItem {
 	if len(images) > 60 {
 		images = images[:60]
@@ -120,7 +118,7 @@ func wallpaperItemType(p string) string {
 	return "image"
 }
 
-// runWallpaper implementa el subcomando wallpaper (port de wallpaper-list.py).
+// runWallpaper: wallpaper-list.py port.
 func runWallpaper(folder string) int {
 	expanded := expandTilde(folder)
 	if expanded == "" {
@@ -135,9 +133,7 @@ func runWallpaper(folder string) int {
 	return 0
 }
 
-// runWallpaperSave implementa wallpaper-save (port de wallpaper-save-config.py).
-// Replica el Python: un argumento vacío ("") escribe {"folder": ""} sin error;
-// el caso "sin argumento" se valida en main.go.
+// runWallpaperSave: ""→{"folder":""} (sin arg valida main).
 func runWallpaperSave(folder string) int {
 	configHome := os.Getenv("XDG_CONFIG_HOME")
 	if configHome == "" {

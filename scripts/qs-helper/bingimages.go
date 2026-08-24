@@ -16,12 +16,7 @@ import (
 	"html"
 )
 
-// Buscador de imágenes (Bing Image Search, por scraping)
-// Sin API key ni keyring: se scrapea el HTML de resultados. La `murl` (media
-// URL) ES la imagen original → se descarga SIEMPRE murl. La etiqueta de
-// resolución se calcula con las dimensiones del resultado (mw/mh):
-//   ≥3840×2160 → "4K";  ≥1920×1080 → "1080p";  sino → "SD".
-// No se inventan variantes UHD ni se consulta ningún endpoint de la API.
+// Bing scraping (sin API): murl es original full-res; resolución por mw/mh (≥4K/1080p/SD).
 
 // browserUA es un User-Agent real de navegador: sin uno Bing bloquea.
 const browserUA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
@@ -29,10 +24,8 @@ const browserUA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, li
 const bingSearchURL = "https://www.bing.com/images/search?q=%s&count=35&form=HDRSC2"
 const bingAsyncURL = "https://www.bing.com/images/async?q=%s&first=%d&count=35&mmasync=1"
 
-// Parseo del HTML
-// Los resultados están en <a class="iusc" ... m="{...}">: el atributo `m` es
-// JSON con las comillas escapadas a entidades HTML (&quot;) que contiene
-// murl/turl/mw/mh. Doble pasada + fallback suelto (el scraping es frágil).
+// Parseo HTML: <a class="iusc" m="{...}">. `m` es JSON con las comillas escapadas a entidades HTML (&quot;)
+// que contiene murl/turl/mw/mh. Doble pasada + fallback suelto (el scraping es frágil).
 
 var iuscMRe = regexp.MustCompile(`(?s)<a[^>]*\bclass="iusc"[^>]*\bm="([^"]*)"`)
 var anyMRe = regexp.MustCompile(`\bm="(\{[^"]*)"`)
@@ -74,9 +67,8 @@ func atoiSafe(s string) int {
 	return n
 }
 
-// bingHitFromM interpreta el valor del atributo m (ya con entidades HTML
-// decodificadas): primero JSON, y si mw/mh vienen como string (o el JSON
-// falla), extracción manual con regex.
+// bingHitFromM interpreta el valor del atributo m (ya con entidades HTML decodificadas): primero JSON, y si
+// mw/mh vienen como string (o el JSON falla), extracción manual con regex.
 func bingHitFromM(m string) (bingHit, bool) {
 	var raw struct {
 		Murl    string `json:"murl"`
@@ -96,9 +88,8 @@ func bingHitFromM(m string) (bingHit, bool) {
 	return bingHit{Murl: raw.Murl, Turl: raw.Turl, Mwidth: raw.Mwidth, Mheight: raw.Mheight}, true
 }
 
-// parseBingResults extrae hits de una página de Bing. Pasadas: (1) anchors
-// <a class="iusc"> con su m; (2) cualquier atributo m del documento; (3) el
-// murl más suelto. Dedupe por murl.
+// parseBingResults extrae hits de una página de Bing. Pasadas: (1) anchors <a class="iusc"> con su m; (2)
+// cualquier atributo m del documento; (3) el murl más suelto. Dedupe por murl.
 func parseBingResults(page []byte) []bingHit {
 	// Una sola conversión + unescaping al inicio; todos los regexp operan sobre pageStr.
 	pageStr := html.UnescapeString(string(page))
@@ -137,11 +128,7 @@ func parseBingResults(page []byte) []bingHit {
 
 // Búsqueda (image-search)
 
-// fetchBingHits consulta una página de resultados. first es el índice 1-based
-// del primer resultado a pedir (1 = primera página). La primera página usa la
-// página de búsqueda HTML con fallback al endpoint async (doble pasada); las
-// siguientes van directo al async (la página HTML solo devuelve la primera
-// tanda de 35).
+// fetchBingHits: página first (1-based); 1 HTML+async fallback, >1 async directo.
 func fetchBingHits(query string, first int) []bingHit {
 	q := url.QueryEscape(query)
 	if first > 1 {
@@ -166,8 +153,7 @@ func fetchBingHits(query string, first int) []bingHit {
 	return parseBingResults(data)
 }
 
-// bingRes etiqueta la resolución con las dimensiones de la media: la regla
-// cerrada es "4K sino 1080p", con SD para lo que no llega a Full HD.
+// bingRes: etiqueta por dims (4K/1080p/SD).
 func bingRes(w, h int) string {
 	if w >= 3840 && h >= 2160 {
 		return "4K"
@@ -193,11 +179,7 @@ func bingPrefix(u string) string {
 	return "https://www.bing.com" + u
 }
 
-// runImageSearch implementa `image-search "<query>" [--first=N]`.
-// first es el índice 1-based del primer resultado a pedir (por defecto 1) y
-// sirve para paginar. Se usa flag explícito (no posición) porque las queries
-// pueden terminar en números ("windows 11") y la heurística posicional los
-// comería.
+// runImageSearch: image-search "<query>" [--first=N] (first 1-based paginación; flag explícito porque queries como "windows 11").
 func runImageSearch(args []string) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "Uso: qs-helper image-search <query> [--first=N]")
@@ -277,9 +259,8 @@ func urlPathExt(u string) string {
 	return strings.ToLower(filepath.Ext(p.Path))
 }
 
-// runImageDownload implementa `image-download <id> <url> [<folder>]`.
-// Guarda bing-<id>-<W>x<H>.jpg cuando W/H se derivan de la URL; si no,
-// bing-<id>-<timestamp>.jpg. Idempotente si el archivo ya existe.
+// runImageDownload implementa `image-download <id> <url> [<folder>]`. Guarda bing-<id>-<W>x<H>.jpg cuando W/H
+// se derivan de la URL; si no, bing-<id>-<timestamp>.jpg. Idempotente si el archivo ya existe.
 func runImageDownload(args []string) int {
 	if len(args) < 2 {
 		fmt.Fprintln(os.Stderr, "Uso: qs-helper image-download <id> <url> [<folder>]")

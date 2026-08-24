@@ -10,7 +10,6 @@ Column {
     id: root
     spacing: 0
 
-    // Required properties
     required property string activePanel
 
     required property int diskPct
@@ -20,7 +19,6 @@ Column {
     required property double diskReadMbs
     required property double diskWriteMbs
 
-    // Signals
     signal togglePanel(string key)
 
     // Leading spacer + separator + label
@@ -184,7 +182,6 @@ Column {
                     }
                 }
 
-                // Barra de uso
                 Item {
                     width: parent.width; height: 4
                     Rectangle { anchors.fill: parent; radius: 2; color: Theme.surface3 }

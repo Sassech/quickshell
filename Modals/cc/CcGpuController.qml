@@ -9,7 +9,6 @@ QtObject {
     // Prop requerida: activo cuando el panel GPU está visible
     required property bool active
 
-    // Estado público
     property bool _gpuLoaded: false
     property var  _gpus:      []   // [{vendor,name,util,temp,...}]
 
@@ -46,9 +45,8 @@ QtObject {
         return list
     }
 
-    // Proceso persistente NVIDIA — nvidia-smi --loop=3
-    // Corre solo cuando el panel está activo; --loop=3 elimina el overhead de
-    // fork (~100ms/arranque) comparado con relanzar el proceso cada 1.5s.
+    // Proceso persistente NVIDIA — nvidia-smi --loop=3 Corre solo cuando el panel está activo; --loop=3
+    // elimina el overhead de fork (~100ms/arranque) comparado con relanzar el proceso cada 1.5s.
     property Process _gpuDetailProc: Process {
         id: gpuDetailProc
         running: root.active
@@ -103,9 +101,8 @@ QtObject {
         root._gpuLoaded = true
     }
 
-    // Fallback multi-vendor (Intel/AMD/NVIDIA sin --loop)
-    // Solo se activa si nvidia-smi falla (AMD, Intel, o NVIDIA sin driver).
-    // Timer a 3s (vs 1.5s original) — sysfs reads son baratos, sin fork overhead.
+    // Fallback multi-vendor (Intel/AMD/NVIDIA sin --loop) Solo se activa si nvidia-smi falla (AMD, Intel, o
+    // NVIDIA sin driver). Timer a 3s (vs 1.5s original) — sysfs reads son baratos, sin fork overhead.
     property LineProcess _fallbackProc: LineProcess {
         id: fallbackProc
         running: false

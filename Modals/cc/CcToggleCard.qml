@@ -5,12 +5,10 @@ import QtQuick.Layouts
 import "../../Components"
 
 // Tarjeta de control rápido reutilizable (grid 2×3 en CcQuickToggles)
-// WiFi, Bluetooth, Power, Audio, Battery y Language comparten este esqueleto;
 // cada instancia aporta solo sus bindings de datos (active, icon, title, subtitle).
 Rectangle {
     id: root
 
-    // API pública
     required property bool active
     required property var onClicked
 
@@ -70,7 +68,6 @@ Rectangle {
         }
     }
 
-    // Interacción
     MouseArea {
         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
         onEntered: root.hov = true

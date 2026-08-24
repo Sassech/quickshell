@@ -8,11 +8,11 @@ import (
 	"time"
 )
 
-// Geocodificación por nombre (Open-Meteo Geocoding API)
+// Geocoding Open-Meteo
 
 const weatherSearchURL = "https://geocoding-api.open-meteo.com/v1/search?name=%s&count=8&language=es&format=json"
 
-// geoResult es un resultado de búsqueda normalizado para el QML.
+// geoResult: normalizado QML
 type geoResult struct {
 	Name    string  `json:"name"`
 	Region  string  `json:"region,omitempty"`
@@ -21,7 +21,7 @@ type geoResult struct {
 	Lon     float64 `json:"lon"`
 }
 
-// omGeoResult modela el shape que devuelve la API de Open-Meteo Geocoding.
+// omGeoResult: shape API
 type omGeoResult struct {
 	ID        int     `json:"id"`
 	Name      string  `json:"name"`
@@ -32,9 +32,7 @@ type omGeoResult struct {
 	Admin2    string  `json:"admin2"`
 }
 
-// runWeatherSearch implementa el subcomando weather-search "<query>".
-// Busca ubicaciones por nombre usando Open-Meteo Geocoding (sin API key).
-// Salida: JSON array de geoResult. Sin resultados → []. Error de API → exit 1.
+// runWeatherSearch: "<query>"→JSON []; exit1 API error.
 func runWeatherSearch(args []string) int {
 	if len(args) == 0 || args[0] == "" {
 		fmt.Fprintln(os.Stderr, "weather-search: falta el argumento <query>")

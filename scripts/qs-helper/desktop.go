@@ -28,13 +28,7 @@ var (
 	reFieldCodes = regexp.MustCompile(`%[a-zA-Z]`)
 )
 
-// desktopEntrySection extrae solo el bloque [Desktop Entry] del contenido para
-// que todos los regex de parseo (NoDisplay/Hidden/Name/Exec/Icon/Generic/...)
-// se apliquen únicamente sobre la sección correcta y no se contaminen con otras
-// secciones ([Desktop Action] y similares).
-//
-// Devuelve "" si el archivo no define [Desktop Entry]; parseDesktop lo descarta
-// porque ningún regex matchea sobre un bloque vacío.
+// desktopEntrySection: extrae solo [Desktop Entry] (evita contaminación [Desktop Action]); "" si no existe.
 func desktopEntrySection(content string) string {
 	// Descarta BOM y normaliza CRLF a LF para simplificar el corte de sección.
 	content = strings.ReplaceAll(strings.TrimPrefix(content, "\ufeff"), "\r\n", "\n")
@@ -106,9 +100,7 @@ func appDirs() []string {
 	}
 }
 
-// appCacheFile es la ruta del cache de apps en disco. Nombre v2: invalida el
-// cache v1 (qs-spotlight-apps.json) que quedó envenenado con objetos vacíos
-// por los campos sin tags JSON.
+// appCacheFile v2: invalida v1 envenenado (objetos vacíos sin tags JSON).
 var appCacheFile = filepath.Join(homeDir, ".cache", "qs-spotlight-apps-v2.json")
 
 // appCache es la estructura serializada al disco.
@@ -117,8 +109,7 @@ type appCache struct {
 	Apps  []appInfo `json:"apps"`
 }
 
-// cachedScanApps retorna la lista de apps desde cache en disco si los dirs no
-// cambiaron (mtime), o re-escanea y actualiza el cache en caso contrario.
+// cachedScanApps: sirve cache si mtime dirs igual, si no re-escanea.
 func cachedScanApps() []appInfo {
 	dirs := appDirs()
 
@@ -153,8 +144,7 @@ func cachedScanApps() []appInfo {
 	return apps
 }
 
-// scanApps recorre los dirs de aplicaciones y devuelve apps únicas por nombre
-// (el primer dir gana), igual que el modo --list-apps del Python.
+// scanApps: apps únicas por nombre (primer dir gana).
 func scanApps() []appInfo {
 	seen := map[string]bool{}
 	apps := []appInfo{}

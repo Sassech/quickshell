@@ -5,7 +5,6 @@ import Quickshell.Io
 QtObject {
     id: root
 
-    // Estado público
     property int  brightness:       50
     property bool _brightnessReady: false
 
@@ -13,9 +12,8 @@ QtObject {
     property string _backlightPath: ""
     property int    _maxBrightness: 100
 
-    // Detectar path del backlight
-    // Lazy: no corre al nacer — ControlCenter.refresh() lo dispara en la
-    // primera apertura del CC (el path se cachea en _backlightPath).
+    // Detectar path del backlight Lazy: no corre al nacer — ControlCenter.refresh() lo dispara en la primera
+    // apertura del CC (el path se cachea en _backlightPath).
     property var _backlightPathProc: Process {
         id: backlightPathProc
         running: false
@@ -60,24 +58,18 @@ QtObject {
         }
     }
 
-    // API pública
     function refresh() {
         if (root._backlightPath === "") {
-            // Aún no se descubrió el path: arrancar el one-shot de detección.
-            // Una vez cacheado, la cadena onRead → maxBrightness → brightness
-            // rellena todo; en las siguientes aperturas solo se reload().
+            // Aún no se descubrió el path: arrancar el one-shot de detección. Una vez cacheado, la cadena
+            // onRead → maxBrightness → brightness rellena todo; en las siguientes aperturas solo se reload().
             if (!backlightPathProc.running) backlightPathProc.running = true
         } else {
             brightnessFile.reload()
         }
     }
 
-    // Escritura de brillo
-    // DECISIÓN (AUDIT Sección 5/8): la escritura NO migra a FileView.setText()
-    // porque el sysfs es `root:root rw-r--r--` y el usuario no está en el grupo
-    // `video` (ni hay regla udev aplicada en el sistema) — la escritura directa
-    // fallaría silenciosamente. Se mantiene `brightnessctl set`, que escala
-    // permisos de escritura vía logind/D-Bus de la sesión y funciona sin root.
+    // Escritura de brillo DECISIÓN (AUDIT Sección 5/8): la escritura NO migra a FileView.setText() porque el sysfs es `root:root rw-r--r--` y el usuario no está en el grupo `video` (ni hay
+    // regla udev aplicada en el sistema) — la escritura directa fallaría silenciosamente. Se mantiene `brightnessctl set`, que escala permisos de escritura vía logind/D-Bus de la sesión y funciona sin root.
     property Process _setBrightnessProc: Process {
         id: setBrightnessProc
         running: false

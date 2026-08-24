@@ -5,10 +5,8 @@ import Quickshell.Widgets
 import "../Components"
 import "./overlays"
 
-// NotificationPopup — toast de notificación. Hereda OverlayWindow (window
-// anclado a esquina + slide/fade + auto-hide + mask). El contenido custom
-// (borde condicional, franja, gradiente, hover, botón cerrar) ancla a
-// parent (contentArea, que llena la tarjeta completa).
+// NotificationPopup — toast de notificación. Hereda OverlayWindow (window anclado a esquina + slide/fade + auto-hide + mask). El contenido
+// custom (borde condicional, franja, gradiente, hover, botón cerrar) ancla a parent (contentArea, que llena la tarjeta completa).
 OverlayWindow {
     id: root
 
@@ -102,10 +100,8 @@ OverlayWindow {
         }
     }
 
-    // Contenido principal (ícono + texto)
-    // Con botones de acción el contenido se ancla arriba para dejar libre el
-    // fondo (evita que el texto y los botones se superpongan); sin acciones
-    // queda centrado verticalmente como antes.
+    // Contenido principal (ícono + texto) Con botones de acción el contenido se ancla arriba para dejar libre el fondo (evita que el texto y los
+    // botones se superpongan); sin acciones queda centrado verticalmente como antes.
     Row {
         anchors {
             left: parent.left
@@ -221,7 +217,6 @@ OverlayWindow {
         }
     }
 
-    // Botón cerrar
     MouseArea {
         anchors.top: parent.top
         anchors.right: parent.right
