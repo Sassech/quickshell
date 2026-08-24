@@ -1,6 +1,6 @@
-// qmllint disable unqualified missing-property
 import QtQuick
 import qs.Modals.cc
+pragma ComponentBehavior: Bound
 
 // Overlay de paneles del Control Center
 // Muestra un backdrop + el panel activo, alineado a la derecha.
@@ -104,7 +104,8 @@ Item {
     // wifiPanelInst ya no es accesible directamente (está dentro del Loader).
     // Se accede via wifiLoader.item para llamar el método passwordFetched.
     onWifiPasswordFetched: (idx, pw) => {
-        if (wifiLoader.item) wifiLoader.item.passwordFetched(idx, pw)
+        const w = wifiLoader.item as CcWifiPanel
+        if (w) w.passwordFetched(idx, pw)
     }
 
     // Bluetooth signals
@@ -163,9 +164,8 @@ Item {
             const _ = root.activePanel
             const __ = _loaderRevision     // dependency: re-evalúa en cada bump
             for (const child of panelHost.children) {
-                // qmllint disable missing-property
-                if (child instanceof Loader && child.active) return child
-                // qmllint enable missing-property
+                const loader = child as Loader
+                if (loader && loader.active) return loader
             }
             return null
         }
