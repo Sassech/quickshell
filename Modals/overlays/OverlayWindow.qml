@@ -35,11 +35,10 @@ PanelWindow {
     property bool   _dragged:       false   // true tras un arrastre real del modo edición
 
     // Auto-gobierno de visibilidad vía OverlaysManager
-    readonly property QtObject _ownEntry:   OverlaysManager.get(root.entryId)
+    readonly property OverlayEntry _ownEntry: OverlaysManager.get(root.entryId)
     readonly property bool _managed: root.entryId !== ""
 
-    // Capa efectiva: manejados→entry.onTop (guard entryId), no manejados→onTop. (qmllint disable: _ownEntry
-    // QtObject genérico; guard valida onTop/enabled) qmllint disable missing-property
+    // Capa efectiva: manejados→entry.onTop (guard entryId), no manejados→onTop.
     readonly property bool _effectiveOnTop: root._managed && root._ownEntry
         ? root._ownEntry.onTop
         : root.onTop
@@ -93,7 +92,6 @@ PanelWindow {
 
     // Único restack: _effectiveOnTop observa ambos; evita doble onOnTopChanged.
     on_EffectiveOnTopChanged: root._restackForLayer()
-    // qmllint enable missing-property
 
     // Computed layout
     readonly property bool _barOnRight:     corner.endsWith("right")
@@ -101,13 +99,11 @@ PanelWindow {
     readonly property int  _slideOffset:    overlayWidth + 16 + 24
     readonly property int  _slideStart:     _barOnRight ? _slideOffset : -_slideOffset
 
-    // Offsets: manejados→OverlayEntry, no manejados→qml. (qmllint disable: QtObject; guard _managed validado)
-    // qmllint disable missing-property
+    // Offsets: manejados→OverlayEntry, no manejados→qml.
     readonly property int _effTopOffset:    root._managed && root._ownEntry ? root._ownEntry.topOffset    : root.topOffset
     readonly property int _effBottomOffset: root._managed && root._ownEntry ? root._ownEntry.bottomOffset : root.bottomOffset
     readonly property int _effLeftOffset:   root._managed && root._ownEntry ? root._ownEntry.leftOffset   : root.leftOffset
     readonly property int _effRightOffset:  root._managed && root._ownEntry ? root._ownEntry.rightOffset  : root.rightOffset
-    // qmllint enable missing-property
 
     // Sizing card: no childrenRect (anti-patrón binding loop); max implicitHeight del slot. `data` incluye non-visuals (NaN) y no es bindable
     // (warning QQuickItem::data); `children` solo visuals y bindable (childrenChanged).
@@ -285,12 +281,9 @@ PanelWindow {
                     // centroid relativo a card; delta vs press = delta global (autocorrige latencia, no duplica).
                     pressX = centroid.position.x; pressY = centroid.position.y
                     root._dragged = false
-                    // (qmllint disable below: _ownEntry es QtObject genérico; el guard de runtime _managed &&
-                    // _ownEntry ya valida.) qmllint disable missing-property
                     const e = root._ownEntry
                     pressTop = e.topOffset; pressBottom = e.bottomOffset
                     pressLeft = e.leftOffset; pressRight = e.rightOffset
-                    // qmllint enable missing-property
                 } else if (root._dragged) {
                     // Persistir solo si hubo drag real; edición se apaga en OverlaysControl.
                     OverlaysManager.persistNow()
@@ -301,7 +294,6 @@ PanelWindow {
                 const dx = centroid.position.x - pressX
                 const dy = centroid.position.y - pressY
                 if (dx !== 0 || dy !== 0) root._dragged = true
-                // qmllint disable missing-property
                 const e = root._ownEntry
                 // Delta vs offset INICIAL (no actual → evita doble conteo por latencia compositor).
                 if (root.corner.endsWith("right"))  e.rightOffset = pressRight - dx
@@ -309,7 +301,6 @@ PanelWindow {
                 // OJO: vertical usa startsWith("bottom"), no endsWith (bottom-right).
                 if (root.corner.startsWith("bottom")) e.bottomOffset = pressBottom - dy
                 else                                  e.topOffset    = pressTop    + dy
-                // qmllint enable missing-property
             }
         }
     }

@@ -8,8 +8,8 @@ import Quickshell.Io
 QtObject {
     id: root
 
-    // Registro de overlays (data-driven)
-    property list<QtObject> overlays: [
+    // Registro de overlays (data-driven) — tipado como OverlayEntry para qmllint
+    property list<OverlayEntry> overlays: [
         OverlayEntry {
             entryId: "watermark"
             name: "Watermark"
@@ -44,8 +44,8 @@ QtObject {
     property QtObject config: QtObject {}   // configuración general (futuro)
     property QtObject data:   QtObject {}   // datos/servicios (futuro)
 
-    // Lookup por entryId (usado por los .qml de cada overlay)
-    function get(id) {
+    // Lookup por entryId (usado por los .qml de cada overlay) — retorna OverlayEntry tipado para qmllint
+    function get(id: string): OverlayEntry {
         for (let i = 0; i < root.overlays.length; ++i) {
             if (root.overlays[i].entryId === id) return root.overlays[i]
         }

@@ -82,6 +82,8 @@ QtObject {{
     readonly property color yellow:       "#F9D492"   // no M3 equivalent — fixed
     readonly property color success:      "#8BD4A4"   // no M3 equivalent — fixed
     readonly property color sky:          "#88C9D4"   // no M3 equivalent — fixed
+    readonly property color blue:         "#82AAFF"   // no M3 equivalent — fixed (PowerSaver)
+    readonly property color purple:       "#C4B5FD"   // no M3 equivalent — fixed (Log out)
 
     // ── Computed alpha variants (auto-update from above) ──────────────────
     readonly property color dim:            Qt.rgba(_bg.r, _bg.g, _bg.b, 0.80)
@@ -93,6 +95,8 @@ QtObject {{
     readonly property color successSurface: Qt.tint(surface2, Qt.rgba(success.r, success.g, success.b, 0.22))
     readonly property color hover:          Qt.rgba(1, 1, 1, 0.08)
     readonly property color hover2:         Qt.rgba(1, 1, 1, 0.20)
+    readonly property color surfaceHover:   Qt.rgba(1, 1, 1, 0.08)   // alias for hover — used by TrayIcon hover state
+    readonly property color borderSubtle:   Qt.rgba(1, 1, 1, 0.12)   // subtle border — used by TrayIcon tooltip
 }}
 """
 
