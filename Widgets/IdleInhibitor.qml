@@ -1,4 +1,5 @@
 import QtQuick
+pragma ComponentBehavior: Bound
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.Mpris
@@ -56,9 +57,7 @@ Rectangle {
     IdleMonitor {
         id: idleMonitorItem
         timeout: 60   // segundos (doc v0.3.0: timeout es real en segundos, no ms)
-        // qmllint disable unqualified
         onIsIdleChanged: root._updateIdleTime()
-        // qmllint enable unqualified
     }
 
     function _updateIdleTime() {
@@ -122,12 +121,10 @@ Rectangle {
     Instantiator {
         model: Mpris.players
         delegate: Connections {
-            required property var modelData
+            required property MprisPlayer modelData
             target: modelData
-            // qmllint disable unqualified
             function onPlaybackStateChanged() { root._checkMediaPlaying() }
             function onIsPlayingChanged()     { root._checkMediaPlaying() }
-            // qmllint enable unqualified
         }
     }
 

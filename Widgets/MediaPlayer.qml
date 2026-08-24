@@ -68,13 +68,11 @@ Row {
     Instantiator {
         model: Mpris.players
         delegate: Connections {
-            required property var modelData
+            required property MprisPlayer modelData
             target: modelData
-            // qmllint disable unqualified
             function onPlaybackStateChanged() { root._updateCachedPlayer() }
             function onTrackChanged()         { root._updateCachedPlayer() }
             function onIsPlayingChanged()     { root._updateCachedPlayer() }
-            // qmllint enable unqualified
         }
     }
 
