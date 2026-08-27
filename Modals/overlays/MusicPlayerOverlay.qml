@@ -35,9 +35,13 @@ OverlayWindow {
     }
 
     function _isBanned(p) {
-        if ((p.busName ?? "") !== "org.mpris.MediaPlayer2.mpv") return false
+        const name = (p.dbusName ?? p.busName ?? "")
+        if (name !== "org.mpris.MediaPlayer2.mpv") return false
         const players = Mpris.players.values ?? []
-        return players.some(q => (q.busName ?? "").startsWith("org.mpris.MediaPlayer2.mpv.instance"))
+        return players.some(q => {
+            const n = (q.dbusName ?? q.busName ?? "")
+            return n.startsWith("org.mpris.MediaPlayer2.mpv.instance")
+        })
     }
 
     function _pickPlayer() {

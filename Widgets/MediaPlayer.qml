@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell.Services.Mpris
 import "../Components"
@@ -12,9 +13,13 @@ Row {
     // El wallpaper de video (mpvpaper → mpv) toma el bus canónico org.mpris.MediaPlayer2.mpv; el mpv real del usuario, al abrirse después, queda como org.mpris.MediaPlayer2.mpv.instance-XXXX. Se banea
     // el canónico SOLO cuando coexiste una instancia real: entonces el canónico es el wallpaper (Playing en loop perpetuo) y el instance es el mpv del usuario.
     function _isBanned(p) {
-        if ((p.busName ?? "") !== "org.mpris.MediaPlayer2.mpv") return false
+        const name = (p.dbusName ?? p.busName ?? "")
+        if (name !== "org.mpris.MediaPlayer2.mpv") return false
         const players = Mpris.players.values ?? []
-        return players.some(q => (q.busName ?? "").startsWith("org.mpris.MediaPlayer2.mpv.instance"))
+        return players.some(q => {
+            const n = (q.dbusName ?? q.busName ?? "")
+            return n.startsWith("org.mpris.MediaPlayer2.mpv.instance")
+        })
     }
 
     function _updateCachedPlayer() {
