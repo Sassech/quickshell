@@ -17,6 +17,7 @@ OverlayWindow {
     animInMs:       250
     animOutMs:      250
     autoHideMs:     0               // 0 = persiste hasta que el usuario lo cierra
+    showAccent:     false
     // mouseThrough queda en false: sin botones, pero arrastrable en modo edición.
     // La posición (offsets) la gobierna OverlaysManager vía su OverlayEntry.
 
@@ -28,13 +29,6 @@ OverlayWindow {
     }
 
     readonly property string cpuWattsText: SysData.cpuPowerW < 0 ? "—" : "~" + Math.round(SysData.cpuPowerW) + " W · est"
-    readonly property string diskText: {
-        if (!SysData.diskAvailable) return "—"
-        const r = SysData.diskReadMbs
-        const w = SysData.diskWriteMbs
-        if (r <= 0 && w <= 0) return "0 MB/s idle"
-        return "↓ " + r.toFixed(1) + " ↑ " + w.toFixed(1) + " MB/s"
-    }
     readonly property string batTimeText: {
         if (!SysData.batAvailable || SysData.batFull) return ""
         const t = SysData.batCharging ? SysData.batTimeFull : SysData.batTimeEmpty
@@ -139,8 +133,7 @@ OverlayWindow {
                 model: [
                     { label: "System", value: root.fmtWatts(SysData.sysPowerW) },
                     { label: "GPU",    value: root.fmtWatts(SysData.gpuPowerW) },
-                    { label: "CPU",    value: root.cpuWattsText },
-                    { label: "Disk",   value: root.diskText }
+                    { label: "CPU",    value: root.cpuWattsText }
                 ]
                 delegate: Item {
                     id: rowDelegate
