@@ -4,7 +4,7 @@ import QtQml
 import Quickshell.Io
 
 // OverlaysManager — hub data-driven del subsistema de overlays
-// Agregar un overlay = 1 entrada en `overlays`; NO se toca OverlaysControl ni shell.qml.
+// Agregar un overlay = 1 entrada en `overlays` + 1 bloque Variants en shell.qml; OverlaysControl no se toca.
 QtObject {
     id: root
 
@@ -32,6 +32,14 @@ QtObject {
             description: "Mini reproductor de música (MPRIS)"
             icon: "󰝚"
             source: "../Modals/overlays/MusicPlayerOverlay.qml"
+        },
+        OverlayEntry {
+            entryId: "energy"
+            name: "Energy"
+            description: "Batería y consumo en vivo"
+            icon: "󰂃"
+            source: "../Modals/overlays/EnergyOverlay.qml"
+            bottomOffset: 140           // posición inicial (puede persistirse en overlays-state.json)
         },
 
     ]

@@ -690,6 +690,17 @@ ShellRoot {
         }
     }
 
+    // ENERGY OVERLAY (potencia)
+    // Visibilidad gobernada por su OverlayEntry en OverlaysManager.
+    Variants {
+        model: Quickshell.screens
+        EnergyOverlay {
+            id: energyInst
+            property var modelData
+            screen: modelData
+        }
+    }
+
     // OVERLAYS CONTROL MODAL Toggle con SUPER+O; cierra con broadcastCloseAll como el resto. Estado de cada
     // overlay gestionado por OverlaysManager.
     Variants {

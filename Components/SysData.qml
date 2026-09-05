@@ -97,6 +97,14 @@ QtObject {
         if (s === UPowerDeviceState.Empty)            return "Empty"
         return "Unknown"
     }
+    property bool   batFull:        _upDev ? _upDev.state === UPowerDeviceState.FullyCharged : false
+    property real   batChangeRate:  _upDev ? _upDev.changeRate  : 0
+    property real   batTimeEmpty:   _upDev ? _upDev.timeToEmpty : 0
+    property real   batTimeFull:    _upDev ? _upDev.timeToFull  : 0
+
+    // BAT V×I fallback state (µV/µA → V/A; -1 = unreadable).
+    property real _batVoltageV: -1
+    property real _batCurrentA: -1
 
     // Discovery cache (set once at startup by shell.qml)
     property string _hwmonSmm:      ""   // dell_smm path
@@ -112,6 +120,17 @@ QtObject {
 
     // CC visible gate: fan/GPU solo si CC abierto.
     property bool anyCcVisible: false
+
+    // Energy overlay visible gate: power pollers solo si overlay visible.
+    property bool anyEnergyVisible: false
+
+    // Energy — instant power (watts; -1 = unknown → UI "—").
+    property real sysPowerW: -1
+    property bool sysPowerValid: false
+    property real gpuPowerW: -1
+    property real cpuPowerW: cpuAvailable ? Math.round(cpuPercent * cpuTdpW) / 100 : -1
+    property real cpuTdpW: 65
+    property bool raplAvailable: false
 
     // Extended CPU detail
     property string cpuModel:       ""
@@ -328,14 +347,97 @@ QtObject {
         }
     }
 
-    // I/O sampling continuo (solo CC visible).
+    // I/O sampling continuo (solo CC visible u overlay Energy).
     property Timer _diskIoTimer: Timer {
         id: diskIoTimer
         interval: 2000
         repeat: true
         triggeredOnStart: true
-        running: data.pollersReady && data.anyCcVisible
+        running: data.pollersReady && (data.anyCcVisible || data.anyEnergyVisible)
         onTriggered: diskStatsFile.reload()
+    }
+
+    // Energy: sysPowerW = changeRate primario → BAT V×I fallback → -1.
+    // Stale guard: Full o rate < 0.5W nunca muestra 0W (muestra "—").
+    function _updateSysPower() {
+        if (data.batFull) {
+            data.sysPowerW = -1
+            data.sysPowerValid = false
+            return
+        }
+        if (data.batChangeRate >= 0.5) {
+            data.sysPowerW = Math.round(data.batChangeRate * 10) / 10
+            data.sysPowerValid = true
+            return
+        }
+        if (data._batVoltageV > 0 && data._batCurrentA >= 0) {
+            const w = data._batVoltageV * data._batCurrentA
+            if (w >= 0.5) {
+                data.sysPowerW = Math.round(w * 10) / 10
+                data.sysPowerValid = true
+                return
+            }
+        }
+        data.sysPowerW = -1
+        data.sysPowerValid = false
+    }
+
+    onBatChangeRateChanged: data._updateSysPower()
+    onBatFullChanged: data._updateSysPower()
+
+    // BAT0 V×I vía FileView (paths estáticos, sin shell).
+    property FileView _batVoltageFile: FileView {
+        id: batVoltageFile
+        path: "/sys/class/power_supply/BAT0/voltage_now"
+        preload: false
+        onLoaded: {
+            const v = parseInt(text().trim()) || 0
+            data._batVoltageV = v > 0 ? v / 1000000 : -1
+            data._updateSysPower()
+        }
+        onLoadFailed: {
+            data._batVoltageV = -1
+            data._updateSysPower()
+        }
+    }
+
+    property FileView _batCurrentFile: FileView {
+        id: batCurrentFile
+        path: "/sys/class/power_supply/BAT0/current_now"
+        preload: false
+        onLoaded: {
+            const a = parseInt(text().trim())
+            data._batCurrentA = (a !== undefined && a !== null && !isNaN(a) && a >= 0) ? a / 1000000 : -1
+            data._updateSysPower()
+        }
+        onLoadFailed: {
+            data._batCurrentA = -1
+            data._updateSysPower()
+        }
+    }
+
+    // RAPL oportunista (root-only en la práctica): solo flag de disponibilidad.
+    property FileView _raplEnergyFile: FileView {
+        id: raplEnergyFile
+        path: "/sys/class/powercap/intel-rapl:0/energy_uj"
+        preload: false
+        onLoaded: data.raplAvailable = true
+        onLoadFailed: data.raplAvailable = false
+    }
+
+    // Power sampling 4s, solo con overlay Energy visible.
+    property Timer _powerTimer: Timer {
+        id: powerTimer
+        interval: 4000
+        repeat: true
+        running: data.pollersReady && data.anyEnergyVisible
+        triggeredOnStart: true
+        onTriggered: {
+            batVoltageFile.reload()
+            batCurrentFile.reload()
+            raplEnergyFile.reload()
+            data._updateSysPower()
+        }
     }
 
     // Pollers (gatean en pollersReady).
@@ -658,16 +760,19 @@ QtObject {
         name = name.replace("NVIDIA GeForce ", "").replace("GeForce ", "")
         const vramUsed  = parts.length > 3 ? (parseInt(parts[3].trim()) || 0) : 0
         const vramTotal = parts.length > 4 ? (parseInt(parts[4].trim()) || 0) : 0
+        const wattsRaw  = parts.length > 5 ? parseFloat(parts[5].trim()) : NaN
 
         data.gpuPercent     = pct
         data.gpuTemp        = tmp
         data.gpuName        = name
         data.gpuVramUsedMb  = vramUsed
         data.gpuVramTotalMb = vramTotal
+        data.gpuPowerW      = isNaN(wattsRaw) ? -1 : Math.round(wattsRaw * 10) / 10
         data.gpuAvailable   = pct >= 0
     }
 
     function fetchGpuSysfs() {
+        data.gpuPowerW = -1   // sysfs no expone watts
         if (!data._gpuCardPath) {
             data.gpuPercent = -1
             data.gpuAvailable = false
@@ -702,14 +807,15 @@ QtObject {
         data.gpuName        = name
         data.gpuVramUsedMb  = vramUsed
         data.gpuVramTotalMb = vramTotal
+        data.gpuPowerW      = -1   // sysfs no expone watts
         data.gpuAvailable   = pct >= 0
     }
 
     property Process _nvidiaSmiProc: Process {
         id: nvidiaSmiProc
-        running: data.pollersReady && data.anyCcVisible   // paused when CC is not visible
+        running: data.pollersReady && (data.anyCcVisible || data.anyEnergyVisible)
         command: ["nvidia-smi", "--loop=4",
-                  "--query-gpu=utilization.gpu,temperature.gpu,name,memory.used,memory.total",
+                  "--query-gpu=utilization.gpu,temperature.gpu,name,memory.used,memory.total,power.draw",
                   "--format=csv,noheader,nounits"]
         stdout: SplitParser {
             splitMarker: "\n"
