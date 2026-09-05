@@ -57,6 +57,14 @@ QtObject {
             source: "../Modals/overlays/ClockOverlay.qml"
             bottomOffset: 310
         },
+        OverlayEntry {
+            entryId: "sysstats"
+            name: "System Stats"
+            description: "CPU/RAM/GPU/Disco/Ventiladores"
+            icon: ""
+            source: "../Modals/overlays/SystemStatsOverlay.qml"
+            bottomOffset: 380
+        },
 
     ]
 

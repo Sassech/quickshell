@@ -373,6 +373,7 @@ ShellRoot {
     signal broadcastBrightness(int pct)
     signal broadcastVolume()
     signal broadcastClock(var screen)
+    signal broadcastSysStats(var screen)
     signal broadcastControlCenter(var screen)
     signal broadcastOverlaysControl(var screen)
     signal broadcastScreenshot(var screen)
@@ -410,6 +411,7 @@ ShellRoot {
             onWeatherClicked:        screen => root.broadcastWeather(screen)
             onClipboardClicked:      screen => root.broadcastClipboard(screen)
             onClockClicked:          screen => root.broadcastClock(screen)
+            onSysstatsClicked:       screen => root.broadcastSysStats(screen)
             onControlCenterClicked:  screen => root.broadcastControlCenter(screen)
             Connections {
                 target: root
@@ -449,6 +451,15 @@ ShellRoot {
         target: root
         function onBroadcastClock(screen) {
             var e = OverlaysManager.get("clock")
+            if (e) e.enabled = !e.enabled
+        }
+    }
+
+    // SysStats broadcast toggles SystemStatsOverlay; TopBar Cpu/Ram/Gpu/Disk -> overlay glanceable
+    Connections {
+        target: root
+        function onBroadcastSysStats(screen) {
+            var e = OverlaysManager.get("sysstats")
             if (e) e.enabled = !e.enabled
         }
     }
@@ -720,6 +731,17 @@ ShellRoot {
         model: Quickshell.screens
         ClockOverlay {
             id: clockOverlayInst
+            property var modelData
+            screen: modelData
+        }
+    }
+
+    // SYSTEM STATS OVERLAY (CPU/RAM/GPU/Disco/Ventiladores)
+    // Visibilidad gobernada por su OverlayEntry en OverlaysManager.
+    Variants {
+        model: Quickshell.screens
+        SystemStatsOverlay {
+            id: sysStatsOverlayInst
             property var modelData
             screen: modelData
         }

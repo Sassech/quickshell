@@ -10,6 +10,7 @@ PanelWindow {
     signal weatherClicked(var screen)
     signal clipboardClicked(var screen)
     signal clockClicked(var screen)
+    signal sysstatsClicked(var screen)
     signal controlCenterClicked(var screen)
 
     function updateClipboardCount(n) { clipboardWidget.updateCount(n) }
@@ -95,10 +96,18 @@ PanelWindow {
             }
             spacing: 8
 
-            CpuWidget {}
-            RamWidget {}
-            GpuWidget {}
-            DiskWidget {}
+            CpuWidget {
+                onClicked: root.sysstatsClicked(root.screen)
+            }
+            RamWidget {
+                onClicked: root.sysstatsClicked(root.screen)
+            }
+            GpuWidget {
+                onClicked: root.sysstatsClicked(root.screen)
+            }
+            DiskWidget {
+                onClicked: root.sysstatsClicked(root.screen)
+            }
             BatteryWidget {}
             ControlCenterButton {
                 onClicked: root.controlCenterClicked(root.screen)

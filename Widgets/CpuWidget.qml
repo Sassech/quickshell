@@ -4,10 +4,12 @@ import "../Components"
 Rectangle {
     id: root
 
+    signal clicked()
+
     implicitWidth: 104
     implicitHeight: 24
     radius: 8
-    color: Theme.surface2
+    color: mouseArea.containsMouse ? Theme.surface3 : Theme.surface2
 
     property color accentColor: {
         if (!SysData.cpuAvailable) return Theme.muted2
@@ -52,4 +54,11 @@ Rectangle {
         }
     }
 
+    MouseArea {
+        id: mouseArea
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.clicked()
+    }
 }
