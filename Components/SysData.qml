@@ -32,6 +32,7 @@ QtObject {
     property bool gpuAvailable: false
     property int gpuVramUsedMb: 0
     property int gpuVramTotalMb: 0
+    property int gpuFreqMhz: -1
 
     property int diskUsedGb: 0
     property int diskAvailGb: 0
@@ -123,6 +124,9 @@ QtObject {
 
     // Energy overlay visible gate: power pollers solo si overlay visible.
     property bool anyEnergyVisible: false
+
+    // System Stats overlay visible gate: fan/GPU/disk-IO pollers solo si overlay visible.
+    property bool anySysStatsVisible: false
 
     // Energy — instant power (watts; -1 = unknown → UI "—").
     property real sysPowerW: -1
@@ -347,13 +351,13 @@ QtObject {
         }
     }
 
-    // I/O sampling continuo (solo CC visible u overlay Energy).
+    // I/O sampling continuo (solo CC visible u overlays Energy/SystemStats).
     property Timer _diskIoTimer: Timer {
         id: diskIoTimer
         interval: 2000
         repeat: true
         triggeredOnStart: true
-        running: data.pollersReady && (data.anyCcVisible || data.anyEnergyVisible)
+        running: data.pollersReady && (data.anyCcVisible || data.anyEnergyVisible || data.anySysStatsVisible)
         onTriggered: diskStatsFile.reload()
     }
 
@@ -620,6 +624,15 @@ QtObject {
         cpuMaxFreqFile.reload()
     }
 
+    // Refresh inmediato para SystemStatsOverlay onVisibleChanged: una pasada
+    // de sensores lentos para paint instantáneo; el steady state sigue el
+    // cadence de cada timer (4–5s). Sin asignaciones — solo reloads.
+    function refreshSysStatsDetail() {
+        nvmeTempFile.reload()
+        platformProfileFile.reload()
+        data._reloadCoreTemps()
+    }
+
     // Fan poller hwmon sysfs 5s
     property int _fanMax1: 3700
     property int _fanMax2: 4000
@@ -628,7 +641,7 @@ QtObject {
         id: fanTimer
         interval: 5000
         repeat: true
-        running: data.pollersReady && data.anyCcVisible
+        running: data.pollersReady && (data.anyCcVisible || data.anySysStatsVisible)
         triggeredOnStart: true
         onTriggered: {
             if (data._hwmonSmm) {
@@ -761,6 +774,7 @@ QtObject {
         const vramUsed  = parts.length > 3 ? (parseInt(parts[3].trim()) || 0) : 0
         const vramTotal = parts.length > 4 ? (parseInt(parts[4].trim()) || 0) : 0
         const wattsRaw  = parts.length > 5 ? parseFloat(parts[5].trim()) : NaN
+        const freqRaw   = parts.length > 6 ? parseInt(parts[6].trim()) : NaN
 
         data.gpuPercent     = pct
         data.gpuTemp        = tmp
@@ -768,13 +782,16 @@ QtObject {
         data.gpuVramUsedMb  = vramUsed
         data.gpuVramTotalMb = vramTotal
         data.gpuPowerW      = isNaN(wattsRaw) ? -1 : Math.round(wattsRaw * 10) / 10
+        data.gpuFreqMhz     = isNaN(freqRaw) ? -1 : freqRaw
         data.gpuAvailable   = pct >= 0
     }
 
     function fetchGpuSysfs() {
         data.gpuPowerW = -1   // sysfs no expone watts
+        data.gpuFreqMhz = -1  // sysfs no expone freq (overlay muestra "—")
         if (!data._gpuCardPath) {
             data.gpuPercent = -1
+            data.gpuFreqMhz = -1
             data.gpuAvailable = false
             return
         }
@@ -808,14 +825,15 @@ QtObject {
         data.gpuVramUsedMb  = vramUsed
         data.gpuVramTotalMb = vramTotal
         data.gpuPowerW      = -1   // sysfs no expone watts
+        data.gpuFreqMhz     = -1   // sysfs no expone freq
         data.gpuAvailable   = pct >= 0
     }
 
     property Process _nvidiaSmiProc: Process {
         id: nvidiaSmiProc
-        running: data.pollersReady && (data.anyCcVisible || data.anyEnergyVisible)
+        running: data.pollersReady && (data.anyCcVisible || data.anyEnergyVisible || data.anySysStatsVisible)
         command: ["nvidia-smi", "--loop=4",
-                  "--query-gpu=utilization.gpu,temperature.gpu,name,memory.used,memory.total,power.draw",
+                  "--query-gpu=utilization.gpu,temperature.gpu,name,memory.used,memory.total,power.draw,clocks.current.graphics",
                   "--format=csv,noheader,nounits"]
         stdout: SplitParser {
             splitMarker: "\n"
