@@ -3,7 +3,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
-import Quickshell.Io
 import "../Components"
 
 QmModalBase {
@@ -21,17 +20,6 @@ QmModalBase {
     property var notifModel: null
     property int currentMonth: 0
     property int currentYear: 0
-    property bool use24hFormat: true
-    property string _dateText: ""
-
-    // Timer para actualizar la hora en tiempo real
-    Timer {
-        id: clockTimer
-        interval: 1000
-        running: root.visible
-        repeat: true
-        onTriggered: clockText.updateTime()
-    }
 
     onVisibleChanged: {
         if (visible) {
@@ -39,7 +27,6 @@ QmModalBase {
             currentMonth = now.getMonth()
             currentYear  = now.getFullYear()
             updateCalendar()
-            clockText.updateTime()
         }
     }
 
@@ -357,55 +344,7 @@ QmModalBase {
 
             Item { Layout.preferredHeight: 20 }
 
-            Text {
-                id: clockText
-                Layout.alignment: Qt.AlignHCenter
-                font.pixelSize: 64
-                font.bold: true
-                color: Theme.text
-
-                property string _time: ""
-                text: _time
-
-                function updateTime() {
-                    const now = new Date()
-                    if (root.use24hFormat) {
-                        const h = String(now.getHours()).padStart(2, "0")
-                        const m = String(now.getMinutes()).padStart(2, "0")
-                        _time = h + ":" + m
-                    } else {
-                        let h = now.getHours()
-                        const ampm = h >= 12 ? "PM" : "AM"
-                        h = h % 12 || 12
-                        const m = String(now.getMinutes()).padStart(2, "0")
-                        _time = h + ":" + m + " " + ampm
-                    }
-                    root._dateText = Qt.formatDateTime(now, "dddd, d 'de' MMMM")
-                }
-
-                Component.onCompleted: updateTime()
-            }
-
-            Text {
-                Layout.alignment: Qt.AlignHCenter
-                text: root._dateText
-                font.pixelSize: 13
-                color: Theme.muted1
-            }
-
-            Item { Layout.preferredHeight: 12 }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.leftMargin: 16
-                Layout.rightMargin: 16
-                implicitHeight: 1
-                color: Theme.surface2
-            }
-
-            Item { Layout.preferredHeight: 10 }
-
-            // Navegación del calendario
+            // Navegación del calendario (reloj removido — ahora overlay)
             RowLayout {
                 Layout.fillWidth: true
                 Layout.leftMargin: 16
@@ -536,74 +475,6 @@ QmModalBase {
             }
 
             Item { Layout.fillHeight: true }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.leftMargin: 16
-                Layout.rightMargin: 16
-                implicitHeight: 1
-                color: Theme.surface2
-            }
-
-            Item { Layout.preferredHeight: 10 }
-
-            RowLayout {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.bottomMargin: 14
-                spacing: 8
-
-                Text {
-                    text: "Formato:"
-                    font.pixelSize: 11
-                    color: Theme.muted2
-                }
-
-                Rectangle {
-                    implicitWidth: 44; implicitHeight: 26; radius: 7; color: Theme.surface2
-                    border.color: Theme.accent
-                    border.width: root.use24hFormat ? 2 : 0
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.setFormat(true)
-                    }
-                    Text { anchors.centerIn: parent; text: "24h"; font.pixelSize: 11; color: Theme.text }
-                }
-
-                Rectangle {
-                    implicitWidth: 44; implicitHeight: 26; radius: 7; color: Theme.surface2
-                    border.color: Theme.accent
-                    border.width: root.use24hFormat ? 0 : 2
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.setFormat(false)
-                    }
-                    Text { anchors.centerIn: parent; text: "12h"; font.pixelSize: 11; color: Theme.text }
-                }
-            }
         }
-    }
-
-    // Persistencia de formato
-    FileView {
-        id: clockPrefsFile
-        path: Paths.config + "/clock-prefs.json"
-        Component.onCompleted: this.reload()
-        onLoaded: {
-            try {
-                const prefs = JSON.parse(text())
-                root.use24hFormat = prefs.use24h !== false
-                clockText.updateTime()
-            } catch(e) {}
-        }
-    }
-
-    function setFormat(is24h) {
-        root.use24hFormat = is24h
-        clockText.updateTime()
-        clockPrefsFile.setText(JSON.stringify({ use24h: is24h }))
     }
 }

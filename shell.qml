@@ -429,7 +429,7 @@ ShellRoot {
     }
 
 
-    // CLOCK MODAL
+    // CLOCK MODAL — calendar + notifications (reloj movido a ClockOverlay)
     Variants {
         model: Quickshell.screens
         ClockModal {
@@ -440,12 +440,20 @@ ShellRoot {
             Connections {
                 target: root
                 function onBroadcastCloseAll(screen) { root.closeModalOnScreen(clockModalInst, screen) }
-                function onBroadcastClock(screen) { root.toggleModal(clockModalInst, screen) }
             }
         }
     }
 
-    // Weather broadcast now toggles ClimateOverlay (migrated from WeatherModal)
+    // Clock broadcast ahora toggles ClockOverlay (no modal); TopBar Clock -> overlay glanceable
+    Connections {
+        target: root
+        function onBroadcastClock(screen) {
+            var e = OverlaysManager.get("clock")
+            if (e) e.enabled = !e.enabled
+        }
+    }
+
+    // Weather broadcast toggles ClimateOverlay (migrated from WeatherModal)
     Connections {
         target: root
         function onBroadcastWeather(screen) {
@@ -701,6 +709,17 @@ ShellRoot {
         model: Quickshell.screens
         ClimateOverlay {
             id: climateInst
+            property var modelData
+            screen: modelData
+        }
+    }
+
+    // CLOCK OVERLAY (reloj glanceable)
+    // Visibilidad gobernada por su OverlayEntry en OverlaysManager.
+    Variants {
+        model: Quickshell.screens
+        ClockOverlay {
+            id: clockOverlayInst
             property var modelData
             screen: modelData
         }

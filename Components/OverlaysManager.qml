@@ -49,6 +49,14 @@ QtObject {
             source: "../Modals/overlays/ClimateOverlay.qml"
             bottomOffset: 240           // posición inicial (puede persistirse en overlays-state.json)
         },
+        OverlayEntry {
+            entryId: "clock"
+            name: "Clock"
+            description: "Reloj"
+            icon: "󰃭"
+            source: "../Modals/overlays/ClockOverlay.qml"
+            bottomOffset: 310
+        },
 
     ]
 
