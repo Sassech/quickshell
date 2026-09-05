@@ -22,8 +22,8 @@ Rectangle {
     }
 
     // Gate de visibilidad
-    Component.onCompleted: WeatherProvider._anyConsumerVisible = true
-    Component.onDestruction: WeatherProvider._anyConsumerVisible = false
+    Component.onCompleted: WeatherProvider.topBarWeatherVisible = true
+    Component.onDestruction: WeatherProvider.topBarWeatherVisible = false
 
     Row {
         id: weatherRow

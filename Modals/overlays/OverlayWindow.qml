@@ -219,7 +219,7 @@ PanelWindow {
         id: overlayCard
         width:  root.overlayWidth
         height: root.overlayHeight > 0 ? root.overlayHeight : implicitHeight
-        radius: 12
+        radius: 16
         color:  root.bgColor
         border.color: root.borderColor
         border.width: 1

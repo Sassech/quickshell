@@ -27,7 +27,7 @@ type weatherOutput struct {
 
 // weatherURL: misma query WeatherProvider.qml.
 const weatherURL = "https://api.open-meteo.com/v1/forecast?latitude=%f&longitude=%f" +
-	"&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day" +
+	"&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day,pressure_msl,precipitation,uv_index,wind_direction_10m" +
 	"&hourly=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,surface_pressure,relative_humidity_2m,visibility,precipitation_probability,is_day" +
 	"&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset" +
 	"&forecast_days=7&wind_speed_unit=kmh&temperature_unit=celsius&timezone=auto"

@@ -445,18 +445,12 @@ ShellRoot {
         }
     }
 
-    // WEATHER MODAL
-    Variants {
-        model: Quickshell.screens
-        WeatherModal {
-            id: weatherModalInst
-            property var modelData
-            screen: modelData
-            Connections {
-                target: root
-                function onBroadcastCloseAll(screen) { root.closeModalOnScreen(weatherModalInst, screen) }
-                function onBroadcastWeather(screen) { root.toggleModal(weatherModalInst, screen) }
-            }
+    // Weather broadcast now toggles ClimateOverlay (migrated from WeatherModal)
+    Connections {
+        target: root
+        function onBroadcastWeather(screen) {
+            var e = OverlaysManager.get("climate")
+            if (e) e.enabled = !e.enabled
         }
     }
 
@@ -696,6 +690,17 @@ ShellRoot {
         model: Quickshell.screens
         EnergyOverlay {
             id: energyInst
+            property var modelData
+            screen: modelData
+        }
+    }
+
+    // CLIMATE OVERLAY (clima actual)
+    // Visibilidad gobernada por su OverlayEntry en OverlaysManager.
+    Variants {
+        model: Quickshell.screens
+        ClimateOverlay {
+            id: climateInst
             property var modelData
             screen: modelData
         }

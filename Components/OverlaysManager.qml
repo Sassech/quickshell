@@ -37,9 +37,17 @@ QtObject {
             entryId: "energy"
             name: "Energy"
             description: "Batería y consumo en vivo"
-            icon: "󰂃"
+            icon: ""
             source: "../Modals/overlays/EnergyOverlay.qml"
             bottomOffset: 140           // posición inicial (puede persistirse en overlays-state.json)
+        },
+        OverlayEntry {
+            entryId: "climate"
+            name: "Climate"
+            description: "Clima actual de un vistazo"
+            icon: ""
+            source: "../Modals/overlays/ClimateOverlay.qml"
+            bottomOffset: 240           // posición inicial (puede persistirse en overlays-state.json)
         },
 
     ]

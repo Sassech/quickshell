@@ -22,6 +22,12 @@ QtObject {
     property bool isDay: true
     property string sunrise: "--:--"
     property string sunset: "--:--"
+
+    // Extended current fields (guarded parse: missing → -1 → "—")
+    property double pressureMsl: -1
+    property double precipitation: -1
+    property double uvIndex: -1
+    property double windDirection: -1
     
     // Datos forecast
     property var hourlyData: []
@@ -30,8 +36,11 @@ QtObject {
     // Senales personalizadas
     signal dataReady()
     
-    // Gate de visibilidad para el timer
-    property bool _anyConsumerVisible: false
+    // Gate de visibilidad para el timer (OR-composed: modal || topbar || overlay)
+    property bool weatherModalVisible: false
+    property bool topBarWeatherVisible: false
+    property bool climateOverlayVisible: false
+    readonly property bool _anyConsumerVisible: weatherModalVisible || topBarWeatherVisible || climateOverlayVisible
 
     // Init
     Component.onCompleted: {
@@ -104,6 +113,16 @@ QtObject {
             root.humidity = c.relative_humidity_2m
             root.weatherCode = c.weather_code
             root.isDay = (c.is_day === 1)
+
+            // Guarded: old-shape cache (≤10 min) lacks new fields → "—", no crash
+            if (c.pressure_msl !== undefined && !isNaN(Number(c.pressure_msl))) root.pressureMsl = Number(c.pressure_msl)
+            else root.pressureMsl = -1
+            if (c.precipitation !== undefined && !isNaN(Number(c.precipitation))) root.precipitation = Number(c.precipitation)
+            else root.precipitation = -1
+            if (c.uv_index !== undefined && !isNaN(Number(c.uv_index))) root.uvIndex = Number(c.uv_index)
+            else root.uvIndex = -1
+            if (c.wind_direction_10m !== undefined && !isNaN(Number(c.wind_direction_10m))) root.windDirection = Number(c.wind_direction_10m)
+            else root.windDirection = -1
             
             if (j.daily && j.daily.sunrise && j.daily.sunrise.length > 0) {
                 var srFull = j.daily.sunrise[0]
