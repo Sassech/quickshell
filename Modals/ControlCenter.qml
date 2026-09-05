@@ -26,7 +26,7 @@ PanelWindow {
     property var    _confirmCmd:   []
 
     property int    _btRev: 0
-    property string _activePanel: ""   // "wifi" | "bluetooth" | "audio" | "power" | "battery" | "language" | "cpu" | "ram" | "gpu" | ""
+    property string _activePanel: ""   // "wifi" | "bluetooth" | "audio" | "power" | "battery" | "language" | ""
     property bool   _audioShowSources: true
 
     // DECISIÓN: los controllers se instancian eager, NO dentro de un Loader (el trabajo pesado ya está gateado internamente; un Loader rompería
@@ -38,11 +38,6 @@ PanelWindow {
 
     CcBrightnessController {
         id: brightnessCtrl
-    }
-
-    CcGpuController {
-        id: gpuCtrl
-        active: root.visible && root._activePanel === "gpu"
     }
 
     CcPowerController {
@@ -100,9 +95,6 @@ PanelWindow {
 
     property alias brightness:       brightnessCtrl.brightness
     property alias _brightnessReady: brightnessCtrl._brightnessReady
-
-    property alias _gpuLoaded:      gpuCtrl._gpuLoaded
-    property alias _gpus:           gpuCtrl._gpus
 
     property alias _fanProfiles: powerCtrl._fanProfiles
 
@@ -216,7 +208,6 @@ PanelWindow {
     onVisibleChanged: {
         SysData.anyCcVisible = visible
         if (visible) {
-            root._gpuLoaded = false
             brightnessCtrl.refresh()
             langCtrl.warmUp()
             root._pwRev++
@@ -357,20 +348,6 @@ PanelWindow {
                     }
                 }
 
-                CcSystemSection {
-                    width: parent.width
-                    activePanel: root._activePanel
-                    diskPct:        SysData.diskPercent
-                    diskUsed:       SysData.diskUsedGb
-                    diskTotal:      SysData.diskUsedGb + SysData.diskAvailGb
-                    diskAvailable:  SysData.diskAvailable
-                    diskReadMbs:    SysData.diskReadMbs
-                    diskWriteMbs:   SysData.diskWriteMbs
-                    onTogglePanel: function(key) {
-                        root._activePanel = (root._activePanel === key) ? "" : key
-                    }
-                }
-
                 Item { width: parent.width; height: 8 }
             }
         }
@@ -434,31 +411,6 @@ PanelWindow {
         batChangeRate: root._batChangeRate
         batTimeEmpty:  root._batTimeEmpty
         batTimeFull:   root._batTimeFull
-
-        cpuAvailable:   SysData.cpuAvailable
-        cpuPercent:     SysData.cpuPercent
-        cpuTemp:        SysData.cpuTemp
-        cpuModel:       SysData.cpuModel
-        cpuAvgFreq:     SysData.cpuAvgFreqMhz
-        cpuGov:         SysData.cpuGovernor
-        cpuNcores:      SysData.cpuNcores
-        cpuCorePcts:    SysData.cpuCorePcts
-        cpuCoreTemps:   SysData.cpuCoreTemps
-        cpuLoaded:      SysData.cpuAvailable
-
-        ramAvailable: SysData.ramAvailable
-        ramPercent:   SysData.ramPercent
-        ramUsedGb:    SysData.ramUsedGb
-        ramTotalGb:   SysData.ramTotalGb
-        ramAvailGb:   SysData.ramAvailGb
-        ramCacheGb:   SysData.ramCacheGb
-        ramAppsGb:    SysData.ramAppsGb
-        swapPercent:  SysData.swapPercent
-        swapTotalGb:  SysData.swapTotalGb
-        swapFreeGb:   SysData.swapFreeGb
-
-        gpus:       root._gpus
-        gpuLoaded:  root._gpuLoaded
 
         filteredLayouts: root._filteredLayouts
         filteredLocales: root._filteredLocales
@@ -604,15 +556,5 @@ PanelWindow {
         // qmllint disable signal-handler-parameters
         onExited: running = false
         // qmllint enable signal-handler-parameters
-    }
-
-    // CPU detail refresh — native QML pollers (SysData)
-    Timer {
-        interval: 1500; repeat: true
-        running: root.visible && root._activePanel === "cpu"
-        onTriggered: SysData.refreshCpuDetail()
-        onRunningChanged: {
-            if (running) SysData.refreshCpuDetail()
-        }
     }
 }

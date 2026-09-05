@@ -8,7 +8,7 @@ Item {
     id: root
 
     // Inputs desde ControlCenter
-    required property string activePanel          // "wifi"|"bluetooth"|"audio"|"power"|"battery"|"language"|"cpu"|"ram"|"gpu"|""
+    required property string activePanel          // "wifi"|"bluetooth"|"audio"|"power"|"battery"|"language"|""
 
     required property var    nmWifiDev
     required property bool   wifiRadioOn
@@ -52,31 +52,6 @@ Item {
     required property real  batChangeRate
     required property real  batTimeEmpty
     required property real  batTimeFull
-
-    required property bool   cpuAvailable
-    required property int    cpuPercent
-    required property int    cpuTemp
-    required property string cpuModel
-    required property int    cpuAvgFreq
-    required property string cpuGov
-    required property int    cpuNcores
-    required property var    cpuCorePcts
-    required property var    cpuCoreTemps
-    required property bool   cpuLoaded
-
-    required property bool ramAvailable
-    required property int  ramPercent
-    required property real ramUsedGb
-    required property real ramTotalGb
-    required property real ramAvailGb
-    required property real ramCacheGb
-    required property real ramAppsGb
-    required property int  swapPercent
-    required property real swapTotalGb
-    required property real swapFreeGb
-
-    required property var  gpus
-    required property bool gpuLoaded
 
     required property var    filteredLayouts
     required property var    filteredLocales
@@ -299,58 +274,6 @@ Item {
                     batChangeRate: root.batChangeRate
                     batTimeEmpty:  root.batTimeEmpty
                     batTimeFull:   root.batTimeFull
-                    onCloseRequested: root.closePanel()
-                }
-            }
-        }
-
-        // CPU Panel
-        Loader {
-            active: root.activePanel === "cpu"
-            sourceComponent: Component {
-                CcCpuPanel {
-                    cpuAvailable:  root.cpuAvailable
-                    cpuPercent:    root.cpuPercent
-                    cpuTemp:       root.cpuTemp
-                    cpuModel:      root.cpuModel
-                    cpuAvgFreq:    root.cpuAvgFreq
-                    cpuGov:        root.cpuGov
-                    cpuNcores:     root.cpuNcores
-                    cpuCorePcts:   root.cpuCorePcts
-                    cpuCoreTemps:  root.cpuCoreTemps
-                    cpuLoaded:     root.cpuLoaded
-                    onCloseRequested: root.closePanel()
-                }
-            }
-        }
-
-        // RAM Panel
-        Loader {
-            active: root.activePanel === "ram"
-            sourceComponent: Component {
-                CcRamPanel {
-                    ramAvailable: root.ramAvailable
-                    ramPercent:   root.ramPercent
-                    ramUsedGb:    root.ramUsedGb
-                    ramTotalGb:   root.ramTotalGb
-                    ramAvailGb:   root.ramAvailGb
-                    ramCacheGb:   root.ramCacheGb
-                    ramAppsGb:    root.ramAppsGb
-                    swapPercent:  root.swapPercent
-                    swapTotalGb:  root.swapTotalGb
-                    swapFreeGb:   root.swapFreeGb
-                    onCloseRequested: root.closePanel()
-                }
-            }
-        }
-
-        // GPU Panel
-        Loader {
-            active: root.activePanel === "gpu"
-            sourceComponent: Component {
-                CcGpuPanel {
-                    gpus:      root.gpus
-                    gpuLoaded: root.gpuLoaded
                     onCloseRequested: root.closePanel()
                 }
             }
