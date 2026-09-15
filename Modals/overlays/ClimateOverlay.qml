@@ -132,6 +132,23 @@ OverlayWindow {
         selectedHourIndex = 0
     }
 
+    // Hourly entries for the selected day (WeatherProvider keys both arrays by date).
+    // Falls back to the full list when the date key is missing so the strip never empties.
+    readonly property string _selectedDate: {
+        var d = root.dailyData
+        if (!d || selectedDayIndex < 0 || selectedDayIndex >= d.length || !d[selectedDayIndex].date) return ""
+        return d[selectedDayIndex].date
+    }
+    readonly property var hourlyForSelectedDay: {
+        var h = root.hourlyData
+        if (!h || h.length === 0 || root._selectedDate === "") return h
+        var out = []
+        for (var i = 0; i < h.length; i++) {
+            if (h[i].date === root._selectedDate) out.push(h[i])
+        }
+        return out.length > 0 ? out : h
+    }
+
     function _periodLabel() {
         var h = new Date().getHours()
         if (h < 6)  return "Madrugada"
@@ -486,10 +503,11 @@ OverlayWindow {
                 id: hourlyList
                 width: parent.width
                 height: 168
+                implicitHeight: 168
                 orientation: ListView.Horizontal
                 spacing: 8
                 clip: true
-                model: root.hourlyData
+                model: root.hourlyForSelectedDay
 
                 ScrollBar.horizontal: ScrollBar {
                     policy: ScrollBar.AsNeeded

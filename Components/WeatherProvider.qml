@@ -138,12 +138,13 @@ QtObject {
             var hourlyArr = []
             
             if (j.hourly && j.hourly.time) {
-                for (var i = 0; i < j.hourly.time.length && hourlyArr.length < 24; i++) {
+                for (var i = 0; i < j.hourly.time.length; i++) {
                     var tStr = j.hourly.time[i]
                     var dd = tStr.substring(0, 10)
                     var hh = parseInt(tStr.substring(tStr.indexOf("T") + 1, tStr.indexOf("T") + 3))
                     if (dd === today && hh < nowHour) continue
                     hourlyArr.push({
+                        date: dd,
                         time: tStr.substring(tStr.indexOf("T") + 1),
                         temp: j.hourly.temperature_2m[i],
                         feels: j.hourly.apparent_temperature[i],
@@ -165,6 +166,7 @@ QtObject {
                 for (var di = 0; di < j.daily.time.length; di++) {
                     var date = new Date(j.daily.time[di] + "T12:00:00")
                     dailyArr.push({
+                        date: j.daily.time[di],
                         dayName: days[date.getDay()],
                         code: j.daily.weather_code[di],
                         min: j.daily.temperature_2m_min[di],
