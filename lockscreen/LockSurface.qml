@@ -32,6 +32,15 @@ WlSessionLockSurface {
     readonly property color _error:   "#FFB4AB"
     readonly property color _warning: "#E8C08E"
 
+    // Translucent dim tint (unit 2): lets the frozen screen show through
+    // dimmed, approximating hyprlock's blurred-screenshot look
+    // (screenshot + blur + brightness 0.65). If the compositor forces
+    // lock surfaces opaque, this degrades to a solid dark background.
+    // A pre-lock blurred screenshot (ScreencopyView captured before
+    // locking) is the fallback if translucency proves insufficient —
+    // deferred to gate review since live lock does not hold yet.
+    readonly property color _bgDim: Qt.rgba(0.102, 0.067, 0.071, 0.55)
+
     // Shared state from shell.qml (same text on every monitor).
     required property var ctx
     // True while the session is locked; focuses the password field on engage.
@@ -40,7 +49,7 @@ WlSessionLockSurface {
     // Fired when the user submits the password field (Enter).
     signal attemptLogin()
 
-    color: root._surface
+    color: root._bgDim
 
     onLockedChanged: {
         if (root.locked)
