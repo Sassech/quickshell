@@ -297,7 +297,14 @@ func findClipEntry(id string, list []byte) (entry, preview string) {
 	return "", ""
 }
 
-// lanzarWlCopy: Start+Release (wl-copy forkea; Output cuelga por pipe).
+// lanzarWlCopy: Run (no Output) para no heredar el pipe de stdout que el hijo
+// backgroundeado de wl-copy deja abierto para siempre (eso sí cuelga). Stdout
+// va a nil (sin pipe), así que Run() solo espera a que el wl-copy invocado
+// termine de leer stdin y forkee su servidor en background: rápido y sin
+// riesgo de colgarse. Antes usaba Start()+Process.Release() sin esperar la
+// copia del stdin, y como main() llama os.Exit() enseguida, esa goroutine de
+// escritura podía quedar cortada a mitad de camino (payload truncado/vacío
+// pero wl-copy igual salía con exit 0 → falsos "copiados" intermitentes).
 func lanzarWlCopy(mime string, payload []byte) bool {
 	cmd := exec.Command("wl-copy")
 	if mime != "" {
@@ -306,11 +313,10 @@ func lanzarWlCopy(mime string, payload []byte) bool {
 	cmd.Stdin = bytes.NewReader(payload)
 	cmd.Stdout = nil
 	cmd.Stderr = nil
-	if err := cmd.Start(); err != nil {
-		clipboardLog(copyErrPrefix + "wl-copy Start falló (" + mime + "): " + err.Error())
+	if err := cmd.Run(); err != nil {
+		clipboardLog(copyErrPrefix + "wl-copy Run falló (" + mime + "): " + err.Error())
 		return false
 	}
-	cmd.Process.Release()
 	return true
 }
 
