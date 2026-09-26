@@ -20,8 +20,8 @@ Item {
             model: [
                 { icon: "⏻",  label: "Shut down",  cmd: ["systemctl", "poweroff"],        color: Theme.error,   critical: true  },
                 { icon: "󰜉",  label: "Reboot",     cmd: ["systemctl", "reboot"],          color: Theme.warning, critical: true  },
-                { icon: "󰌾",  label: "Lock",       cmd: ["qs","ipc","call","lock","lock"], color: Theme.blue,    critical: false },
-                { icon: "󰍃",  label: "Log out",    cmd: ["hyprctl", "dispatch", "exit"],  color: Theme.purple,  critical: false },
+                { icon: "󰌾",  label: "Lock",       cmd: ["bash", Paths.scripts + "/lock-session.sh"], color: Theme.blue,    critical: false },
+                { icon: "󰍃",  label: "Log out",    cmd: ["uwsm", "stop"],  color: Theme.purple,  critical: false },
                 { icon: "󰒲",  label: "Sleep",      cmd: ["systemctl", "suspend"],         color: Theme.success, critical: false }
             ]
 
