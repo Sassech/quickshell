@@ -82,7 +82,7 @@ start_mpvpaper() {
     # plays the clip once and exits, silently reverting to the swww layer
     # underneath — verified empirically (an 8s test clip vanished after
     # finishing). A wallpaper must loop.
-    mpvpaper -l bottom -s -o "hwdec=auto-safe no-audio loop-file=inf" "$output" "$path" \
+    mpvpaper -l bottom -s -o "hwdec=auto-safe no-audio loop-file=inf video-sync=display-resample framedrop=vo" "$output" "$path" \
         &>"/tmp/qs-mpvpaper-$output.log" &
     local pid=$!
     echo "$pid" > "/tmp/qs-mpvpaper-$output.pid"
