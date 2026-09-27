@@ -6,6 +6,9 @@
 # el nombre del servicio D-Bus contra la clase de la ventana activa.
 # Si hay match → mueve a special:minimized (minimize al tray).
 # Si no hay match → cierra la ventana.
+#
+# Hyprland >= 0.55 (Lua): `hyprctl dispatch <legado>` ya no existe, el CLI
+# envuelve en hl.dispatch(). Se usa sintaxis Lua verificada en vivo.
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -54,7 +57,7 @@ has_sni_match() {
 # ── Acción ────────────────────────────────────────────────────────────────────
 if has_sni_match "$CLASS"; then
     # Minimizar: mover al workspace especial sin mostrarlo
-    hyprctl dispatch movetoworkspacesilent "special:minimized,address:$ADDRESS"
+    hyprctl dispatch "hl.dsp.window.move({ workspace = \"special:minimized\", follow = false, window = \"address:$ADDRESS\" })"
 
     # Si el workspace special:minimized estaba visible antes de mover,
     # ocultarlo para que no quede flotando vacío.
@@ -64,9 +67,9 @@ if has_sni_match "$CLASS"; then
         | jq -r '.[] | select(.name == "special:minimized") | .monitor // empty')
 
     if [[ -n "$MINIMIZED_VISIBLE" ]]; then
-        hyprctl dispatch togglespecialworkspace "minimized"
+        hyprctl dispatch 'hl.dsp.workspace.toggle_special("minimized")'
     fi
 else
     # Cerrar normalmente
-    hyprctl dispatch closewindow "address:$ADDRESS"
+    hyprctl dispatch "hl.dsp.window.close({ window = \"address:$ADDRESS\" })"
 fi

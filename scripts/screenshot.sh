@@ -25,7 +25,7 @@ case "$MODE" in
             hyprpicker -rz &
             HPID=$!
             sleep 0.2
-            hyprctl keyword layerrule "noanim,selection" >/dev/null 2>&1 || true
+            hyprctl eval 'hl.layer_rule({ match = { namespace = "selection" }, no_anim = true })' >/dev/null 2>&1 || true
             workspaces="$(hyprctl monitors -j | jq -r '[(foreach .[] as $monitor (0; if $monitor.specialWorkspace.name == "" then $monitor.activeWorkspace else $monitor.specialWorkspace end)).id]')"
             windows="$(hyprctl clients -j | jq -c --argjson workspaces "$workspaces" 'map(select([.workspace.id] | inside($workspaces)))')"
             GEOM="$(jq -r '.[] | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"' <<<"$windows" | slurp -r 2>/dev/null)" || true

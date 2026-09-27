@@ -36,7 +36,8 @@ Rectangle {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: {
-            Hyprland.dispatch("workspace " + root.workspace.id)
+            // Hyprland >= 0.55 (Lua): legacy "workspace N" no longer parses, use Lua dispatcher.
+            Hyprland.dispatch('hl.dsp.focus({ workspace = "' + root.workspace.id + '" })')
         }
     }
 }

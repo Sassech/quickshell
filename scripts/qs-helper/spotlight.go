@@ -157,7 +157,7 @@ func hyprWindows(query string) []spotlightItem {
 			Type:     "win",
 			Name:     title,
 			Detail:   detail,
-			Exec:     "hyprctl dispatch focuswindow address:" + addr,
+			Exec:     "hyprctl dispatch 'hl.dsp.focus({ window = \"address:" + addr + "\" })'",
 			Icon:     "󰕮",
 			IconPath: "",
 			score:    s,
