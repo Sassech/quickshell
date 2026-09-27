@@ -96,9 +96,11 @@ PanelWindow {
 
     // Búsqueda Daemon persistente (spotlight --daemon): mantiene scanApps + icon cache calientes en memoria para eliminar el overhead por
     // invocación de ~100-200ms. Protocolo JSON-lines por request id: stdin manda {"id", "query"} y stdout responde {"id","items"} con el MISMO id.
+    // Lazy-start daemon: idle cost is 3x processes (one per screen) with
+    // zero benefit until first open. runSearch() starts it on demand.
     Process {
         id: daemon
-        running: true
+        running: false
         command: [Paths.scripts + "/qs-helper/qs-helper",
                   "spotlight",
                   "--daemon"]

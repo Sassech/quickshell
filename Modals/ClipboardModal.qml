@@ -86,10 +86,11 @@ QmModalBase {
         onTriggered: root.updateDisplay()
     }
 
-    // Daemon persistente (clipboard --daemon)
+    // Lazy-start daemon: idle cost is 3x processes (one per screen).
+    // loadEntries() starts it on first open.
     Process {
         id: listProc
-        running: true
+        running: false
         command: [Paths.scripts + "/qs-helper/qs-helper", "clipboard", "--daemon"]
         stdout: SplitParser {
             splitMarker: "\n"
@@ -97,14 +98,17 @@ QmModalBase {
         }
         onStarted: {
             root._daemonReady = true
-            if (root.isLoading) root.loadEntries()
+            // Dispatch pending refresh directly: loadEntries() is guarded by
+            // isLoading and would no-op here on lazy first start.
+            if (root.isLoading) listProc.write(JSON.stringify({ id: root._activeReqId, cmd: "refresh" }) + "\n")
         }
         // qmllint disable signal-handler-parameters
         onExited: function() {
             root._daemonReady = false
             root.isLoading = false
             listWatchdog.stop()
-            if (!root._destroying) listProc.running = true
+            // Restart only when needed (open or loading); idle respawn is waste.
+            if (!root._destroying && (root.visible || root.isLoading)) listProc.running = true
         }
         // qmllint enable signal-handler-parameters
     }

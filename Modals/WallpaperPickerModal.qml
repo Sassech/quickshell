@@ -177,11 +177,11 @@ QmModalBase {
         wallDaemon.write(JSON.stringify({ id: path, folder: path, force: !!force }) + "\n")
     }
 
-    // Daemon persistente (wallpaper-multi --daemon)
-    // Mantiene el listado y los thumbnails calientes en memoria por carpeta.
+    // Lazy-start daemon: idle cost is 3x processes (one per screen).
+    // _requestFolder() starts it on first open.
     Process {
         id: wallDaemon
-        running: true
+        running: false
         command: [Paths.scripts + "/qs-helper/qs-helper", "wallpaper-multi", "--daemon"]
         stdout: SplitParser {
             splitMarker: "\n"
@@ -198,7 +198,8 @@ QmModalBase {
         onExited: function() {
             root._daemonReady = false
             root._loading = false
-            if (!root._destroying) wallDaemon.running = true
+            // Restart only while open; idle respawn is waste.
+            if (!root._destroying && root.visible) wallDaemon.running = true
         }
         // qmllint enable signal-handler-parameters
     }
