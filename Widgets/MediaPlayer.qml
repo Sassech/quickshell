@@ -10,16 +10,14 @@ Row {
     // Player state
     property MprisPlayer _cachedPlayer: null
 
-    // El wallpaper de video (mpvpaper → mpv) toma el bus canónico org.mpris.MediaPlayer2.mpv; el mpv real del usuario, al abrirse después, queda como org.mpris.MediaPlayer2.mpv.instance-XXXX. Se banea
-    // el canónico SOLO cuando coexiste una instancia real: entonces el canónico es el wallpaper (Playing en loop perpetuo) y el instance es el mpv del usuario.
+    // El wallpaper de video (mpvpaper → mpv) ocupa el bus canonico org.mpris.MediaPlayer2.mpv
+    // en loop perpetuo (Playing siempre). El mpv real del usuario aparece como
+    // org.mpris.MediaPlayer2.mpv.instance-XXXX. Se banea siempre el canonico:
+    // solo las instancias reales cuentan como musica valida. Sin esto, cava
+    // queda encendido fantasma aunque no haya musica.
     function _isBanned(p) {
         const name = (p.dbusName ?? p.busName ?? "")
-        if (name !== "org.mpris.MediaPlayer2.mpv") return false
-        const players = Mpris.players.values ?? []
-        return players.some(q => {
-            const n = (q.dbusName ?? q.busName ?? "")
-            return n.startsWith("org.mpris.MediaPlayer2.mpv.instance")
-        })
+        return name === "org.mpris.MediaPlayer2.mpv"
     }
 
     function _updateCachedPlayer() {
