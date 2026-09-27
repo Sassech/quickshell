@@ -10,8 +10,8 @@ Rectangle {
     height: 20
     color: "transparent"
     radius: 4
-    layer.enabled: true
-    layer.smooth: true
+    // NOTE: no layer.enabled here — offscreen FBO x3 screens is wasteful
+    // with no shader; rounded corners composite directly.
 
     property bool isPlaying: false
     property var audioLevels: [0, 0, 0, 0, 0, 0, 0, 0]
@@ -30,7 +30,17 @@ Rectangle {
         }
     }
 
-    Component.onCompleted: cavaProcess.running = true
+    // Gate cava on playback: idle cava wastes a full process + 15 parses/sec
+    // per screen with no audible output. Start on play, stop on pause.
+    onIsPlayingChanged: {
+        if (root.isPlaying) {
+            if (!cavaProcess.running) cavaProcess.running = true
+        } else if (cavaProcess.running) {
+            cavaProcess.running = false
+        }
+    }
+
+    Component.onCompleted: cavaProcess.running = root.isPlaying
 
     Process {
         id: cavaProcess
@@ -39,7 +49,7 @@ Rectangle {
             "cfg=\"${XDG_RUNTIME_DIR:-/tmp}/quickshell-cava-${UID:-1000}.conf\" && " +
             "mkdir -p \"${XDG_RUNTIME_DIR:-/tmp}\" && " +
             "cat > \"$cfg\" <<'CAVAEOF'\n" +
-            "[general]\nbars = 8\nframerate = 15\n\n" +
+            "[general]\nbars = 8\nframerate = 10\n\n" +
             "[input]\nmethod = pulse\nsource = " + root.cavaSource + "\n\n" +
             "[output]\nmethod = raw\nraw_target = /dev/stdout\n" +
             "data_format = ascii\nascii_max_range = 16\nbar_delimiter = 32\nCAVAEOF\n" +
@@ -105,22 +115,15 @@ Rectangle {
                     color: barItem._playing ? Theme.accent : Theme.surface3
                     radius: 1.5
 
-                    // GPU-accelerated: scale en Y no dispara re-layout
+                    // GPU-accelerated: scale en Y no dispara re-layout.
+                    // Sin Behavior: cava emite a 10fps y el suavizado de 100ms
+                    // mantenia 24 animaciones concurrentes (8 barras x 3 pantallas)
+                    // siempre dirty a 120Hz. El escalon directo a 10fps se ve bien
+                    // y deja descansar al render thread.
                     transform: Scale {
                         origin.x: 0
                         origin.y: barItem.height
                         yScale: barItem.targetScale
-
-                        Behavior on yScale {
-                            NumberAnimation {
-                                duration: 66
-                                easing.type: Easing.OutCubic
-                            }
-                        }
-                    }
-
-                    Behavior on color {
-                        ColorAnimation { duration: 300 }
                     }
                 }
             }
