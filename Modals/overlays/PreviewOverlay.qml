@@ -34,5 +34,7 @@ OverlayWindow {
         sourceSize: Qt.size(200, 200)
         fillMode: Image.PreserveAspectFit
         asynchronous: true
+        // Pause GIF decode when overlay is hidden (3x decoders otherwise).
+        playing: root.visible
     }
 }
