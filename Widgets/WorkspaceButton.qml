@@ -37,7 +37,8 @@ Rectangle {
         cursorShape: Qt.PointingHandCursor
         onClicked: {
             // Hyprland >= 0.55 (Lua): legacy "workspace N" no longer parses, use Lua dispatcher.
-            Hyprland.dispatch('hl.dsp.focus({ workspace = "' + root.workspace.id + '" })')
+            // workspace.id es numérico (HyprlandWorkspace) — sin comillas en el payload Lua.
+            Hyprland.dispatch('hl.dsp.focus({ workspace = ' + root.workspace.id + ' })')
         }
     }
 }

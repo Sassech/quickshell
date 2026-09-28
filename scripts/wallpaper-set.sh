@@ -11,8 +11,10 @@
 #   wallpaper-set.sh --restore             → restaura el fondo de cada monitor conectado
 #                                             desde lo persistido (usado al arrancar)
 #
-# Hyprland keybind:
-#   bind = $mod SHIFT, T, exec, ~/.config/quickshell/scripts/wallpaper-set.sh
+# Hyprland keybind (Lua 0.56+, hyprland.conf.lua — ejemplo genérico):
+#   hl.bind({ mods = { "$mod", "SHIFT" }, key = "T",
+#             action = "exec", arg = "wallpaper-set.sh" })
+# Legacy .conf syntax ("bind = $mod SHIFT, T, exec, ...") does not parse in Lua 0.56.
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
