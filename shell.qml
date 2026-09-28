@@ -442,16 +442,16 @@ ShellRoot {
             Connections {
                 target: root
                 function onBroadcastCloseAll(screen) { root.closeModalOnScreen(clockModalInst, screen) }
+                function onBroadcastClock(screen) { root.toggleModal(clockModalInst, screen) }
             }
         }
     }
 
-    // Clock broadcast ahora toggles ClockOverlay (no modal); TopBar Clock -> overlay glanceable
+    // Clock broadcast desconectado del overlay (se ve con mod+p);
+    // el click del reloj abre el ClockModal con historial.
     Connections {
         target: root
         function onBroadcastClock(screen) {
-            var e = OverlaysManager.get("clock")
-            if (e) e.enabled = !e.enabled
         }
     }
 
