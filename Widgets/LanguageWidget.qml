@@ -22,9 +22,11 @@ Rectangle {
         target: Hyprland
         function onRawEvent(event) {
             if (event.name === "activelayout") {
-                const parts = event.data.split(",")
-                if (parts.length >= 2) {
-                    const name = parts[1].trim()
+                // Corte en la PRIMERA coma (igual que CcLanguageController):
+                // el device puede contener comas, el layout nunca se interpreta al revés.
+                const i = event.data.indexOf(",")
+                if (i >= 0) {
+                    const name = event.data.substring(i + 1).trim()
                     if (name) root.layout = name.substring(0, 3).toUpperCase()
                 }
             }
