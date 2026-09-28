@@ -20,8 +20,9 @@ OverlayWindow {
     // Mapeo al template
     corner:         root.position
     overlayWidth:   root.popupWidth
-    // +32px cuando hay botones de acción (fila extra abajo).
-    overlayHeight:  root.notifActions.length > 0 ? 132 : 100
+    // Altura dinámica acotada: contenido + padding, min 100 max 180.
+    // Con acciones se suma la fila extra de botones.
+    overlayHeight: Math.min(180, Math.max(100, contentRow.implicitHeight + 32 + (root.notifActions.length > 0 ? 42 : 0)))
     autoHideMs:     root.dismissMs
     borderColor:    root.notifIsMedia ? Theme.accent
                   : root.notifActive  ? Theme.warning
@@ -56,17 +57,7 @@ OverlayWindow {
         if (def) def.invoke()
     }
 
-    // Franja de acento izquierda (4px, condicional)
-    Rectangle {
-        anchors.left: parent.left
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        width: 4
-        radius: 2
-        color: root.notifIsMedia ? Theme.accent
-             : root.notifActive  ? Theme.warning
-             : Theme.muted3
-    }
+    // Franja izquierda removida por diseño
 
     // Gradiente sutil
     Rectangle {
@@ -103,6 +94,7 @@ OverlayWindow {
     // Contenido principal (ícono + texto) Con botones de acción el contenido se ancla arriba para dejar libre el fondo (evita que el texto y los
     // botones se superpongan); sin acciones queda centrado verticalmente como antes.
     Row {
+        id: contentRow
         anchors {
             left: parent.left
             leftMargin: 16
@@ -157,6 +149,9 @@ OverlayWindow {
                 color: Theme.text
                 font.pixelSize: 20
                 font.bold: true
+                width: parent._textWidth
+                maximumLineCount: 1
+                elide: Text.ElideRight
                 visible: root.notifTitle.length > 0
             }
 
@@ -165,25 +160,31 @@ OverlayWindow {
                 color: Theme.muted1
                 font.pixelSize: 18
                 width: parent._textWidth
-                wrapMode: Text.WordWrap
+                wrapMode: Text.WrapAnywhere
+                maximumLineCount: 2
+                elide: Text.ElideRight
             }
         }
     }
 
     // Botones de acción (NotificationAction[], excluye "default")
+    // Máximo 3 visibles, alineados a derecha, con ancho acotado y elide.
     Row {
         visible: notifActionsRepeater.count > 0
         anchors {
             bottom: parent.bottom
-            right:  parent.right
+            left: parent.left
+            right: parent.right
             bottomMargin: 10
+            leftMargin: 14
             rightMargin: 14
         }
+        layoutDirection: Qt.RightToLeft
         spacing: 8
 
         Repeater {
             id: notifActionsRepeater
-            model: root.notifActions.filter(a => a.identifier !== "default")
+            model: root.notifActions.filter(a => a.identifier !== "default").slice(0, 3)
 
             Rectangle {
                 id: actionBtn
@@ -192,12 +193,16 @@ OverlayWindow {
                 color: actionMouse.containsMouse ? Theme.hover : Theme.cardBg3
                 border.color: Theme.muted3
                 border.width: 1
-                implicitWidth:  actionLabel.implicitWidth + 20
+                implicitWidth: actionLabel.width + 20
                 implicitHeight: 26
+                clip: true
 
                 Text {
                     id: actionLabel
                     anchors.centerIn: parent
+                    width: Math.min(100, implicitWidth)
+                    maximumLineCount: 1
+                    elide: Text.ElideRight
                     text: actionBtn.modelData.text
                     color: Theme.text
                     font.pixelSize: 13
