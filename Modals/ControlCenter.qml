@@ -430,7 +430,10 @@ PanelWindow {
                 btCtrl._btScanTimer.stop()
                 btCtrl._btActionTimeout.stop()
                 btCtrl._btAutoConnTimer.stop()
-                btCtrl._btConnectRetryTimer.stop()
+                // El retry único ahora usa dos timers (renombrado en el controller):
+                // parar ambos para no dejar reintentos colgados al cerrar el panel.
+                btCtrl._btConnectConfirmTimer.stop()
+                btCtrl._btRetryDelayTimer.stop()
             }
             root._activePanel = ""
             // Devolver foco a la card para que un segundo ESC cierre el CC

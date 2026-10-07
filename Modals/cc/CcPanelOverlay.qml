@@ -109,6 +109,12 @@ Item {
     // Visibilidad
     visible: root.activePanel !== ""
 
+    // Cierre con ESC igual que QmModalBase: el overlay es hermano de ccCard,
+    // así que el ESC de ccCard nunca llega acá si el foco está en el panel.
+    focus: true
+    Keys.onEscapePressed: root.closePanel()
+    onVisibleChanged: { if (visible) root.forceActiveFocus() }
+
     Rectangle {
         anchors.fill: parent
         color: Qt.rgba(0, 0, 0, 0.35)
@@ -158,6 +164,9 @@ Item {
                 // Cuando cambia el panel, diferir la actualización de tamaño
                 // para que el Loader tenga tiempo de instanciar su item.
                 loaderReadyTimer.restart()
+                // Tomar foco para que ESC llegue al overlay (no a ccCard).
+                if (root.activePanel !== "")
+                    root.forceActiveFocus()
             }
         }
 

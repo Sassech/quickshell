@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls
 import Quickshell
 import Quickshell.Bluetooth
 import Quickshell.Widgets
@@ -22,6 +23,17 @@ Rectangle {
         border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)
         border.width: 1
     }
+
+    // Tragar clicks dentro del panel para que no caigan al backdrop del
+    // overlay (que cierra con click fuera). Los hijos van encima.
+    // onClicked vacío = consumir (mismo patrón que QmModalBase).
+    MouseArea { anchors.fill: parent; onClicked: {} }
+
+    // Cierre con ESC igual que los demás modales (QmModalBase / ScreenshotModal).
+    // Los eventos de hijos enfocados burbujean hasta acá si no los manejan.
+    focus: true
+    Keys.onEscapePressed: root.closeRequested()
+    Component.onCompleted: root.forceActiveFocus()
 
     required property var    btAdapter
     required property bool   btAvailable
@@ -178,9 +190,24 @@ Rectangle {
             }
         }
 
-        Column {
+        // Lista de dispositivos con scroll acotado, igual que el panel WiFi
+        Flickable {
             visible: root.btAvailable && root.btPwrd
-            width: parent.width; spacing: 4
+            width: parent.width
+            height: Math.min(contentHeight, 300)
+            contentWidth: width
+            contentHeight: btDevicesCol.implicitHeight
+            clip: true
+            boundsMovement: Flickable.StopAtBounds
+
+            ScrollBar.vertical: ScrollBar {
+                policy: ScrollBar.AsNeeded
+                contentItem: Rectangle { implicitWidth: 4; radius: 2; color: Theme.surface3 }
+            }
+
+            Column {
+                id: btDevicesCol
+                width: parent.width; spacing: 4
 
             Text {
                 visible: root.btPairedCount > 0
@@ -194,7 +221,7 @@ Rectangle {
                 clip: false
                 spacing: 4
                 model: root.btPairedList
-                interactive: false   // el scroll lo maneja el Column padre
+                interactive: false   // el scroll lo maneja el Flickable padre
 
                 delegate: Column {
                     id: btPairedEntry
@@ -481,6 +508,7 @@ Rectangle {
                         }
                     }
                 }
+            }
             }
         }
     }

@@ -27,7 +27,7 @@ QtObject {
     property var    _btActionDevice:    null
     property string _btActionType:      ""
     property bool   _btSawConnecting:   false
-    property int    _btConnectRetries:  0
+    property bool   _btRetriedThisClick: false
     property bool   _btAutoConnRunning: false
     property var    _btAutoConnQueue:   []
     property var    _btAutoConnDevice:  null
@@ -98,10 +98,11 @@ QtObject {
         root._btActionDevice    = null
         root._btActionType      = ""
         root._btSawConnecting   = false
-        root._btConnectRetries  = 0
+        root._btRetriedThisClick = false
         if (msg !== undefined) root._btStatusMsg = msg
         btActionTimeout.stop()
-        btConnectRetryTimer.stop()
+        btConnectConfirmTimer.stop()
+        btRetryDelayTimer.stop()
     }
 
     function btRefreshDeviceLists() {
@@ -176,11 +177,25 @@ QtObject {
     function btConnectDevice(device) {
         if (!device) return
         if (!root._btPwrd) { root._btStatusMsg = root._btMsgNoPower; return }
-        if (device.state === BluetoothDeviceState.Connecting || device.connected) return
+        root._btRetriedThisClick = false
+        btConnectConfirmTimer.stop()
+        btRetryDelayTimer.stop()
+        if (device.connected) return
+        if (device.state === BluetoothDeviceState.Connecting
+                || device.state === BluetoothDeviceState.Disconnecting) {
+            // Click durante una transición: enganchar y seguir en vez de ignorar en silencio
+            root._btActionDevice = device
+            root._btActionType   = "connect"
+            root._btWorking      = true
+            root._btStatusMsg    = ""
+            btActionTimeout.restart()
+            return
+        }
         root._btActionDevice   = device
         root._btActionType     = "connect"
         root._btWorking        = true
         root._btStatusMsg      = ""
+        btConnectConfirmTimer.stop()
         device.connect()
         btActionTimeout.restart()
     }
@@ -237,16 +252,41 @@ QtObject {
         onTriggered: root.btAutoConnNext()
     }
 
-    property var _btConnectRetryTimer: Timer {
-        id: btConnectRetryTimer
-        interval: 1500
+    property var _btRetryDelayTimer: Timer {
+        id: btRetryDelayTimer
+        interval: 4000
         onTriggered: {
-            if (!root._btActionDevice || root._btActionType !== "connect") return
-            root._btConnectRetries++
-            root._btSawConnecting = false
-            root._btWorking = true
-            root._btActionDevice.connect()
-            btActionTimeout.restart()
+            // Reintento único sobre BlueZ en idle: solo conectar si la acción sigue
+            // vigente y el estado está quieto en Disconnected (sin desconectar antes)
+            var d = root._btActionDevice
+            if (root._btActionType === "connect" && d && !d.connected
+                    && d.state === BluetoothDeviceState.Disconnected) {
+                root._btSawConnecting = false
+                root._btWorking = true
+                d.connect()
+                btActionTimeout.restart()
+            } else {
+                root.btResetAction(root._btMsgConnFailed)
+            }
+        }
+    }
+
+    property var _btConnectConfirmTimer: Timer {
+        id: btConnectConfirmTimer
+        interval: 2000
+        onTriggered: {
+            // Confirmación de conexión: solo éxito si el enlace sigue arriba tras el handshake de perfiles
+            if (root._btActionType !== "connect" || !root._btActionDevice) return
+            if (root._btActionDevice.connected) {
+                root.btResetAction(root._btMsgConnected)
+            } else if (!root._btRetriedThisClick) {
+                // Un solo reintento diferido: marcar y esperar a BlueZ en idle, sin desconectar
+                root._btRetriedThisClick = true
+                root._btWorking = true
+                btRetryDelayTimer.restart()
+            } else {
+                root.btResetAction(root._btMsgConnFailed)
+            }
         }
     }
 
@@ -309,8 +349,21 @@ QtObject {
         function onConnectedChanged() {
             if (!root._btActionDevice) return
             if (root._btActionType === "connect" && root._btActionDevice.connected) {
-                root._btConnectRetries = 0
-                root.btResetAction(root._btMsgConnected)
+                // El ACL sube antes del handshake de perfiles: confirmar con timer en vez de éxito inmediato
+                root._btWorking = true
+                btConnectConfirmTimer.restart()
+            } else if (root._btActionType === "connect" && !root._btActionDevice.connected) {
+                // Flap durante la ventana de confirmación: un solo reintento diferido, sin desconectar
+                if (btConnectConfirmTimer.running) {
+                    btConnectConfirmTimer.stop()
+                    if (!root._btRetriedThisClick) {
+                        root._btRetriedThisClick = true
+                        root._btWorking = true
+                        btRetryDelayTimer.restart()
+                    } else {
+                        root.btResetAction(root._btMsgConnFailed)
+                    }
+                }
             } else if (root._btActionType === "disconnect" && !root._btActionDevice.connected) {
                 root.btResetAction(root._btMsgDisconnected)
             }
@@ -322,10 +375,13 @@ QtObject {
                 root._btSawConnecting = true
             } else if (s === BluetoothDeviceState.Disconnected && root._btSawConnecting) {
                 root._btSawConnecting = false
-                if (root._btConnectRetries < 2) {
-                    btConnectRetryTimer.start()
+                // Caída durante el intento: un solo reintento diferido sobre BlueZ en idle, sin desconectar
+                btConnectConfirmTimer.stop()
+                if (!root._btRetriedThisClick) {
+                    root._btRetriedThisClick = true
+                    root._btWorking = true
+                    btRetryDelayTimer.restart()
                 } else {
-                    root._btConnectRetries = 0
                     root.btResetAction(root._btMsgConnFailed)
                 }
             }
