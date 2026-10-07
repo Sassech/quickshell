@@ -190,6 +190,7 @@ QmModalBase {
                                     id: notifItem
                                     required property var modelData
                                     required property int index
+                                    property bool expanded: false
                                     width: parent.width
                                     implicitHeight: notifRow.implicitHeight + 20
                                     radius: 10
@@ -264,14 +265,28 @@ QmModalBase {
                                             }
 
                                             Text {
+                                                id: histBodyText
                                                 text: notifItem.modelData.notifBody ?? ""
                                                 color: Theme.muted1
                                                 font.pixelSize: 11
                                                 width: parent.width
-                                                wrapMode: Text.WordWrap
-                                                maximumLineCount: 2
-                                                elide: Text.ElideRight
+                                                wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                                                maximumLineCount: notifItem.expanded ? 20 : 2
+                                                elide: notifItem.expanded ? Text.ElideNone : Text.ElideRight
                                                 visible: text.length > 0
+                                            }
+
+                                            Text {
+                                                text: notifItem.expanded ? "ver menos" : "ver más…"
+                                                color: Theme.accent
+                                                font.pixelSize: 10
+                                                visible: histBodyText.truncated || notifItem.expanded
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: notifItem.expanded = !notifItem.expanded
+                                                }
                                             }
 
                                             Text {

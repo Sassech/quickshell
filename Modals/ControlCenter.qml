@@ -433,6 +433,9 @@ PanelWindow {
                 btCtrl._btConnectRetryTimer.stop()
             }
             root._activePanel = ""
+            // Devolver foco a la card para que un segundo ESC cierre el CC
+            // (el overlay se lo había llevado al abrir el panel).
+            ccCard.forceActiveFocus()
         }
 
         onWifiToggleRadio:    root.wifiToggleRadio()

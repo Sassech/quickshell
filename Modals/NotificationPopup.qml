@@ -20,9 +20,10 @@ OverlayWindow {
     // Mapeo al template
     corner:         root.position
     overlayWidth:   root.popupWidth
-    // Altura dinámica acotada: contenido + padding, min 100 max 180.
+    // Altura dinámica acotada: contenido + padding, min 100 max 180 colapsado.
+    // Expandido permite hasta 380 para mensaje completo sin tapar la pantalla.
     // Con acciones se suma la fila extra de botones.
-    overlayHeight: Math.min(180, Math.max(100, contentRow.implicitHeight + 32 + (root.notifActions.length > 0 ? 42 : 0)))
+    overlayHeight: Math.min(root.bodyExpanded ? 380 : 180, Math.max(100, contentRow.implicitHeight + 32 + (root.notifActions.length > 0 ? 42 : 0)))
     autoHideMs:     root.dismissMs
     borderColor:    root.notifIsMedia ? Theme.accent
                   : root.notifActive  ? Theme.warning
@@ -37,6 +38,7 @@ OverlayWindow {
     property bool   notifActive:  false
     property bool   notifIsMedia: false
     property var    notifActions: []   // NotificationAction[] (id, text, invoke())
+    property bool   bodyExpanded: false  // colapsado (2 líneas + ...) vs expandido (mensaje completo)
 
     function show(title, body, icon, active, isMedia, actions) {
         notifTitle   = title
@@ -45,6 +47,7 @@ OverlayWindow {
         notifActive  = active
         notifIsMedia = isMedia ?? false
         notifActions = actions ?? []
+        bodyExpanded = false
         // Crítica/urgente → no se autocierra, el usuario la cierra a mano.
         root.autoHideSuppressed = active
         root._animateIn()
@@ -156,13 +159,36 @@ OverlayWindow {
             }
 
             Text {
+                id: bodyText
                 text: root.notifBody
                 color: Theme.muted1
                 font.pixelSize: 18
                 width: parent._textWidth
-                wrapMode: Text.WrapAnywhere
-                maximumLineCount: 2
-                elide: Text.ElideRight
+                wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                maximumLineCount: root.bodyExpanded ? 10 : 2
+                elide: root.bodyExpanded ? Text.ElideNone : Text.ElideRight
+            }
+
+            // Toggle ver más / ver menos: solo cuando el cuerpo está truncado o expandido.
+            // MouseArea propio (hermano superior al fondo) para no disparar hide()/default-action.
+            Text {
+                text: root.bodyExpanded ? "ver menos" : "ver más…"
+                color: Theme.accent
+                font.pixelSize: 13
+                font.underline: toggleHover.containsMouse
+                visible: root.notifBody.length > 0 && (bodyText.truncated || root.bodyExpanded)
+
+                MouseArea {
+                    id: toggleHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        root.bodyExpanded = !root.bodyExpanded
+                        // Expandido se queda fijo hasta cierre manual para dar tiempo a leer.
+                        root.autoHideSuppressed = root.notifActive || root.bodyExpanded
+                    }
+                }
             }
         }
     }
